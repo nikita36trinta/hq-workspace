@@ -1,3 +1,7 @@
 [submodule "pipelines"]
 	path = .hq/pipelines
 	url = git@github.com:hq-org/pipelines.git
+[submodule "projects/venusx/worktrees/main"]
+	path = projects/venusx/worktrees/main
+	url = git@github.com:digiterium/venusx.git
+	branch = main
