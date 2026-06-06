@@ -1,0 +1,7 @@
+node_modules/
+.rigid/
+
+# Central runtime dir (.hq/_runtime/) — ephemeral contents, keep the dir itself
+# tracked so the canonical path always exists after a fresh clone.
+.hq/_runtime/*
+!.hq/_runtime/.gitkeep

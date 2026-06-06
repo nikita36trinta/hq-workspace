@@ -1,0 +1,10 @@
+{
+	"name": "workspace-template",
+	"private": true,
+	"scripts": {
+		"pipeline": "PIPELINE_RUNTIME_DIR=\"$PWD/.hq/_runtime\" bun --cwd=.hq/pipelines run pipeline --workspace=\"$PWD\" --runtime-dir=\"$PWD/.hq/_runtime\""
+	},
+	"dependencies": {
+		"@rigid/cli": "git+ssh://git@github.com/hq-org/rigid.git#release"
+	}
+}

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rigid help *)",
+      "Bash(rigid check)",
+      "Bash(rigid graph schema *)",
+      "Bash(rigid graph query *)",
+      "Bash(rigid doc add *)",
+      "Bash(rigid migrate status)",
+      "Skill(ingest)"
+    ]
+  }
+}
