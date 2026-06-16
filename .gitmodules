@@ -5,3 +5,11 @@
 	path = projects/venusx/worktrees/main
 	url = git@github.com:digiterium/venusx.git
 	branch = main
+[submodule "projects/osmix/worktrees/main"]
+	path = projects/osmix/worktrees/main
+	url = git@github.com:digiterium/osmix.git
+	branch = main
+[submodule "projects/eclion/worktrees/master"]
+	path = projects/eclion/worktrees/master
+	url = git@github.com:digiterium/eclion.git
+	branch = master

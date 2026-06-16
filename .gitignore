@@ -5,3 +5,5 @@ node_modules/
 # tracked so the canonical path always exists after a fresh clone.
 .hq/_runtime/*
 !.hq/_runtime/.gitkeep
+.runtime/
+.DS_Store

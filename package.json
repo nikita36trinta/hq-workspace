@@ -2,7 +2,8 @@
 	"name": "workspace-template",
 	"private": true,
 	"scripts": {
-		"pipeline": "PIPELINE_RUNTIME_DIR=\"$PWD/.hq/_runtime\" bun --cwd=.hq/pipelines run pipeline --workspace=\"$PWD\" --runtime-dir=\"$PWD/.hq/_runtime\""
+		"pipeline": "PIPELINE_RUNTIME_DIR=\"$PWD/.hq/_runtime\" bun --cwd=.hq/pipelines run pipeline --workspace=\"$PWD\" --runtime-dir=\"$PWD/.hq/_runtime\"",
+		"postinstall": "if [ -d node_modules/@rigid/cli/vendor/app ]; then mkdir -p node_modules/@rigid/cli/node_modules/@rigid && ln -sfn ../../vendor/app node_modules/@rigid/cli/node_modules/@rigid/app; fi"
 	},
 	"dependencies": {
 		"@rigid/cli": "git+ssh://git@github.com/hq-org/rigid.git#release"
