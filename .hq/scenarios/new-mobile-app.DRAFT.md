@@ -2,6 +2,12 @@
 
 > Discovery-черновик из анализа eclion + osmix (Expo/React Native). Не закоммичен как проверенный рецепт — это карта для Фазы 1. Закаляется по мере реализации пайплайнов.
 
+> **Update 2026-06-22 — `logic-audit` стал ОБЯЗАТЕЛЬНЫМ шагом + расширены проверки; refresh/native-фиксы прокинуты в фабрику.** (1) В `scaffold-app` починены два системных бага шаблона, ловившиеся вручную на VenusX: **refresh-токен** (клиент слал `{refresh}`/читал `access`/не сохранял ротированный токен — рассинхрон с gen-backend `{refresh_token}`→`{access_token,refresh_token}`; следствие — разлогин при истечении access-токена) и **краш от нативного модуля** (`wireOnlineManager` дёргал `require(netinfo)` без проверки → белый экран, если модуля нет в сборке; теперь probe `NativeModules.RNCNetInfo` + guard). (2) `logic-audit` теперь **обязательный QA-гейт** сценария (раньше существовал, но не запускался — а ловит половину типовых дефектов: валидация, согласия, signOut-before-navigate, мёртвые кнопки, in-place-селекторы). Прогонять ПОСЛЕ `gen-screen-from-spec`/`localize-app`, его `REPORT.md` (must-fix → nice-to-have) — вход в fix-работу перед `verify-app-build`. (3) В чек-лист `logic-audit` добавлены правила 11–15: контракт refresh-токена (клиент↔бэкенд), guard статических импортов опциональных нативных модулей, безопасность деструктивных операций (re-auth пароля на бэке; «удалить данные» не должно делать `DELETE FROM users`), drift «in-place таб vs standalone-экран», плейсхолдеры/невидимый контент (юр-документы-заглушки, серое-на-сером «Скоро»). Плюс: если рядом есть `backend/`, проверять `src/routes/**` на деструктив-re-auth и `TODO … mock`-заглушки (напр. логаут, не отзывающий семью refresh-токенов).
+
+> **Update 2026-06-20 — реализован `map-user-flows`** (кандидат #13, генерация E2E-покрытия) + прокинуты накопленные правила в фабрику. (1) `map-user-flows`: пост-шаг после готового приложения — детерминированно инвентаризует экраны/нав (001-inventory), Claude-агентом выводит типовые пользовательские journeys (002-flows), затем детерминированно кодогенерит Maestro-флоу (003-emit): cold-launch+onboarding-skip для гостевых, login-subflow для авторизованных, **signup-subflow для деструктивных** (чтобы не трогать общий демо-аккаунт), `pressKey: Enter` после каждого ввода (числовая клавиатура iOS без submit-кнопки), scroll+centerElement для кнопок ниже сгиба. Прогнан на VenusX (25 journeys → флоу; 8 падавших доведены до зелёного). Ставится после `gen-screen-from-spec`/`localize-app`, его флоу гоняет `verify-app-build`/Maestro. (2) В `gen-screen-llm` (`DEFECT_RULES`) добавлены правила 10–14: dark-mode (всё из `colors.*`, не хардкод light-mode hex), value-text=`colors.text`, data-states (loading-`<Skeleton>`/empty/error), `<HeaderControls/>` вместо мёртвых Light/RU-лейблов, навигация через `useNavigation().navigate/goBack`. (3) `scaffold-app` теперь кладёт `<HeaderControls/>` (рабочий переключатель темы+языка) и `<Skeleton/>` (анимированный лоадер) в `src/components`. (4) Статик-чекер `check-screen-defects.ts` дополнен правилами #10/#10b/#13/#14 и обезврежен от ложняков (shadowColor, упоминания тегов в комментариях).
+
+> **Update 2026-06-18 — реализован `localize-app`** (кандидат #12, **опциональный** шаг локализации). Генератор-агностичный пост-шаг: проход Claude Agent SDK (Opus) по cwd приложения — выносит хардкод-строки в `t('<ns>.<key>')`, пишет/дополняет `src/i18n/locales/<lang>.json` на каждый язык (исходный — дословно, остальные — перевод с учётом домена), поднимает `useTranslation`+рантайм i18n, добавляет переключатель языка на экране настроек, сам проверяет (tsc + grep остатков + парность ключей). Ставится в сценарий ПОСЛЕ `gen-screen-from-spec` и **только для многоязычных приложений** — для монолингвальных пропускается целиком (scaffold-app и так кладёт ru-default i18n-инфру). Проверен на VenusX (63 экрана → ru+en, 651 ключ, переключатель, 34/34 E2E зелёные). Аргументы: `cwd`, `languages` (первый = исходный), `focus` (доменная подсказка для качества перевода).
+
 > **Update 2026-06-13 (d) — реализован `verify-app-build`** (QA-гейт совместимости, кандидат #11). Берёт N file-map'ов генераторов (scaffold + gen-api-client + …) → материализует во временное приложение → РЕАЛЬНЫЙ `bun install --ignore-scripts` → `tsc --noEmit` на родном tsconfig (настоящие типы Expo/RN) → verdict.json {ok, installOk, typecheckOk, errors}. Кодифицирует ручную проверку, поймавшую mmkv v4-vs-v3 — теперь совместимость проверяется ВСЕГДА, а не на стабах. Это финальный гейт сценария; принимает maps аргументом, поэтому проверяет реальную КОМПОЗИЦИЮ. Доказанный срез на VenusX: scaffold(34, mmkv ^3.3.0) + api(20) → install + tsc чисто.
 
 > **Update 2026-06-13 (c) — реализован `scaffold-app`** (foundation). Детерминированный (без LLM) генератор стандартного Expo/RN-скелета из spec.json: конфиги (package.json, app.config.ts, tsconfig, babel, metro+svg, eas.json 3 профиля) + ядро src/ (Providers tree, MMKV general+secure, axios+single-flight refresh, React Query persist, Theme/Auth контексты, токен-тема createStyles, i18n ru-default, ScreenContainer/Button/AppText, nav-гейт). Имя/bundle (com.whyti.<slug>)/scheme/локали из spec; divergence-дефолты из config (nav=flat, auth=mock, theme=system). Выход files.json (34 файла). Проверено: все .ts/.tsx через Bun.Transpiler, все .json валидны. На VenusX → com.whyti.venusx. gen-api-client'овский src/api/ ложится поверх. Арка: analyze-tz → merge-spec-design → {scaffold-app, gen-api-client}.
@@ -159,6 +165,36 @@ Both apps are Expo SDK 54 / RN 0.81.5 / React 19.1 / TS-strict React Native apps
 **Заметки:** Generic in concept but environment-heavy (needs a working RN/EAS toolchain or simulator; chrome/pencil MCP + the 'verify'/'run' skills exist in this harness for the screenshot side). Acts as the scenario's final QA gate and the revise trigger for gen-screen/apply-tokens. Effort: medium-high. Risk: native builds are slow/flaky — keep it a checkpoint so failures resume without re-generating. Medium because full device builds aren't always available in an unattended run.
 
 
+### 12. localize-app — [built · OPTIONAL]
+
+**Зачем:** Make a generated app fully multilingual when the spec/ТЗ requires it. A generator-agnostic post-step (works on LLM-tier, pixel-tier, and hand-written screens) that turns hardcoded UI strings into `t('<ns>.<key>')`, produces real per-language locale files (not just source-language defaults), wires `useTranslation` + the i18n runtime, and adds a language switcher on the settings screen.
+
+**Вход:** The generated app dir (`cwd`), `languages` (BCP-47 list; the FIRST is the source language the UI is written in, the rest are translated), optional `focus` (domain hint for translation quality, e.g. "women-health/medical — translate clinical terms precisely").
+
+**Выход:** Screens edited in place to use `t()`, populated `src/i18n/locales/<lang>.json` per language (identical key shapes), a settings language switcher (with testID), plus `001-localize/REPORT.md` (sections covered, key counts, known gaps). Self-verified: tsc clean + no leftover hardcoded UI strings + key parity.
+
+**Заметки:** OPTIONAL — only run it for apps that must be bilingual/multilingual. Monolingual apps need nothing extra: `scaffold-app` already lays down ru-default i18n infra and `gen-screen-from-spec` emits `t(key, ru-default)` for its functional tiers, so a single-language app is already "i18n-shaped." This step exists because (a) LLM/pixel-tier screens are hardcoded, and (b) the deterministic generators never produce real translations (only source-language fallbacks) or a language switcher. Place it AFTER `gen-screen-from-spec` (and after any pixel-loop convergence — injecting `t()` mid-loop would drift keys across revise rounds), before `setup-eas-ci`/`verify-app-build` so the final app is verified in its localized state. Built 2026-06-18 (catalog/general-purpose/localize-app); validated on VenusX. Effort: medium (LLM agent pass). Risk: low — surgical string edits, gated by tsc + the self-checks.
+
+### 13. map-user-flows — [built · E2E coverage]
+
+**Зачем:** Derive the app's typical user journeys from its actual screens + navigation and emit a full Maestro E2E suite for them — so every new app ships with regression coverage of its real flows, not just a build that typechecks. Closes the gap that neither reference app had (no generated E2E).
+
+**Вход:** The generated app dir (`cwd`), `appId` (bundle, e.g. `com.whyti.<app>`), optional `emit` (write the flows or dry-run) and `only` (regenerate a subset).
+
+**Выход:** `e2e/flows/*.yaml` (one journey per file, each tagged with its persona + whether it's destructive) + `e2e/subflows/{login,signup}.yaml` reused across flows; a journeys map + summary. Each flow is a runnable Maestro spec.
+
+**Заметки:** Generator-agnostic post-step (works on LLM-, pixel-, and hand-written screens). Three steps: **001-inventory** (deterministic — walk the screens/nav tree into an app map: screens, testIDs, nav edges), **002-flows** (Claude Agent SDK → typical journeys with a `destructive` flag), **003-emit** (deterministic Maestro codegen). Hard-won emit conventions baked in from the VenusX run: cold-launch + onboarding-skip for guest flows; **login** subflow for authed flows; **signup** subflow for DESTRUCTIVE flows (password/email change, deactivate, delete — never touch the shared demo account); `pressKey: Enter` after every text input (iOS number-pad has no submit key; `hideKeyboard` is unreliable); `scrollUntilVisible` + `centerElement` for below-the-fold controls; dismiss the iOS "Save Password?" springboard dialog. Place it AFTER `gen-screen-from-spec`/`localize-app` (it needs the final screens + testIDs); its flows are then executed by `verify-app-build` / a Maestro run. Built 2026-06-20 (catalog/general-purpose/map-user-flows); validated on VenusX (25 journeys → flows, 8 initially-failing driven green). Effort: medium (one LLM step + deterministic codegen). Risk: low for generation; running the flows needs a simulator/Maestro (reboot sim + `caffeinate` for long/destructive flows, one at a time).
+
+### 14. logic-audit — [built · ОБЯЗАТЕЛЬНЫЙ UX-логика-гейт]
+
+**Зачем:** Прочитать экраны готового приложения (read-only Claude Agent SDK) и найти логические/UX-дыры — ведёт ли каждый экран себя как нормальное приложение. Ловит классы багов, которые `verify-app-build` (tsc/lint/сборка) и Maestro (happy-path) пропускают: молчаливый сабмит невалидных данных, фейковые OTP-шаги, отсутствие success/error/loading, empty-vs-error в списках, signOut-перед-навигацией, мёртвые кнопки, in-place-селекторы, перекрытие клавиатурой. **Расширен 2026-06-22** правилами 11–15: контракт refresh-токена, guard опциональных нативных модулей, безопасность деструктива, drift in-place/standalone, плейсхолдеры/невидимый контент.
+
+**Вход:** `cwd` (каталог приложения), опц. `focus` (доменный акцент). Если рядом `backend/` — частично проверяет и его роуты.
+
+**Выход:** `001-audit/REPORT.md` — приоритизированный список (must-fix → nice-to-have) с цитатами `file:line` и конкретными фиксами. Это вход в fix-работу.
+
+**Заметки:** Генератор-агностичный пост-шаг. **Обязательный** в сценарии: ставить ПОСЛЕ `gen-screen-from-spec`/`localize-app`, его must-fix чинятся перед `verify-app-build` (или фидбэк-петля к `gen-screen`). Существовал, но не запускался — теперь зашит как гейт. Effort: один LLM-проход (read-only, дёшево). Риск: низкий — только отчёт, ничего не пишет в код.
+
 ## 3. Скелет сценария
 
 ## Scenario: `new-mobile-app` (ТЗ + Figma → buildable standard app)
@@ -179,8 +215,18 @@ flowchart TD
   tokens --> screens
   api --> screens
   auth --> screens
-  screens --> eas[setup-eas-ci<br/>eas.json + app.config]
-  eas --> verify[verify-app-build<br/>tsc/lint/build/screenshot diff]
+  screens --> localize[localize-app<br/>OPTIONAL: i18n keys + ru/en + lang switcher]
+  localize --> eas[setup-eas-ci<br/>eas.json + app.config]
+  screens -. monolingual: skip .-> eas
+  localize --> flows[map-user-flows<br/>journeys → Maestro E2E suite]
+  screens -. monolingual .-> flows
+  localize --> logic[logic-audit<br/>ОБЯЗ. UX-логика-гейт → REPORT.md]
+  screens -. monolingual .-> logic
+  logic --> verify[verify-app-build<br/>tsc/lint/build/screenshot diff]
+  eas --> verify
+  flows --> verify
+  localize:::optional
+  classDef optional stroke-dasharray: 5 5
 ```
 
 ### How it chains (consumes → produces)
@@ -195,19 +241,24 @@ flowchart TD
    - `gen-api-layer` ← spec apiDomains/entities (+ optional OpenAPI) → `src/api/services/<domain>/*` + `src/types`.
    - `wire-auth` ← spec auth flows + auth-mode → `AuthContext` + interceptor + `tokenStorage`.
 4. **`gen-screen-from-spec`** (rejoin + fan-out): waits for nav + tokens + api + auth (it consumes routes, theme tokens, query hooks, and auth gating). Then itself **fans out one invocation per screen** (independent screens run in parallel), each producing a `src/screens/<Feature>/<Name>/` folder + i18n keys + navigator registration.
-5. **`setup-eas-ci`** ← finished app + selected capability add-ons → `eas.json` + finalized `app.config.ts` (auto-switches managed→prebuild + plugins if a native capability add-on was chosen).
-6. **`verify-app-build`** (final QA gate) ← built app + design-spec frames → tsc/lint/build status + screenshot-vs-Figma diff; failures feed a revise signal back to `gen-screen-from-spec` / `apply-design-tokens`.
+5. **`localize-app`** *(OPTIONAL — only when the app must be multilingual; the ТЗ/spec signals it, e.g. a bilingual-UI requirement)* ← the generated screens. Sweeps every screen + shared component, turns hardcoded UI strings into `t('<ns>.<key>')`, writes/fills `src/i18n/locales/<lang>.json` per language (source language verbatim, the rest translated with domain context), wires `useTranslation` + the i18n runtime, and adds a settings language switcher. **Skip entirely for monolingual apps** (the scaffold's ru-default i18n infra already suffices). Runs after `gen-screen-from-spec` and after any pixel-loop convergence (injecting `t()` mid-loop drifts keys); its edits then flow into `setup-eas-ci`/`verify-app-build`.
+6. **`map-user-flows`** ← the finished (optionally localized) screens + navigation → `e2e/flows/*.yaml` + `e2e/subflows/*`: a Maestro E2E suite for the app's typical journeys (guest → cold-launch+onboarding-skip, authed → login subflow, destructive → signup subflow). Runs in parallel with `setup-eas-ci` (both only read the finished app); its flows are executed by `verify-app-build` / a Maestro run.
+7. **`setup-eas-ci`** ← finished (optionally localized) app + selected capability add-ons → `eas.json` + finalized `app.config.ts` (auto-switches managed→prebuild + plugins if a native capability add-on was chosen).
+7b. **`logic-audit`** (MANDATORY UX-logic gate) ← the finished (optionally localized) app (+ sibling `backend/` if present) → `REPORT.md` (must-fix → nice-to-have, `file:line` + fixes). Runs in parallel with `setup-eas-ci`/`map-user-flows` (read-only). Its **must-fix items are addressed before** `verify-app-build` passes — this is the gate that catches the logic/UX gaps tsc + happy-path Maestro miss (validation, refresh-token contract, guarded native imports, destructive re-auth, in-place/standalone drift, placeholders).
+8. **`verify-app-build`** (final QA gate) ← built app + design-spec frames + `map-user-flows`' E2E suite → tsc/lint/build status + screenshot-vs-Figma diff + E2E results; failures feed a revise signal back to `gen-screen-from-spec` / `apply-design-tokens`.
 
-*(Optional, off the main line: `add-capability-module` runs after `scaffold-app` whenever the spec signals push/maps/voice/payments — its own mini-branch feeding `setup-eas-ci`.)*
+*(Optional, off the main line: `add-capability-module` runs after `scaffold-app` whenever the spec signals push/maps/voice/payments — its own mini-branch feeding `setup-eas-ci`; `localize-app` (step 5) runs after `gen-screen-from-spec` only for multilingual apps; `map-user-flows` (step 6) runs after the screens are final, for every app.)*
 
 ### Resumability (per CLAUDE.md: a failed step retries without redoing successful ones)
 
 The run lives under `.hq/_runtime/scenarios/<dd-mm-hhmm-new-mobile-app>/` with each pipeline writing to `outputs/<step>/`. Natural checkpoints, in order:
-`(analyze-tz ‖ figma-design)` → `scaffold-app` → `(gen-navigation ‖ apply-design-tokens ‖ gen-api-layer ‖ wire-auth)` → `gen-screen-from-spec` (per-screen sub-checkpoints) → `setup-eas-ci` → `verify-app-build`.
+`(analyze-tz ‖ figma-design)` → `scaffold-app` → `(gen-navigation ‖ apply-design-tokens ‖ gen-api-layer ‖ wire-auth)` → `gen-screen-from-spec` (per-screen sub-checkpoints) → `[localize-app — optional, multilingual apps only]` → `(map-user-flows ‖ setup-eas-ci ‖ logic-audit)` → fix logic-audit must-fix → `verify-app-build`.
 
 - The **two front stages are the human-review checkpoints**: `spec.md` and `design-spec.md` should be editable before `scaffold-app` consumes them — this is where you correct ТЗ misreads / token clustering before any code is generated.
 - A failure in any of the four middle branches re-runs **only that branch**, not the scaffold or the front stages.
 - A `gen-screen` failure re-runs **only the failing screen(s)** — never re-scaffolds and never re-derives tokens. If you find yourself re-running `scaffold-app` to fix a screen, the checkpoints are wrong.
+- `localize-app` is a **conditional checkpoint**: present only for multilingual apps. When skipped, `gen-screen-from-spec` flows straight into `setup-eas-ci`. When present, a failure re-runs **only localize-app** (it edits screens idempotently and self-verifies); it never re-generates screens. Decide skip-vs-run from the spec once, up front — don't toggle it mid-run.
+- `map-user-flows` is its **own checkpoint**, parallel to `setup-eas-ci` and after the screens are final: a failure re-runs **only flow generation** (it reads the app and writes `e2e/`; idempotent), never the screens. Regenerate a subset with its `only` arg. Generation is unattended; *executing* the emitted flows is a separate, simulator-bound step (not part of the codegen checkpoint).
 - A `verify-app-build` failure loops back to the specific generator (screen or tokens) it blamed, not to the front stages.
 
 After the run, drop a post-run report beside the script (fixes/gotchas) and graduate the proven flow into `.hq/scenarios/new-mobile-app.md` — with the mermaid diagram above as the stable part. A flow reached for repeatedly (e.g. add-one-screen-to-existing-app = gen-screen + verify) is a candidate to graduate into a single purpose-built pipeline.

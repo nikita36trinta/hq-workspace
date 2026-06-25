@@ -1,6 +1,7 @@
 [submodule "pipelines"]
 	path = .hq/pipelines
-	url = git@github.com:hq-org/pipelines.git
+	url = git@github.com:digiterium/pipelines.git
+	branch = factory-hardening
 [submodule "projects/venusx/worktrees/main"]
 	path = projects/venusx/worktrees/main
 	url = git@github.com:digiterium/venusx.git
@@ -13,3 +14,6 @@
 	path = projects/eclion/worktrees/master
 	url = git@github.com:digiterium/eclion.git
 	branch = master
+[submodule "projects/venusx/backend"]
+	path = projects/venusx/backend
+	url = git@github.com:digiterium/venusx-backend.git

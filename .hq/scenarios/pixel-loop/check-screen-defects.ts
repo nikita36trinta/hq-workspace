@@ -42,10 +42,13 @@ for (const f of tsx) {
   // A PascalCase tag used in JSX that is neither imported nor defined locally.
   {
     const used = new Set<string>();
+    // Strip comments first so a tag NAMED in prose (e.g. "RN <Modal>") isn't
+    // mistaken for a real, unimported JSX use.
+    const codeOnly = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
     // Real JSX open tag: '<' preceded by a JSX delimiter (not an identifier char,
     // which would be a TS generic like useState<Set>) and the tag followed by
     // whitespace, '/', or '>'.
-    for (const m of src.matchAll(/[\s(>{},&|?:]<([A-Z][A-Za-z0-9_]*)[\s/>]/g)) used.add(m[1]);
+    for (const m of codeOnly.matchAll(/[\s(>{},&|?:]<([A-Z][A-Za-z0-9_]*)[\s/>]/g)) used.add(m[1]);
     const known = new Set<string>([
       "React", "Fragment",
       // TS built-in/utility types that can appear in generics, never JSX:
@@ -102,12 +105,39 @@ for (const f of tsx) {
     if (/Тренды|Медкарта/.test(ln) && /<Text\b/.test(ln))
       add("chrome bottom-tab", "MED", f, n, "bottom-tab label inside a screen — tab bar should be a shared navigator, not per-screen");
 
+    // #13 dead header theme/lang labels: an inert <Text>Light</Text>/RU/EN that
+    // should be the shared <HeaderControls/> (which actually toggles theme + lang).
+    if (/<Text\b[^>]*>\s*(Light|Dark|Светлая|Тёмная|RU|EN|РУ|АНГ)\s*<\/Text>/.test(ln) && !/HeaderControls/.test(src))
+      add("#13 dead-header-control", "MED", f, n, "inert theme/language label in a header — use the shared <HeaderControls/> from '@/components' (it wires useTheme + setLanguage)");
+
   });
+
+  // #14 navigational button left inert: a back/detail/CTA pressable but no
+  // navigation wired anywhere on the screen (no useNavigation + navigate/goBack).
+  {
+    const navWords = /(Назад|Подробнее|Продолжить|Открыть|Перейти|Далее)/;
+    const hasNavLabel = navWords.test(src);
+    const usesNav = /useNavigation\(/.test(src) && /\.(navigate|goBack|reset|push)\(/.test(src);
+    const hasPressable = /<(Pressable|TouchableOpacity)\b/.test(src);
+    if (hasNavLabel && hasPressable && !usesNav)
+      add("#14 inert-nav", "LOW", f, 1, "screen has back/detail/CTA labels and pressables but no useNavigation().navigate/goBack — navigational affordances may be inert");
+  }
 }
 
 for (const f of styleFiles) {
   const src = await Bun.file(f).text();
   const lines = src.split("\n");
+
+  // #15 theme-blind styles factory: a createStyles(...) that NEVER reads its
+  // `colors` param (param renamed `_colors`, or zero `colors.` references) →
+  // the screen hardcodes one palette and won't switch in dark mode. This is the
+  // exact tell behind "this screen stays light" (VenusX auth screens, 2026-06-20).
+  if (/createStyles\s*=\s*\(/.test(src)) {
+    const ignoresParam = /createStyles\s*=\s*\(\s*_colors\b/.test(src);
+    const readsColors = /\bcolors\.\w/.test(src);
+    if (ignoresParam || !readsColors)
+      add("#15 theme-blind-styles", "HIGH", f, 1, "createStyles ignores its `colors` param (renamed _colors or 0 `colors.` refs) — hardcoded palette, screen won't adapt to dark mode");
+  }
 
   // crude block parse: name: { ... },
   const re = /(\b\w+)\s*:\s*\{([\s\S]*?)\n\s*\},/g;
@@ -159,6 +189,23 @@ for (const f of styleFiles) {
     // #9 sibling button defaulted to flex:1 (full-bleed) — informational
     if (/next|primary|cta|continue/i.test(name) && /flex:\s*1/.test(body) && /height/.test(body))
       add("#9 button-flex1", "LOW", f, blockLine, `${name}: button has flex:1 (full-width) — confirm the design isn't a fixed/narrower width`);
+
+    // #10 hard-coded DARK text colour → won't adapt to dark mode (use colors.text).
+    // Near-black literal (#0../#1../#2../#3..). Match ONLY the `color:` property
+    // (lowercase, boundary-prefixed) so shadowColor/borderColor/backgroundColor/
+    // tintColor (camelCase capital C) don't false-positive.
+    const col = body.match(/(?<![A-Za-z])color:\s*['"](#[0-3][0-9a-fA-F]{5})\b/);
+    if (col)
+      add("#10 hardcoded-dark-text", "MED", f, blockLine, `${name}: literal dark text colour ${col[1]} — use colors.text so it inverts in dark mode`);
+
+    // #10b hard-coded white PAGE/screen background → stays white in dark mode.
+    if (/(container|screen|page|root|wrapper|body)/i.test(name) && /backgroundColor:\s*['"]#f{3,6}\b/i.test(body) && !/borderRadius/.test(body))
+      add("#10b hardcoded-page-bg", "MED", f, blockLine, `${name}: literal white page background — use colors.background (dark mode shows white otherwise)`);
+
+    // #15 percentage-width grid cell → flex-wrap rounding drops the last column.
+    // Calendars/day-grids must be explicit rows of flex:1 cells, not %-width + wrap.
+    if (/width:\s*[`'"]?\s*(?:\$\{\s*100\s*\/\s*7\s*\}|14\.2)/.test(body))
+      add("#15 pct-grid-cell", "MED", f, blockLine, `${name}: ~1/7 percentage width — with flexWrap, sub-pixel rounding drops the 7th column. Use explicit rows of flex:1 cells instead.`);
   }
 }
 
