@@ -18,3 +18,11 @@
 	path = projects/nasledstvo/worktrees/main
 	url = git@github.com:nikita36trinta/nasledstvo.git
 	branch = main
+[submodule "projects/sdelka/worktrees/main"]
+	path = projects/sdelka/worktrees/main
+	url = git@github.com:nikita36trinta/sdelka.git
+	branch = main
+[submodule "projects/tendery/worktrees/main"]
+	path = projects/tendery/worktrees/main
+	url = git@github.com:nikita36trinta/tendery.git
+	branch = main
