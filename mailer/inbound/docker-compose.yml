@@ -7,8 +7,8 @@ services:
     ports:
       - "25:25"
     environment:
-      MAILIN_DOMAIN: chistasdelka.ru
-      MAILIN_ALLOWED: "hello,support,noreply,info"
+      MAILIN_DOMAINS: ${MAILIN_DOMAINS:-chistasdelka.ru}
+      MAILIN_ALLOWED: ${MAILIN_ALLOWED:-hello,support,noreply,info}
       MAILIN_STORE: /data/store
     volumes:
       - ./store:/data/store
@@ -29,7 +29,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik
-      - traefik.http.routers.mailin.rule=Host(`inbox.chistasdelka.ru`)
+      - traefik.http.routers.mailin.rule=Host(`${INBOX_HOST:-inbox.chistasdelka.ru}`)
       - traefik.http.routers.mailin.entrypoints=websecure
       - traefik.http.routers.mailin.tls=true
       - traefik.http.routers.mailin.tls.certresolver=letsencrypt

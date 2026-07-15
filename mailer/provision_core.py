@@ -86,7 +86,8 @@ def main():
         plan.append(("zone/add_txt", {"domains": [{"dname": DOMAIN}], "subdomain": "us._domainkey",
                      "text": f"v=DKIM1; k=rsa; p={dkim}"}, "DKIM TXT us._domainkey"))
     if "dmarc.unisender" not in blob:
-        plan.append(("zone/add_alias", {"domains": [{"dname": DOMAIN}], "subdomain": "_dmarc",
+        # CNAME в Reg.ru = zone/add_cname (canonical_name). add_alias — это A-запись (ipaddr)!
+        plan.append(("zone/add_cname", {"domains": [{"dname": DOMAIN}], "subdomain": "_dmarc",
                      "canonical_name": dmarc}, "DMARC CNAME _dmarc"))
     if not spf_exists:
         plan.append(("zone/add_txt", {"domains": [{"dname": DOMAIN}], "subdomain": "@",

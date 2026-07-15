@@ -21,7 +21,11 @@ from aiosmtpd.controller import Controller
 STORE = os.environ.get("MAILIN_STORE", "/data/store")
 EML_DIR = os.path.join(STORE, "eml")
 INDEX = os.path.join(STORE, "index.jsonl")
-DOMAIN = os.environ.get("MAILIN_DOMAIN", "chistasdelka.ru").strip().lower()
+# Мультидоменный: один приёмник на :25 обслуживает список доменов (MAILIN_DOMAINS,
+# через запятую). MAILIN_DOMAIN оставлен для обратной совместимости.
+DOMAINS = {d.strip().lower() for d in
+           os.environ.get("MAILIN_DOMAINS", os.environ.get("MAILIN_DOMAIN", "chistasdelka.ru")).split(",")
+           if d.strip()}
 ALLOWED = {x.strip().lower() for x in
            os.environ.get("MAILIN_ALLOWED", "hello,support,noreply,info").split(",") if x.strip()}
 MAX_SIZE = int(os.environ.get("MAILIN_MAX_SIZE", str(15 * 1024 * 1024)))
@@ -37,8 +41,8 @@ class Handler:
     async def handle_RCPT(self, server, session, envelope, address, rcpt_options):
         addr = address.lower().strip().strip("<>")
         local, _, dom = addr.partition("@")
-        if dom != DOMAIN:
-            return "550 relaying denied"          # принимаем только наш домен — не релей
+        if dom not in DOMAINS:
+            return "550 relaying denied"          # принимаем только наши домены — не релей
         if ALLOWED and local not in ALLOWED:
             return "550 no such mailbox"          # только известные ящики → режем спам
         if len(envelope.rcpt_tos) >= 20:
@@ -99,7 +103,7 @@ def main():
         data_size_limit=MAX_SIZE, enable_SMTPUTF8=True,
     )
     controller.start()
-    print(f"[mailin] SMTP :25 up | domain={DOMAIN} | allowed={sorted(ALLOWED)} | store={STORE}",
+    print(f"[mailin] SMTP :25 up | domains={sorted(DOMAINS)} | allowed={sorted(ALLOWED)} | store={STORE}",
           flush=True)
     while True:
         time.sleep(3600)
