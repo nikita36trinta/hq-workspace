@@ -1,0 +1,40 @@
+services:
+  smtp:
+    build: .
+    image: mailin:latest
+    command: python inbound_smtp.py
+    restart: unless-stopped
+    ports:
+      - "25:25"
+    environment:
+      MAILIN_DOMAIN: chistasdelka.ru
+      MAILIN_ALLOWED: "hello,support,noreply,info"
+      MAILIN_STORE: /data/store
+    volumes:
+      - ./store:/data/store
+
+  admin:
+    build: .
+    image: mailin:latest
+    command: uvicorn inbox_admin:app --host 0.0.0.0 --port 8025
+    restart: unless-stopped
+    environment:
+      MAILIN_STORE: /data/store
+      INBOX_USER: ${INBOX_USER:-admin}
+      INBOX_PASS: ${INBOX_PASS:?set INBOX_PASS in .env}
+    volumes:
+      - ./store:/data/store:ro
+    networks:
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - traefik.http.routers.mailin.rule=Host(`inbox.chistasdelka.ru`)
+      - traefik.http.routers.mailin.entrypoints=websecure
+      - traefik.http.routers.mailin.tls=true
+      - traefik.http.routers.mailin.tls.certresolver=letsencrypt
+      - traefik.http.services.mailin.loadbalancer.server.port=8025
+
+networks:
+  traefik:
+    external: true
