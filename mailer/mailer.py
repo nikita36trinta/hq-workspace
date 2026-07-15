@@ -18,7 +18,7 @@ SEND_URL = os.getenv("UNISENDER_GO_SEND_URL",
 
 
 def send_email(to, subject, html, from_email, from_name="", text=None,
-               api_key=None, tag=None):
+               api_key=None, tag=None, reply_to=None, reply_to_name=None):
     key = api_key or os.environ["UNISENDER_GO_API_KEY"]
     message = {
         "recipients": [{"email": to}],
@@ -31,6 +31,12 @@ def send_email(to, subject, html, from_email, from_name="", text=None,
         message["body"]["plaintext"] = text
     if tag:
         message["tags"] = [tag]
+    # Reply-To → наш самописный приёмник (hello@/support@), чтобы ответы клиентов не терялись.
+    reply_to = reply_to or os.getenv("EMAIL_REPLY_TO")
+    if reply_to:
+        message["reply_to"] = reply_to
+        if reply_to_name or from_name:
+            message["reply_to_name"] = reply_to_name or from_name
     req = urllib.request.Request(SEND_URL,
         data=json.dumps({"message": message}).encode(),
         headers={"X-API-KEY": key, "Content-Type": "application/json"})

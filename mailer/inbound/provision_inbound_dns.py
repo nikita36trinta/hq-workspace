@@ -31,6 +31,15 @@ def regru(method, input_data):
     return json.loads(urllib.request.urlopen(REGRU + "/" + method, data=data, timeout=60).read())
 
 
+def dom_result(r):
+    """Reg.ru всегда отдаёт верхний result=success; реальный статус — на уровне домена."""
+    try:
+        d = r["answer"]["domains"][0]
+        return d.get("result"), d.get("error_text")
+    except Exception:
+        return r.get("result"), r.get("error_text")
+
+
 def rrs():
     r = regru("zone/get_resource_records", {"domains": [{"dname": DOMAIN}]})
     out = []
@@ -55,11 +64,13 @@ def has_mx(host):
 
 CUR = rrs()
 plan = []
+# ВНИМАНИЕ: в Reg.ru A-запись добавляется методом zone/add_alias (ipaddr),
+# а zone/add_cname — для CNAME (canonical_name). Метода add_a НЕ существует.
 if not has_a("mail", IP):
-    plan.append(("zone/add_a", {"domains": [{"dname": DOMAIN}], "subdomain": "mail", "ipaddr": IP},
+    plan.append(("zone/add_alias", {"domains": [{"dname": DOMAIN}], "subdomain": "mail", "ipaddr": IP},
                  f"A mail.{DOMAIN} -> {IP}"))
 if not has_a("inbox", IP):
-    plan.append(("zone/add_a", {"domains": [{"dname": DOMAIN}], "subdomain": "inbox", "ipaddr": IP},
+    plan.append(("zone/add_alias", {"domains": [{"dname": DOMAIN}], "subdomain": "inbox", "ipaddr": IP},
                  f"A inbox.{DOMAIN} -> {IP}"))
 if not has_mx(MX_HOST):
     plan.append(("zone/add_mx", {"domains": [{"dname": DOMAIN}], "subdomain": "@",
@@ -68,9 +79,8 @@ if not has_mx(MX_HOST):
 
 print(f"== inbound DNS {DOMAIN} (IP {IP}) ==")
 for method, data, label in plan:
-    r = regru(method, data)
-    ok = r.get("result") == "success"
-    print(f"   + {label}: {r.get('result', r)}" + ("" if ok else f"  {json.dumps(r, ensure_ascii=False)[:200]}"))
+    res, err = dom_result(regru(method, data))
+    print(f"   + {label}: {res}" + (f"  [{err}]" if res != "success" else ""))
 if not plan:
     print("   все записи уже на месте")
 print("Готово. Пропагация Reg.ru — минуты–часы. Проверка: dig MX", DOMAIN, "и dig A", MX_HOST)
