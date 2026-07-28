@@ -392,3 +392,26 @@ def test_отброс_не_съедает_память_на_мусорных_и�
     for i in range(an._REJECTED_CAP + 25):
         an._note_rejected("cap", f"мусор{i}")
     assert len(an._REJECTED["cap"]) == an._REJECTED_CAP
+
+
+def test_свой_трафик_не_попадает_в_журнал(tmp_path):
+    """Владелец ходит по бою чаще любого клиента. С кукой notrack его события
+    отбрасываются на приёме — ни в журнале, ни среди «потерянных»."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    an._REJECTED.clear()
+    cfg = _cfg(tmp_path, project_id="notrack", exclude_cookie="cs_notrack")
+    app = FastAPI()
+    app.include_router(an.make_router(cfg))
+    c = TestClient(app)
+    ua = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537.36"}
+
+    c.post("/api/goal", json={"name": "visit", "did": "клиент"}, headers=ua)
+    c.post("/api/goal", json={"name": "visit", "did": "свой"}, headers=ua,
+           cookies={"cs_notrack": "1"})
+    c.post("/api/goal", json={"name": "выдуманное", "did": "свой"}, headers=ua,
+           cookies={"cs_notrack": "1"})
+
+    sc = an.selfcheck(cfg)
+    assert sc["storage"]["events"] == 1, "в журнал должен попасть только клиент"
+    assert sc["rejected"] == [], "своё незаявленное событие не должно шуметь в диагностике"
