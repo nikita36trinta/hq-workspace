@@ -12,8 +12,12 @@ ENV:
   MAILIN_ALLOWED  — разрешённые локальные части через запятую (hello,support,noreply,info)
   MAILIN_STORE    — каталог хранилища (/data/store)
   MAILIN_MAX_SIZE — лимит размера письма в байтах (по умолчанию 15 МБ)
+  MAILIN_TG_TOKEN — токен телеграм-бота для уведомлений (пусто = не уведомлять)
+  MAILIN_TG_CHAT  — chat_id получателя уведомлений
+  MAILIN_TG_PROXY — прокси до api.telegram.org (РФ-серверы туда напрямую не ходят)
+  MAILIN_TG_SKIP  — локальные части, о которых НЕ уведомлять (по умолчанию noreply)
 """
-import os, json, uuid, datetime, time
+import os, json, uuid, datetime, time, threading, urllib.request
 from email.parser import BytesParser
 from email.policy import default as default_policy
 from aiosmtpd.controller import Controller
@@ -29,6 +33,51 @@ DOMAINS = {d.strip().lower() for d in
 ALLOWED = {x.strip().lower() for x in
            os.environ.get("MAILIN_ALLOWED", "hello,support,noreply,info").split(",") if x.strip()}
 MAX_SIZE = int(os.environ.get("MAILIN_MAX_SIZE", str(15 * 1024 * 1024)))
+
+# ---- уведомления в телеграм ----
+# Без них ящик — это папка на диске, куда никто не заходит: три обращения клиентов
+# (включая требование вернуть деньги) пролежали непрочитанными по четверо суток.
+TG_TOKEN = os.environ.get("MAILIN_TG_TOKEN", "").strip()
+TG_CHAT = os.environ.get("MAILIN_TG_CHAT", "").strip()
+TG_PROXY = os.environ.get("MAILIN_TG_PROXY", "").strip()
+# Свои же служебные письма (noreply@) сыплются на support@ пачками при каждом тесте —
+# уведомлять о них значит приучить себя не смотреть на уведомления.
+TG_SKIP = {x.strip().lower() for x in os.environ.get("MAILIN_TG_SKIP", "noreply").split(",") if x.strip()}
+
+
+def _tg_send(text: str) -> None:
+    if not (TG_TOKEN and TG_CHAT):
+        return
+    opener = (urllib.request.build_opener(
+        urllib.request.ProxyHandler({"http": TG_PROXY, "https": TG_PROXY}))
+        if TG_PROXY else urllib.request.build_opener())
+    body = json.dumps({"chat_id": TG_CHAT, "text": text[:4000],
+                       "disable_web_page_preview": True}).encode()
+    req = urllib.request.Request(
+        "https://api.telegram.org/bot%s/sendMessage" % TG_TOKEN,
+        data=body, headers={"Content-Type": "application/json"})
+    try:
+        opener.open(req, timeout=20).read()
+    except Exception as e:  # noqa: BLE001 — уведомление не имеет права мешать приёму почты
+        print("[tg] не отправлено: %s %s" % (type(e).__name__, str(e)[:120]), flush=True)
+
+
+def _notify(rec: dict) -> None:
+    """Письмо → сообщение в телеграм. В отдельном потоке: SMTP-ответ отправителю
+    не должен ждать, пока мы сходим наружу через прокси."""
+    sender = (rec.get("envelope_from") or rec.get("from") or "").lower()
+    local = sender.split("@")[0].split("<")[-1].strip()
+    if local in TG_SKIP:
+        return
+    text = ("Письмо на {to}\n\n"
+            "От: {frm}\n"
+            "Тема: {subj}\n\n"
+            "{body}").format(
+        to=rec.get("to") or "—",
+        frm=rec.get("from") or "—",
+        subj=rec.get("subject") or "(без темы)",
+        body=(rec.get("preview") or "(пустое тело)")[:900])
+    threading.Thread(target=_tg_send, args=(text,), daemon=True).start()
 
 os.makedirs(EML_DIR, exist_ok=True)
 
@@ -94,6 +143,7 @@ class Handler:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         print(f"[recv] {mid} from={rec['from']!r} to={rec['to']!r} "
               f"subj={rec['subject']!r} peer={rec['peer']}", flush=True)
+        _notify(rec)
         return "250 Message accepted for delivery"
 
 
@@ -103,8 +153,8 @@ def main():
         data_size_limit=MAX_SIZE, enable_SMTPUTF8=True,
     )
     controller.start()
-    print(f"[mailin] SMTP :25 up | domains={sorted(DOMAINS)} | allowed={sorted(ALLOWED)} | store={STORE}",
-          flush=True)
+    print(f"[mailin] SMTP :25 up | domains={sorted(DOMAINS)} | allowed={sorted(ALLOWED)} | store={STORE} "
+          f"| телеграм={'да' if (TG_TOKEN and TG_CHAT) else 'нет'}", flush=True)
     while True:
         time.sleep(3600)
 

@@ -10,6 +10,12 @@ services:
       MAILIN_DOMAINS: ${MAILIN_DOMAINS:-chistasdelka.ru}
       MAILIN_ALLOWED: ${MAILIN_ALLOWED:-hello,support,noreply,info}
       MAILIN_STORE: /data/store
+      # Уведомления о входящей почте: без них ящик — папка на диске, куда никто не
+      # заходит. Прокси нужен потому, что с РФ-серверов api.telegram.org недоступен.
+      MAILIN_TG_TOKEN: ${MAILIN_TG_TOKEN:-}
+      MAILIN_TG_CHAT: ${MAILIN_TG_CHAT:-}
+      MAILIN_TG_PROXY: ${MAILIN_TG_PROXY:-}
+      MAILIN_TG_SKIP: ${MAILIN_TG_SKIP:-noreply}
     volumes:
       - ./store:/data/store
 
