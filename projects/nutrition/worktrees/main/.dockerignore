@@ -1,0 +1,6 @@
+.data
+__pycache__
+*.pyc
+gen_assets.py
+gen_mascot.py
+animate_mascot.py

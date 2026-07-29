@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Твой коуч по питанию — план в кармане · NutriPlan</title>
+<meta name="description" content="Персональный план питания в кармане: меню на неделю, КБЖУ под цель, замены блюд и трекеры. Без диет и голода.">
+<link rel="canonical" href="https://mynutriplan.ru/l/coach">
+<link rel="icon" href="/assets/icon-192.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Твой коуч по питанию — план в кармане · NutriPlan">
+<meta property="og:description" content="Персональный план питания в кармане: меню на неделю, КБЖУ под цель, замены блюд и трекеры. Без диет и голода.">
+<meta property="og:url" content="https://mynutriplan.ru/l/coach">
+<meta property="og:image" content="https://mynutriplan.ru/assets/icon-192.png">
+<meta property="og:site_name" content="NutriPlan">
+<meta name="twitter:card" content="summary">
+<style>
+  :root{
+    --bg:#FFFFFF; --ink:#181430; --muted:#6B6786; --line:#ECE9F6; --card:#FFFFFF;
+    --violet:#6C4CF1; --violet-d:#5638DA; --coral:#FF6F51; --yellow:#FFC94D; --mint:#37D9A6; --soft:#F3F0FF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);overflow-x:hidden;line-height:1.5;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 22px}
+  a{color:inherit;text-decoration:none}
+  .btn{display:inline-flex;align-items:center;gap:9px;background:var(--violet);color:#fff;border:none;
+    padding:16px 30px;border-radius:16px;font-size:16px;font-weight:800;cursor:pointer;transition:.16s;
+    box-shadow:0 14px 30px -12px rgba(108,76,241,.6)}
+  .btn:hover{background:var(--violet-d);transform:translateY(-2px)}
+  .btn.coral{background:var(--coral);box-shadow:0 14px 30px -12px rgba(255,111,81,.6)}
+  .btn.coral:hover{background:#ef5b3c}
+  .chip{display:inline-flex;align-items:center;gap:7px;background:var(--soft);color:var(--violet-d);
+    font-weight:800;font-size:13px;padding:7px 15px;border-radius:99px}
+  h1,h2,h3{letter-spacing:-.025em;line-height:1.06;font-weight:800}
+  .sec{padding:88px 0}
+  .center{max-width:660px}.center.mid{margin:0 auto;text-align:center}
+  .center h2{font-size:clamp(30px,4.6vw,46px)}
+  .center .sub{color:var(--muted);font-size:18px;margin-top:12px}
+  .reveal{opacity:0;transform:translateY(24px);transition:.7s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+
+  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:66px}
+  .logo{font-weight:900;font-size:21px;display:flex;align-items:center;gap:9px;letter-spacing:-.02em}
+  .logo .dot{width:13px;height:13px;border-radius:50%;background:var(--violet)}
+  .menu{display:flex;gap:28px;font-size:15px;font-weight:700;color:var(--muted)}
+  .menu a:hover{color:var(--ink)}
+  .nav .btn{padding:11px 20px;font-size:14px;box-shadow:none}
+  section[id]{scroll-margin-top:80px}
+
+  /* hero */
+  .hero{position:relative;overflow:hidden;background:
+    radial-gradient(90% 70% at 88% 10%,#F0EBFF 0%,transparent 60%),
+    radial-gradient(70% 60% at 6% 90%,#FFF1EC 0%,transparent 60%)}
+  .hero-grid{display:grid;grid-template-columns:1.02fr .98fr;gap:24px;align-items:center;min-height:calc(100vh - 66px);padding:30px 0}
+  .hero h1{font-size:clamp(38px,6vw,62px);margin:16px 0 18px}
+  .hero h1 em{color:var(--violet);font-style:normal}
+  .hero p{color:var(--muted);font-size:20px;max-width:32ch;margin-bottom:26px}
+  .hero-cta{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .hero-cta small{color:var(--muted);font-size:13px}
+  .pills{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+  /* hero visual: coach + chat */
+  .stage{position:relative;display:flex;justify-content:center}
+  .photo{width:min(84%,380px);aspect-ratio:4/5;border-radius:36px;background-size:cover;background-position:center;
+    box-shadow:0 44px 80px -40px rgba(108,76,241,.45)}
+  .chatcard{position:absolute;left:-14px;top:40px;width:250px;background:#fff;border:1px solid var(--line);
+    border-radius:22px;padding:16px;box-shadow:0 28px 56px -24px rgba(24,20,48,.3)}
+  .chatcard .hd{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .chatcard .av{width:34px;height:34px;border-radius:50%;background:#DFF6EC;overflow:hidden;flex:0 0 auto}
+  .chatcard .av video{width:100%;display:block}
+  .chatcard .hd b{font-size:14px}.chatcard .hd span{font-size:12px;color:var(--mint);font-weight:700}
+  .bub{font-size:13px;border-radius:14px;padding:9px 12px;margin-bottom:8px;max-width:88%}
+  .bub.in{background:var(--soft)}
+  .bub.out{background:var(--violet);color:#fff;margin-left:auto}
+  .ringcard{position:absolute;right:-10px;bottom:26px;background:#fff;border:1px solid var(--line);border-radius:20px;
+    padding:15px 18px;display:flex;align-items:center;gap:13px;box-shadow:0 24px 50px -22px rgba(24,20,48,.3)}
+  .ringcard .r{position:relative;width:52px;height:52px}
+  .ringcard .r .v{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800}
+  .ringcard b{font-size:14px}.ringcard span{display:block;font-size:12px;color:var(--muted)}
+
+  /* how — chat quiz */
+  .quizwrap{display:grid;grid-template-columns:1fr 1fr;gap:44px;align-items:center;margin-top:12px}
+  .phonechat{background:#fff;border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:0 30px 60px -30px rgba(24,20,48,.28)}
+  .phonechat .day{text-align:center;font-size:12px;color:var(--muted);margin-bottom:14px}
+  .qbub{font-size:14px;border-radius:16px;padding:11px 14px;margin-bottom:10px;max-width:86%;line-height:1.4}
+  .qbub.in{background:var(--soft);color:var(--ink)}
+  .qbub.out{background:var(--violet);color:#fff;margin-left:auto}
+  .qopts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-bottom:4px}
+  .qopts span{border:1px solid var(--line);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:700;color:var(--violet-d)}
+
+  /* gamification blocks */
+  .blocks{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:44px}
+  .block{border-radius:24px;padding:30px;color:#fff}
+  .block.v{background:linear-gradient(150deg,#7C5CFF,#5B39E0)}
+  .block.c{background:linear-gradient(150deg,#FF8A6B,#F0603F)}
+  .block.m{background:linear-gradient(150deg,#3DDDA9,#17B183)}
+  .block .ic{width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+  .block .ic svg{width:24px;height:24px}
+  .block h3{font-size:20px;margin-bottom:6px}
+  .block p{font-size:15px;opacity:.92}
+
+  /* app screens */
+  .app{background:var(--soft);overflow:hidden}
+  .mascot-pop{display:flex;justify-content:center;margin-bottom:-22px;position:relative;z-index:5}
+  .mascot-pop video{width:120px;border-radius:22px;background:#DFF6EC;box-shadow:0 22px 40px -20px rgba(20,80,45,.4);display:block}
+  .phones{display:flex;justify-content:center;align-items:flex-start;gap:14px;margin-top:8px}
+  .phone{width:198px;flex:0 0 auto;background:#181430;border-radius:34px;padding:8px;box-shadow:0 44px 82px -34px rgba(24,20,48,.5)}
+  .screen{background:#fff;border-radius:26px;overflow:hidden;display:block;aspect-ratio:704/1520}
+  .screen>img{width:100%;height:100%;object-fit:cover;display:block}
+
+  /* testimonials */
+  .quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}
+  .q{background:#fff;border:1px solid var(--line);border-radius:22px;padding:24px}
+  .q .stars{color:var(--yellow);margin-bottom:8px}
+  .q p{font-size:15px;margin-bottom:14px}
+  .q .who{display:flex;align-items:center;gap:10px;font-size:14px}
+  .q .av{width:40px;height:40px;border-radius:50%;background-size:cover;background-position:center;flex:0 0 auto}
+
+  /* offer */
+  .offer{background:linear-gradient(150deg,#6C4CF1,#8A5CFF);color:#fff;border-radius:30px;padding:56px 40px;text-align:center;position:relative;overflow:hidden}
+  .offer::after{content:"";position:absolute;right:-60px;bottom:-60px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.12)}
+  .offer>*{position:relative;z-index:1}
+  .offer h2{font-size:clamp(28px,4vw,42px)}
+  .offer .price{font-size:48px;font-weight:900;margin:14px 0 4px}
+  .offer .price s{font-size:22px;opacity:.7;font-weight:600;margin-left:8px}
+  .offer .m{opacity:.9;margin-bottom:24px}
+  .offer .btn{background:#fff;color:var(--violet-d);box-shadow:none}
+  .offer .btn:hover{background:var(--yellow);color:#181430}
+
+  footer{color:var(--muted);font-size:14px;padding:48px 0 40px;border-top:1px solid var(--line)}
+  footer .cols{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:20px}
+  footer a:hover{color:var(--ink)}
+  .disc{border-top:1px solid var(--line);padding-top:16px;color:#9a97b0;font-size:12px;max-width:72ch}
+
+  .mcta{display:none}
+  @media(max-width:860px){
+    .menu,.nav .btn{display:none}
+    .sec{padding:58px 0}
+    .hero-grid{grid-template-columns:1fr;min-height:auto;text-align:center}
+    .hero p{margin:0 auto 24px}.hero-cta,.pills{justify-content:center}
+    .stage{margin-top:26px}.chatcard{left:-4px}.ringcard{right:0}
+    .quizwrap{grid-template-columns:1fr;gap:26px}
+    .blocks,.quotes{grid-template-columns:1fr}
+    .phones{overflow-x:auto;justify-content:flex-start;padding:6px 16px;scroll-snap-type:x mandatory}
+    .phone{scroll-snap-align:center}
+    .offer{padding:40px 24px}
+    body{padding-bottom:78px}
+    .mcta{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:60;background:#fff;border-top:1px solid var(--line);padding:12px 16px}
+    .mcta .btn{flex:1;justify-content:center;box-shadow:none}
+  }
+
+  /* variant C — маскот-гид сбоку */
+  .guide{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:12px;
+    align-self:stretch;margin-right:16px;flex:0 0 auto}
+  .guide .bubble{background:#fff;border:1px solid var(--line);border-radius:16px 16px 16px 4px;padding:10px 13px;
+    font-size:13.5px;font-weight:600;line-height:1.4;text-align:center;max-width:180px;
+    box-shadow:0 16px 30px -16px rgba(0,0,0,.18)}
+  .guide .bubble b{color:var(--violet-d)}
+  .guide .mascot{width:150px;border-radius:24px;overflow:hidden;background:#A3CFB9;box-shadow:0 24px 44px -20px rgba(20,80,45,.45)}
+  .guide .mascot video{width:100%;display:block}
+  .phones{align-items:flex-end}
+  .phones .phone{width:158px}
+  @media(max-width:900px){.guide{align-self:auto;margin:0 6px 0 0}}
+
+  .showcase{display:flex;justify-content:center;align-items:flex-end;gap:22px}
+  .guide{margin-right:0}
+  @media(max-width:900px){.showcase{flex-direction:column;align-items:center;gap:16px}.guide{align-self:center;margin:0}.phones{padding-top:4px}}
+
+  /* умная липкая кнопка: прячется, когда на экране видна любая CTA */
+  .mcta{transform:translateY(130%);transition:transform .34s cubic-bezier(.2,.7,.2,1)}
+  .mcta.show{transform:none}
+
+  /* мобильные фиксы: скролл экранов + тень + убрать зазор под уехавшую кнопку */
+  @media(max-width:900px){
+    body{padding-bottom:0}
+    .showcase .phones{width:100%;overflow-x:auto;padding:14px 14px 52px;scroll-snap-type:x mandatory}
+    .showcase .phones .phone{scroll-snap-align:center}
+  }
+
+  /* мобильный бургер + выпадающая навигация */
+  .burger{display:none}
+  .menu-cta{display:none}
+  @media(max-width:900px){
+    .burger{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:1px solid var(--line,#e6e0d4);border-radius:12px;background:transparent;color:var(--ink,#20321F);cursor:pointer}
+    .burger svg{width:22px;height:22px;display:block}
+    .burger .i-close{display:none}
+    header.open .burger .i-open{display:none}
+    header.open .burger .i-close{display:block}
+    header .menu{display:none;position:absolute;top:66px;left:0;right:0;z-index:60;flex-direction:column;gap:0;align-items:stretch;background:var(--bg,#fff);padding:6px 20px 18px;border-bottom:1px solid var(--line,#e6e0d4);box-shadow:0 24px 40px -22px rgba(0,0,0,.28)}
+    header.open .menu{display:flex}
+    header .menu a:not(.menu-cta){padding:15px 2px;border-bottom:1px solid var(--line,#eee);font-size:16px;font-weight:600;color:var(--ink,#20321F)}
+    header .menu .menu-cta{display:inline-flex;justify-content:center;margin-top:14px;border-bottom:none;padding:14px 20px;font-size:16px}
+  }
+
+  /* стек героя coach на мобилке: расфиксить оверлей чат/кольцо, чтобы не наезжали */
+  @media(max-width:860px){
+    .stage{flex-direction:column;align-items:center;gap:14px}
+    .stage .photo{width:min(100%,320px)}
+    .stage .chatcard{position:static;left:auto;top:auto;width:min(100%,320px);text-align:left}
+    .stage .ringcard{position:static;left:auto;right:auto;bottom:auto;width:min(100%,320px);justify-content:flex-start}
+  }
+</style>
+</head>
+<body>
+
+<header><div class="wrap nav">
+  <div class="logo"><span class="dot"></span>NutriPlan</div>
+  <nav class="menu"><a href="#how">Как это работает</a><a href="#habits">Привычки</a><a href="#app">Приложение</a><a href="/login">Войти</a><a class="btn menu-cta" href="/quiz?l=coach">Начать</a></nav>
+  <a class="btn" href="/quiz?l=coach">Начать</a>
+  <button class="burger" aria-label="Меню" aria-expanded="false"><svg class="i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div></header>
+
+<!-- HERO -->
+<section class="hero"><div class="wrap hero-grid">
+  <div>
+    <span class="chip">Персональный коуч по питанию</span>
+    <h1>План питания, который <em>ведёт тебя</em> за руку</h1>
+    <p>Отвечаешь на пару вопросов — Авокадо-коуч собирает меню, считает КБЖУ и подбадривает каждый день.</p>
+    <div class="hero-cta">
+      <a class="btn coral" href="/quiz?l=coach">Пройти квиз за 2 минуты →</a>
+      <small>без карты · отмена в 1 клик</small>
+    </div>
+    <div class="pills"><span class="chip">Без запретов</span><span class="chip">Стрики и прогресс</span><span class="chip">Живая поддержка</span></div>
+  </div>
+  <div class="stage">
+    <div class="photo" style="background-image:url(/assets/coach_hero.png)"></div>
+    <div class="chatcard">
+      <div class="hd"><span class="av"><video autoplay loop muted playsinline preload="metadata" poster="/assets/avocado_panel_poster.jpg"><source src="/assets/avocado_panel.mp4" type="video/mp4"></video></span><div><b>Авокадо</b> <span>онлайн</span></div></div>
+      <div class="bub in">Какая цель на ближайший месяц?</div>
+      <div class="bub out">Сбросить пару кг</div>
+      <div class="bub in">Понял! Собираю мягкий план без голода…</div>
+    </div>
+    <div class="ringcard">
+      <div class="r"><svg width="52" height="52" viewBox="0 0 52 52"><circle cx="26" cy="26" r="21" fill="none" stroke="#EEEAFB" stroke-width="6"/><circle cx="26" cy="26" r="21" fill="none" stroke="#6C4CF1" stroke-width="6" stroke-linecap="round" stroke-dasharray="132" stroke-dashoffset="30" transform="rotate(-90 26 26)"/></svg><div class="v">5</div></div>
+      <div><b>Серия 5 дней</b><span>так держать!</span></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- CHAT QUIZ -->
+<section id="how" class="sec"><div class="wrap">
+  <div class="center reveal"><span class="chip">Как это работает</span>
+    <h2 style="margin-top:14px">Квиз — как разговор, а не анкета</h2>
+    <p class="sub">Никаких скучных форм. Коуч спрашивает — ты отвечаешь в один тап, и план собирается на глазах.</p></div>
+  <div class="quizwrap">
+    <div class="phonechat reveal">
+      <div class="day">Знакомство · 40 секунд</div>
+      <div class="qbub in">Как часто готовишь дома?</div>
+      <div class="qopts"><span>Каждый день</span><span>Иногда</span></div>
+      <div class="qbub out">Иногда, времени мало</div>
+      <div class="qbub in">Окей! Подберу быстрые рецепты до 20 минут</div>
+      <div class="qbub in">Что из этого не любишь?</div>
+      <div class="qopts"><span>Рыба</span><span>Грибы</span><span>Творог</span></div>
+    </div>
+    <div class="reveal">
+      <h2 style="font-size:clamp(24px,3.4vw,34px);margin-bottom:14px">Ты просто отвечаешь — остальное на коуче</h2>
+      <p class="sub" style="margin:0 0 22px">Он учтёт вкусы, аллергии, график и цель. И соберёт меню, которое реально хочется готовить и есть.</p>
+      <a class="btn" href="/quiz?l=coach">Собрать мой план →</a>
+    </div>
+  </div>
+</div></section>
+
+<!-- HABITS -->
+<section id="habits" class="sec" style="background:#FBFAFF;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
+  <div class="center mid reveal"><span class="chip">Привычка, а не диета</span>
+    <h2 style="margin-top:14px">Держит мотивацию, а не силу воли</h2></div>
+  <div class="blocks">
+    <div class="block v reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5L12 16.9 7 18.2l1-5.5-4-3.9L9.5 8z"/></svg></div><h3>Стрики и цели</h3><p>Маленькие победы каждый день — видишь серию и не хочешь её прерывать.</p></div>
+    <div class="block c reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V6a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg></div><h3>Поддержка коуча</h3><p>Авокадо подскажет, подбодрит и пересоберёт меню, если что-то пошло не так.</p></div>
+    <div class="block m reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"/><path d="M21 7v4h-4"/></svg></div><h3>Виден прогресс</h3><p>Наглядные кольца и графики — понимаешь, что двигаешься к цели.</p></div>
+  </div>
+</div></section>
+
+<!-- APP -->
+<section id="app" class="sec app"><div class="wrap">
+  <div class="center mid reveal"><span class="chip">Приложение</span>
+    <h2 style="margin-top:14px">Коуч всегда в кармане</h2>
+    <p class="sub">Меню, КБЖУ, список покупок и прогресс — и Авокадо рядом</p></div>
+  <div class="showcase reveal">
+      <div class="guide"><div class="bubble">Я рядом на каждом шаге <b>— поддержу</b></div><div class="mascot"><video autoplay loop muted playsinline preload="metadata" poster="/assets/avocado_panel_poster.jpg"><source src="/assets/avocado_panel.mp4" type="video/mp4"></video></div></div>
+      <div class="phones"><div class="phone"><div class="screen"><img src="/assets/app_onboarding.png" alt="Онбординг"></div></div>
+    <div class="phone"><div class="screen"><img src="/assets/app_today.png" alt="Сегодня"></div></div>
+    <div class="phone"><div class="screen"><img src="/assets/app_menu.png" alt="Меню"></div></div>
+    <div class="phone"><div class="screen"><img src="/assets/app_progress.png" alt="Прогресс"></div></div>
+    <div class="phone"><div class="screen"><img src="/assets/app_achievement.png" alt="Достижение"></div></div></div>
+    </div>
+</div></section>
+
+<!-- TESTIMONIALS -->
+<section class="sec"><div class="wrap">
+  <div class="center mid reveal"><h2>С коучем — легче</h2></div>
+  <div class="quotes">
+    <div class="q reveal"><div class="stars">★★★★★</div><p>«Будто рядом кто-то поддерживает — первый месяц не бросила, это мой рекорд»</p><div class="who"><span class="av" style="background:#E8ECF6;display:flex;align-items:center;justify-content:center;color:#4E5A78;font-weight:800;font-size:15px;line-height:1">О</span>Оля</div></div>
+    <div class="q reveal"><div class="stars">★★★★★</div><p>«Квиз как чат, отвечать приятно. План собрался под мои вкусы за 2 минуты»</p><div class="who"><span class="av" style="background:#EFE7F8;display:flex;align-items:center;justify-content:center;color:#6B4FA0;font-weight:800;font-size:15px;line-height:1">Н</span>Настя</div></div>
+    <div class="q reveal"><div class="stars">★★★★★</div><p>«Серия 28 дней — не хочу прерывать. Заодно минус 3 кг, само собой»</p><div class="who"><span class="av" style="background:#E5F2EA;display:flex;align-items:center;justify-content:center;color:#2F7D4F;font-weight:800;font-size:15px;line-height:1">В</span>Вера</div></div>
+  </div>
+</div></section>
+
+<!-- OFFER -->
+<section class="sec"><div class="wrap">
+  <div class="offer reveal">
+    <span class="chip" style="background:rgba(255,255,255,.2);color:#fff">Старт</span>
+    <h2 style="margin-top:14px">Знакомься со своим коучем</h2>
+    <div class="m">персональный план + меню + поддержка коуча</div>
+    <a class="btn" href="/quiz?l=coach" style="padding:17px 40px;font-size:17px">Пройти квиз →</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <div class="cols">
+    <div class="logo" style="color:var(--ink)"><span class="dot"></span>NutriPlan</div>
+    <div style="display:flex;gap:22px;flex-wrap:wrap"><a href="/offer">Оферта</a><a href="/privacy">Конфиденциальность</a><a href="/consent">Согласие</a><a href="/quiz?l=coach">Начать</a></div>
+  </div>
+  <p class="disc">Материалы носят справочный характер и не являются медицинской услугой, диагностикой или лечением.
+    Персональный план питания — рекомендательный подбор рациона по вашим данным. При заболеваниях
+    проконсультируйтесь со специалистом. Самозанятый Ульянин Никита Юрьевич · ИНН 772459697062 · support@mynutriplan.ru</p>
+</div></footer>
+
+<div class="mcta"><a class="btn coral" href="/quiz?l=coach" style="flex:1;justify-content:center;box-shadow:none">Пройти квиз →</a></div>
+
+<script>
+  (function(){var m=document.querySelector('.mcta');if(!m)return;
+    var ctas=[].slice.call(document.querySelectorAll('a.btn[href*="quiz"]'))
+      .filter(function(e){return !e.closest('.mcta')&&!e.closest('.nav')});
+    if(!ctas.length)return;var vis=new Set();
+    var io2=new IntersectionObserver(function(es){es.forEach(function(e){
+      e.isIntersecting?vis.add(e.target):vis.delete(e.target)});
+      m.classList.toggle('show',vis.size===0)},{threshold:0});
+    ctas.forEach(function(e){io2.observe(e)});})();
+  (function(){var vs=[...document.querySelectorAll('video')];vs.forEach(v=>v.muted=true);if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.play().catch(()=>{});}else{e.target.pause();}});},{rootMargin:'250px'});vs.forEach(v=>io.observe(v));}else{vs.forEach(v=>v.play().catch(()=>{}));}})();
+  const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
+  document.querySelectorAll('.reveal').forEach((el,i)=>{el.style.transitionDelay=(i%3*70)+'ms';io.observe(el)});
+</script>
+
+<script>
+(function(){var h=document.querySelector('header');var b=h&&h.querySelector('.burger');if(!h||!b)return;
+  b.addEventListener('click',function(){var o=h.classList.toggle('open');b.setAttribute('aria-expanded',o?'true':'false');});
+  h.querySelectorAll('.menu a').forEach(function(a){a.addEventListener('click',function(){h.classList.remove('open');b.setAttribute('aria-expanded','false');});});
+})();
+</script>
+</body>
+</html>

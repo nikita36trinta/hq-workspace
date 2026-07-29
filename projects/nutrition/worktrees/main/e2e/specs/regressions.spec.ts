@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./_fixtures";
 
 /**
  * One spec per defect found by hand, so it can only be found once.

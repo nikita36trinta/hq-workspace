@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Готовить красиво каждый день — меню и рецепты · NutriPlan</title>
+<meta name="description" content="Персональное меню на неделю с рецептами и списком покупок — под твою цель, вкусы и время. План за 2 минуты.">
+<link rel="canonical" href="https://mynutriplan.ru/l/chef">
+<link rel="icon" href="/assets/icon-192.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Готовить красиво каждый день — меню и рецепты · NutriPlan">
+<meta property="og:description" content="Персональное меню на неделю с рецептами и списком покупок — под твою цель, вкусы и время. План за 2 минуты.">
+<meta property="og:url" content="https://mynutriplan.ru/l/chef">
+<meta property="og:image" content="https://mynutriplan.ru/assets/icon-192.png">
+<meta property="og:site_name" content="NutriPlan">
+<meta name="twitter:card" content="summary">
+<style>
+  :root{
+    --bg:#F5F0E6; --paper:#FFFDF8; --ink:#2A2420; --muted:#7C7268; --line:#E6DDCC;
+    --terra:#C2683D; --terra-d:#A2502B; --olive:#6B7A4F;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);overflow-x:hidden;line-height:1.6;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .serif{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 24px}
+  a{color:inherit;text-decoration:none}
+  .btn{display:inline-flex;align-items:center;gap:9px;background:var(--terra);color:#fff;border:none;
+    padding:15px 30px;border-radius:4px;font-size:16px;font-weight:600;cursor:pointer;transition:.16s;letter-spacing:.01em}
+  .btn:hover{background:var(--terra-d)}
+  .btn.line{background:transparent;color:var(--ink);border:1px solid var(--ink)}
+  .btn.line:hover{background:var(--ink);color:var(--bg)}
+  .kicker{font-family:inherit;font-weight:700;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--terra)}
+  h1,h2,h3{line-height:1.08;font-weight:600;letter-spacing:-.01em}
+  .sec{padding:96px 0}
+  .rule{width:46px;height:2px;background:var(--terra);margin:16px 0}
+  .center{max-width:640px}.center.mid{margin:0 auto;text-align:center}
+  .center.mid .rule{margin:16px auto}
+  .center h2{font-size:clamp(30px,4.4vw,48px)}
+  .center .sub{color:var(--muted);font-size:18px;margin-top:14px}
+  .reveal{opacity:0;transform:translateY(24px);transition:.8s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+
+  header{position:sticky;top:0;z-index:50;background:rgba(245,240,230,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:70px}
+  .logo{font-weight:700;font-size:23px;letter-spacing:.01em}
+  .logo .amp{color:var(--terra)}
+  .menu{display:flex;gap:32px;font-size:14px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+  .menu a:hover{color:var(--ink)}
+  .nav .btn{padding:10px 22px;font-size:14px}
+  section[id]{scroll-margin-top:84px}
+
+  /* hero — editorial magazine */
+  .hero{padding:56px 0 30px}
+  .hero-top{text-align:center;max-width:20ch;margin:0 auto}
+  .hero-top .num{font-size:13px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+  .hero h1{font-size:clamp(44px,7vw,86px);margin:16px 0 0;letter-spacing:-.02em}
+  .hero h1 em{color:var(--terra);font-style:italic}
+  .hero .lead{max-width:52ch;margin:22px auto 30px;color:#5f564d;font-size:19px;text-align:center}
+  .hero-cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;align-items:center}
+  .hero-cta small{color:var(--muted);font-size:13px}
+  .hero-photo{margin-top:52px;border-radius:8px;overflow:hidden;aspect-ratio:16/8;background:#e8e0d0 center/cover no-repeat;
+    box-shadow:0 50px 90px -50px rgba(60,40,20,.5)}
+  .cap{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin-top:12px;letter-spacing:.02em}
+
+  /* philosophy columns */
+  .phil{display:grid;grid-template-columns:.8fr 1.2fr;gap:56px;align-items:start}
+  .phil .big{font-size:clamp(26px,3.4vw,38px);line-height:1.25}
+  .phil .big em{color:var(--terra);font-style:italic}
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:34px;margin-top:8px}
+  .col h3{font-size:19px;margin-bottom:8px}.col p{color:var(--muted);font-size:15px}
+  .col .k{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--terra);margin-bottom:10px}
+
+  /* steps */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:44px;border-top:1px solid var(--line)}
+  .step{padding:32px 26px 8px;border-right:1px solid var(--line)}
+  .step:last-child{border-right:0}
+  .step .n{font-size:15px;color:var(--terra);letter-spacing:.1em}
+  .step h3{font-size:22px;margin:10px 0 8px}
+  .step p{color:var(--muted);font-size:15px}
+
+  /* feature spread */
+  .spread{display:grid;grid-template-columns:1fr 1fr;gap:0;align-items:stretch;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+  .spread .ph{aspect-ratio:1;background-size:cover;background-position:center;min-height:340px}
+  .spread .txt{background:var(--paper);padding:52px 46px;display:flex;flex-direction:column;justify-content:center}
+  .spread .txt h2{font-size:clamp(26px,3.4vw,40px)}
+  .spread .txt p{color:var(--muted);margin-top:14px;font-size:16px}
+  .spread ul{list-style:none;margin-top:20px;display:flex;flex-direction:column;gap:12px}
+  .spread li{display:flex;gap:12px;font-size:16px}
+  .spread li::before{content:"—";color:var(--terra);font-weight:700}
+
+  /* menu gallery */
+  .gal{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:44px}
+  .gcard{background:var(--paper);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .gcard .ph{aspect-ratio:4/3;background-size:cover;background-position:center}
+  .gcard .b{padding:18px 20px 22px}
+  .gcard .k{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--terra)}
+  .gcard h3{font-size:20px;margin:6px 0 4px}
+  .gcard p{color:var(--muted);font-size:14px}
+
+  /* testimonials */
+  .quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:44px}
+  .q .mk{font-size:40px;color:var(--terra);line-height:.6;font-family:Georgia,serif}
+  .q p{font-size:17px;margin:14px 0 16px;line-height:1.5}
+  .q .who{display:flex;align-items:center;gap:11px;font-size:14px;color:var(--muted)}
+  .q .av{width:42px;height:42px;border-radius:50%;background-size:cover;background-position:center;flex:0 0 auto}
+
+  /* offer */
+  .offer{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:56px 46px;text-align:center;max-width:720px;margin:0 auto}
+  .offer .price{font-size:52px;color:var(--terra);margin:14px 0 4px}
+  .offer .price s{font-size:22px;color:var(--muted);margin-left:10px}
+  .offer .m{color:var(--muted);margin-bottom:26px}
+
+  footer{background:#EAE2D2;color:#6b6156;font-size:14px;padding:52px 0 40px;border-top:1px solid var(--line)}
+  footer .cols{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:22px;align-items:center}
+  footer a:hover{color:var(--ink)}
+  .disc{border-top:1px solid var(--line);padding-top:18px;color:#8a8073;font-size:12px;max-width:72ch}
+
+  .mcta{display:none}
+  @media(max-width:860px){
+    .menu,.nav .btn{display:none}
+    .sec{padding:60px 0}
+    .hero-photo{aspect-ratio:4/3}
+    .phil{grid-template-columns:1fr;gap:26px}.cols3{grid-template-columns:1fr;gap:24px}
+    .steps{grid-template-columns:1fr}.step{border-right:0;border-bottom:1px solid var(--line)}
+    .spread{grid-template-columns:1fr}.spread .ph{min-height:280px}.spread .txt{padding:34px 26px}
+    .gal,.quotes{grid-template-columns:1fr}
+    .offer{padding:36px 24px}
+    body{padding-bottom:78px}
+    .mcta{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:60;background:var(--paper);border-top:1px solid var(--line);padding:12px 16px}
+    .mcta .btn{flex:1;justify-content:center}
+  }
+
+  /* умная липкая кнопка: прячется, когда на экране видна любая CTA */
+  .mcta{transform:translateY(130%);transition:transform .34s cubic-bezier(.2,.7,.2,1)}
+  .mcta.show{transform:none}
+
+  /* мобильные фиксы: скролл экранов + тень + убрать зазор под уехавшую кнопку */
+  @media(max-width:900px){
+    body{padding-bottom:0}
+    .showcase .phones{width:100%;overflow-x:auto;padding:14px 14px 52px;scroll-snap-type:x mandatory}
+    .showcase .phones .phone{scroll-snap-align:center}
+  }
+
+  /* мобильный бургер + выпадающая навигация */
+  .burger{display:none}
+  .menu-cta{display:none}
+  @media(max-width:900px){
+    .burger{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:1px solid var(--line,#e6e0d4);border-radius:12px;background:transparent;color:var(--ink,#20321F);cursor:pointer}
+    .burger svg{width:22px;height:22px;display:block}
+    .burger .i-close{display:none}
+    header.open .burger .i-open{display:none}
+    header.open .burger .i-close{display:block}
+    header .menu{display:none;position:absolute;top:66px;left:0;right:0;z-index:60;flex-direction:column;gap:0;align-items:stretch;background:var(--bg,#fff);padding:6px 20px 18px;border-bottom:1px solid var(--line,#e6e0d4);box-shadow:0 24px 40px -22px rgba(0,0,0,.28)}
+    header.open .menu{display:flex}
+    header .menu a:not(.menu-cta){padding:15px 2px;border-bottom:1px solid var(--line,#eee);font-size:16px;font-weight:600;color:var(--ink,#20321F)}
+    header .menu .menu-cta{display:inline-flex;justify-content:center;margin-top:14px;border-bottom:none;padding:14px 20px;font-size:16px}
+  }
+</style>
+</head>
+<body>
+
+<header><div class="wrap nav">
+  <div class="logo serif">Nutri<span class="amp">Plan</span></div>
+  <nav class="menu"><a href="#idea">Идея</a><a href="#how">Как это устроено</a><a href="#menu">Меню</a><a href="#offer">Начать</a><a href="/login">Войти</a><a class="btn menu-cta" href="/quiz?l=chef">Собрать меню</a></nav>
+  <a class="btn" href="/quiz?l=chef">Собрать меню</a>
+  <button class="burger" aria-label="Меню" aria-expanded="false"><svg class="i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div></header>
+
+<!-- HERO -->
+<section class="hero"><div class="wrap">
+  <div class="hero-top">
+    <div class="num">Персональное меню · вып. 01</div>
+    <h1 class="serif">Готовить <em>красиво</em> — каждый день</h1>
+  </div>
+  <p class="lead serif">Не «правильное питание» из-под палки, а меню, которое хочется готовить и есть. Продумано по вкусу, балансу и красоте — под вас.</p>
+  <div class="hero-cta">
+    <a class="btn" href="/quiz?l=chef">Собрать моё меню →</a>
+    <a class="btn line" href="#menu">Посмотреть блюда</a>
+    <small>2 минуты · без карты</small>
+  </div>
+  <div class="hero-photo reveal" style="background-image:url(/assets/chef_hero.png)"></div>
+  <div class="cap"><span>Сезонное меню недели</span><span>Фото — из реальных рецептов плана</span></div>
+</div></section>
+
+<!-- PHILOSOPHY -->
+<section id="idea" class="sec" style="border-top:1px solid var(--line)"><div class="wrap">
+  <div class="phil">
+    <div class="reveal"><span class="kicker">Идея</span><div class="rule"></div>
+      <p class="big serif">Еда — это забота о себе, а не <em>наказание</em>. Поэтому мы делаем меню вкусным, разнообразным и посильным.</p>
+    </div>
+    <div class="cols3 reveal">
+      <div class="col"><div class="k">Вкус</div><h3 class="serif">Под ваши предпочтения</h3><p>Меню собирается из того, что вы любите — без нелюбимого и без «куриная грудка каждый день».</p></div>
+      <div class="col"><div class="k">Баланс</div><h3 class="serif">КБЖУ уже посчитаны</h3><p>Каждое блюдо сбалансировано под вашу цель — вам не нужно считать самим.</p></div>
+      <div class="col"><div class="k">Простота</div><h3 class="serif">Рецепты и список</h3><p>Понятные рецепты на 15–30 минут и список покупок на неделю — один заход в магазин.</p></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- STEPS -->
+<section id="how" class="sec" style="background:var(--paper);border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
+  <div class="center mid reveal"><span class="kicker">Как это устроено</span><div class="rule"></div>
+    <h2 class="serif">Три шага до вашего меню</h2></div>
+  <div class="steps reveal">
+    <div class="step"><div class="n serif">01</div><h3 class="serif">Рассказываете о вкусах</h3><p>Что любите, что не едите, сколько времени на готовку и какая цель.</p></div>
+    <div class="step"><div class="n serif">02</div><h3 class="serif">Получаете меню</h3><p>Блюда на неделю с рецептами, КБЖУ и красивыми фото — как в кулинарном журнале.</p></div>
+    <div class="step"><div class="n serif">03</div><h3 class="serif">Готовите с удовольствием</h3><p>Список покупок собран. Блюдо не по душе — замена в один тап.</p></div>
+  </div>
+</div></section>
+
+<!-- FEATURE SPREAD -->
+<section class="sec"><div class="wrap">
+  <div class="spread reveal">
+    <div class="ph" style="background-image:url(/assets/chef_hands.png)"></div>
+    <div class="txt">
+      <span class="kicker">Кухня без стресса</span><div class="rule"></div>
+      <h2 class="serif">Готовка, которая успокаивает, а не выматывает</h2>
+      <p>Мы убираем главную усталость — «что бы приготовить». Остаётся приятное: нарезать, собрать, поесть красиво.</p>
+      <ul>
+        <li>Рецепты с понятными шагами и временем</li>
+        <li>Сезонные продукты, доступные в любом магазине</li>
+        <li>Порции под вашу цель — без пересчётов</li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<!-- MENU GALLERY -->
+<section id="menu" class="sec" style="background:var(--paper);border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
+  <div class="center mid reveal"><span class="kicker">Меню недели</span><div class="rule"></div>
+    <h2 class="serif">Блюда, которые хочется готовить</h2></div>
+  <div class="gal">
+    <div class="gcard reveal"><div class="ph" style="background-image:url(/assets/food_breakfast.png)"></div><div class="b"><div class="k">Завтрак</div><h3 class="serif">Йогурт, ягоды, гранола</h3><p>Лёгкое начало дня · ~320 ккал</p></div></div>
+    <div class="gcard reveal"><div class="ph" style="background-image:url(/assets/food_bowl.png)"></div><div class="b"><div class="k">Обед</div><h3 class="serif">Тёплый боул с киноа</h3><p>Сытно и сбалансированно · ~520 ккал</p></div></div>
+    <div class="gcard reveal"><div class="ph" style="background-image:url(/assets/chef_hero.png)"></div><div class="b"><div class="k">Ужин</div><h3 class="serif">Лосось и овощи</h3><p>Как в ресторане, дома · ~480 ккал</p></div></div>
+  </div>
+</div></section>
+
+<!-- TESTIMONIALS -->
+<section class="sec"><div class="wrap">
+  <div class="center mid reveal"><h2 class="serif">За что любят</h2></div>
+  <div class="quotes">
+    <div class="q reveal"><div class="mk serif">“</div><p class="serif">Готовлю с удовольствием впервые за годы — 5 новых блюд в неделю, семья просит добавки</p><div class="who"><span class="av" style="background:#E8ECF6;display:flex;align-items:center;justify-content:center;color:#4E5A78;font-weight:800;font-size:15px;line-height:1">О</span>Оля, 31</div></div>
+    <div class="q reveal"><div class="mk serif">“</div><p class="serif">Ужин за 25 минут выглядит как из ресторана. Перестала заказывать доставку — экономлю около 8 000 ₽ в месяц</p><div class="who"><span class="av" style="background:#EFE7F8;display:flex;align-items:center;justify-content:center;color:#6B4FA0;font-weight:800;font-size:15px;line-height:1">Н</span>Настя, 34</div></div>
+    <div class="q reveal"><div class="mk serif">“</div><p class="serif">Один заход в магазин на неделю по списку — ноль испорченных продуктов и вечных «что приготовить»</p><div class="who"><span class="av" style="background:#E5F2EA;display:flex;align-items:center;justify-content:center;color:#2F7D4F;font-weight:800;font-size:15px;line-height:1">В</span>Вера, 29</div></div>
+  </div>
+</div></section>
+
+<!-- OFFER -->
+<section id="offer" class="sec" style="background:var(--paper);border-top:1px solid var(--line)"><div class="wrap">
+  <div class="offer reveal">
+    <span class="kicker">Начать</span><div class="rule" style="margin:14px auto"></div>
+    <h2 class="serif" style="font-size:clamp(26px,3.6vw,38px)">Ваше меню на неделю</h2>
+    <div class="m">персональное меню + рецепты + список покупок</div>
+    <a class="btn" href="/quiz?l=chef" style="padding:17px 40px;font-size:17px">Собрать моё меню →</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <div class="cols">
+    <div class="logo serif" style="color:var(--ink)">Nutri<span class="amp">Plan</span></div>
+    <div style="display:flex;gap:22px;flex-wrap:wrap"><a href="/offer">Оферта</a><a href="/privacy">Конфиденциальность</a><a href="/consent">Согласие</a><a href="/quiz?l=chef">Собрать меню</a></div>
+  </div>
+  <p class="disc">Материалы носят справочный характер и не являются медицинской услугой, диагностикой или лечением.
+    Персональный план питания — рекомендательный подбор рациона по вашим данным. При заболеваниях
+    проконсультируйтесь со специалистом. Самозанятый Ульянин Никита Юрьевич · ИНН 772459697062 · support@mynutriplan.ru</p>
+</div></footer>
+
+<div class="mcta"><a class="btn" href="/quiz?l=chef" style="flex:1;justify-content:center">Собрать меню →</a></div>
+
+<script>
+  (function(){var m=document.querySelector('.mcta');if(!m)return;
+    var ctas=[].slice.call(document.querySelectorAll('a.btn[href*="quiz"]'))
+      .filter(function(e){return !e.closest('.mcta')&&!e.closest('.nav')});
+    if(!ctas.length)return;var vis=new Set();
+    var io2=new IntersectionObserver(function(es){es.forEach(function(e){
+      e.isIntersecting?vis.add(e.target):vis.delete(e.target)});
+      m.classList.toggle('show',vis.size===0)},{threshold:0});
+    ctas.forEach(function(e){io2.observe(e)});})();
+  const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.1});
+  document.querySelectorAll('.reveal').forEach((el,i)=>{el.style.transitionDelay=(i%3*80)+'ms';io.observe(el)});
+</script>
+
+<script>
+(function(){var h=document.querySelector('header');var b=h&&h.querySelector('.burger');if(!h||!b)return;
+  b.addEventListener('click',function(){var o=h.classList.toggle('open');b.setAttribute('aria-expanded',o?'true':'false');});
+  h.querySelectorAll('.menu a').forEach(function(a){a.addEventListener('click',function(){h.classList.remove('open');b.setAttribute('aria-expanded','false');});});
+})();
+</script>
+</body>
+</html>

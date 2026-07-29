@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -21,6 +22,43 @@ from pydantic import BaseModel, EmailStr
 import dish_photos
 
 app = FastAPI(title="Nutrition", docs_url=None, redoc_url=None)
+
+# ── Режим «не считать меня» ──────────────────────────────────────────────────
+# Свои проходы по боевому сайту пачкают ровно те цифры, ради которых сайт и
+# мерят. Один прогон e2e по проду добавил 2 живых лида и девять заходов в квиз,
+# и их пришлось вычищать руками — этого не должно повторяться.
+#
+# Включается один раз через /?notrack=1 (на любом маршруте), дальше живёт в
+# куке. Отключается через /?notrack=0. Пока включён: счётчики не растут, лиды
+# не пишутся, письма не уходят и счётчик Метрики на страницу не встаёт — то
+# есть нас не видит ни своя статистика, ни Яндекс.
+NOTRACK_COOKIE = "np_notrack"
+_notrack: ContextVar[bool] = ContextVar("notrack", default=False)
+
+
+@app.middleware("http")
+async def _notrack_mw(request: Request, call_next):
+    q = request.query_params.get("notrack")
+    on = request.cookies.get(NOTRACK_COOKIE) == "1"
+    if q == "1":
+        on = True
+    elif q == "0":
+        on = False
+    token = _notrack.set(on)
+    try:
+        response = await call_next(request)
+    finally:
+        _notrack.reset(token)
+    if q == "1":
+        response.set_cookie(NOTRACK_COOKIE, "1", max_age=31_536_000, samesite="lax", path="/")
+    elif q == "0":
+        response.delete_cookie(NOTRACK_COOKIE, path="/")
+    return response
+
+
+def notrack() -> bool:
+    return _notrack.get()
+
 
 STATIC = Path(__file__).parent / "static"
 # картинки контента (Nano Banana) + прочие статик-ассеты лендингов
@@ -466,6 +504,8 @@ THEME = {
 # ---------- счётчики (визиты/воронка по лендингу) ----------
 
 def _bump(name: str) -> None:
+    if notrack():
+        return
     try:
         DATA.mkdir(parents=True, exist_ok=True)
         d = json.loads(COUNTERS.read_text()) if COUNTERS.exists() else {}
@@ -644,7 +684,7 @@ NUTRI_METRIKA_ID = os.getenv("NUTRI_METRIKA_ID", "").strip()
 def _inject_metrika(html: str) -> str:
     """Вставить счётчик Я.Метрики перед </head>, ЕСЛИ задан NUTRI_METRIKA_ID (инфра готова —
     оператору достаточно задать env, код появится на всех лендингах/квизе/плане автоматически)."""
-    if not (NUTRI_METRIKA_ID and "</head>" in html):
+    if notrack() or not (NUTRI_METRIKA_ID and "</head>" in html):
         return html
     cid = NUTRI_METRIKA_ID
     snippet = (
@@ -653,7 +693,12 @@ def _inject_metrika(html: str) -> str:
         "for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}"
         "k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})"
         "(window,document,'script','https://mc.yandex.ru/metrika/tag.js','ym');"
-        f"ym({cid},'init',{{clickmap:true,trackLinks:true,accurateTrackBounce:true,webvisor:false}});</script>"
+        f"ym({cid},'init',{{clickmap:true,trackLinks:true,accurateTrackBounce:true,webvisor:false}});"
+        # Идентификатор наружу: любая страница шлёт цели через window.npGoal(),
+        # не зная номера счётчика и не ломаясь, когда счётчик не настроен.
+        f"window.NP_METRIKA_ID={cid};"
+        "window.npGoal=function(n){try{if(window.ym&&window.NP_METRIKA_ID)"
+        "ym(window.NP_METRIKA_ID,'reachGoal',n);}catch(e){}};</script>"
         f"<noscript><div><img src='https://mc.yandex.ru/watch/{cid}' style='position:absolute;left:-9999px' alt='' /></div></noscript>")
     return html.replace("</head>", snippet + "</head>", 1)
 
@@ -982,6 +1027,10 @@ def save_lead(lead: Lead, request: Request, bg: BackgroundTasks) -> JSONResponse
     rec["ts"] = datetime.now(timezone.utc).isoformat()
     slug = lead.landing if lead.landing in LANDINGS else "?"
     _bump(f"lead_{slug}")
+    if notrack():
+        # Свой прогон: ни строки в лидах, ни письма. Отвечаем как обычно —
+        # фронт должен вести себя ровно так же, иначе тестируется не то.
+        return JSONResponse({"ok": True})
     try:
         DATA.mkdir(parents=True, exist_ok=True)
         with open(LEADS, "a", encoding="utf-8") as fh:
@@ -1309,7 +1358,9 @@ def login_consume(token: str) -> HTMLResponse:
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page() -> HTMLResponse:
-    return HTMLResponse(
+    # через _inject_metrika: страница собирается строкой, а не общим шаблоном,
+    # и без этого оставалась единственной без счётчика
+    return HTMLResponse(_inject_metrika(
         "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'><title>Вход · NutriPlan</title>"
         "<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;"
@@ -1346,7 +1397,7 @@ def login_page() -> HTMLResponse:
         "try{await fetch('/api/login/request',{method:'POST',headers:{'Content-Type':'application/json'},"
         "body:JSON.stringify({email:v,consent_text:CT,consent_version:CV})});}catch(e){}"
         "$('#o').classList.add('s');$('#s').style.display='none';};"  # нейтрально: не раскрываем наличие аккаунта
-        "</script></div></body></html>")
+        "</script></div></body></html>"))
 
 
 @app.post("/api/sub/{token}/cancel")
@@ -1545,6 +1596,7 @@ def pay_success(o: str = "") -> HTMLResponse:
     # Проверяем фактический статус платежа по заказу — не доверяем самому факту редиректа.
     order = _find_order(oid) if oid else {}
     pid = order.get("payment_id", "")
+    st = ""
     if pid:
         st = _yk_get_payment(pid).get("status", "")
         if st in ("canceled", "") and not (PLANS / f"{oid}.json").exists():
@@ -1564,9 +1616,25 @@ def pay_success(o: str = "") -> HTMLResponse:
             "Проверь входящие (и \\u00abПромоакции\\u00bb).';}"
             "}).catch(function(){setTimeout(tick,5000);});}"
             "setTimeout(tick,3000);})();</script>")
-    return HTMLResponse(
-        "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>Оплата получена · NutriPlan</title>"
+    # Цель оплаты — только при ПЕРЕПРОВЕРЕННОМ succeeded. Сам факт редиректа
+    # с ЮKassa ничего не значит: она редиректит и при отмене. Защита от
+    # повторов — sessionStorage по заказу, иначе обновление страницы (а тут
+    # страница живёт минуту и поллит) накрутило бы конверсию.
+    paid_goal = ""
+    if oid and st == "succeeded":
+        paid_goal = (
+            "<script>(function(){try{var k='np_paid_" + oid + "';"
+            "if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,'1');"
+            "if(window.npGoal)window.npGoal('pay_success');}}catch(e){}})();</script>")
+
+    return HTMLResponse(_inject_metrika(
+        # <head> здесь настоящий, а не для красоты: _inject_metrika вставляет
+        # счётчик ПЕРЕД </head>, и без него страница возврата оставалась без
+        # аналитики — слепое пятно №1 из доктрины add-payments: деньги дошли,
+        # а Метрика и Директ об этом не узнали.
+        "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<title>Оплата получена · NutriPlan</title></head><body>"
         "<div style=\"font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;"
         "min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;"
         "text-align:center;padding:30px;background:#FBF8F1;color:#20321F\">"
@@ -1580,7 +1648,7 @@ def pay_success(o: str = "") -> HTMLResponse:
         "<div style='margin-top:18px;width:34px;height:34px;border:3px solid #DCFCE7;border-top-color:#16A34A;"
         "border-radius:50%;animation:sp 1s linear infinite'></div>"
         "<style>@keyframes sp{to{transform:rotate(360deg)}}</style>"
-        + poll + "</div>")
+        + poll + paid_goal + "</div></body></html>"))
 
 
 @app.get("/api/cron/run")

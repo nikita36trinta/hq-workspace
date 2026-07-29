@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Питание как система — под твою форму · NutriPlan</title>
+<meta name="description" content="Питание как система: расчёт КБЖУ, меню на неделю, пересчёт под прогресс. Персональный план за 2 минуты.">
+<link rel="canonical" href="https://mynutriplan.ru/l/pro">
+<link rel="icon" href="/assets/icon-192.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Питание как система — под твою форму · NutriPlan">
+<meta property="og:description" content="Питание как система: расчёт КБЖУ, меню на неделю, пересчёт под прогресс. Персональный план за 2 минуты.">
+<meta property="og:url" content="https://mynutriplan.ru/l/pro">
+<meta property="og:image" content="https://mynutriplan.ru/assets/icon-192.png">
+<meta property="og:site_name" content="NutriPlan">
+<meta name="twitter:card" content="summary">
+<style>
+  :root{
+    --bg:#0A0D0C; --surface:#141917; --surface2:#1B211E; --ink:#F2F5F3; --muted:#8A968F;
+    --line:rgba(255,255,255,.09); --lime:#C7F94E; --lime-d:#9FE01F;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);overflow-x:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1160px;margin:0 auto;padding:0 22px}
+  a{color:inherit;text-decoration:none}
+  .btn{display:inline-flex;align-items:center;gap:9px;background:var(--lime);color:#0A0D0C;border:none;
+    padding:16px 30px;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;letter-spacing:-.01em;transition:.16s}
+  .btn:hover{background:#fff;transform:translateY(-2px)}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  .btn.ghost:hover{background:var(--surface);color:var(--ink)}
+  .kicker{display:inline-flex;align-items:center;gap:8px;color:var(--lime);font-weight:700;font-size:12px;
+    letter-spacing:.14em;text-transform:uppercase}
+  .kicker::before{content:"";width:22px;height:2px;background:var(--lime);border-radius:2px}
+  h1,h2,h3{letter-spacing:-.03em;line-height:1.02;font-weight:800}
+  .sec{padding:92px 0}
+  .center{max-width:680px}.center.mid{margin:0 auto;text-align:center}
+  .center h2{font-size:clamp(30px,4.6vw,50px)}
+  .center .sub{color:var(--muted);font-size:18px;margin-top:14px}
+  .reveal{opacity:0;transform:translateY(26px);transition:.7s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+
+  header{position:sticky;top:0;z-index:50;background:rgba(10,13,12,.72);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:66px}
+  .logo{font-weight:800;font-size:20px;display:flex;align-items:center;gap:9px;letter-spacing:-.02em}
+  .logo .dot{width:11px;height:11px;border-radius:50%;background:var(--lime);box-shadow:0 0 14px var(--lime)}
+  .menu{display:flex;gap:30px;font-size:14px;font-weight:600;color:var(--muted)}
+  .menu a:hover{color:var(--ink)}
+  .nav .btn{padding:10px 20px;font-size:14px}
+  section[id]{scroll-margin-top:80px}
+
+  /* hero */
+  .hero{position:relative}
+  .hero .g{display:grid;grid-template-columns:1.06fr .94fr;align-items:center;gap:26px;min-height:calc(100vh - 66px)}
+  .hero::before{content:"";position:absolute;top:-10%;right:-10%;width:60%;height:80%;z-index:0;
+    background:radial-gradient(closest-side,rgba(199,249,78,.14),transparent 70%)}
+  .hero-copy{position:relative;z-index:2;padding:40px 0}
+  .hero h1{font-size:clamp(40px,6.4vw,74px);margin:18px 0 20px}
+  .hero h1 em{color:var(--lime);font-style:normal}
+  .hero p{color:var(--muted);font-size:19px;max-width:40ch;margin-bottom:30px}
+  .hero-cta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .hero-cta small{color:var(--muted);font-size:13px}
+  .shot{position:relative;z-index:1;height:100%;min-height:520px}
+  .shot .img{position:absolute;inset:0;border-radius:26px;overflow:hidden;border:1px solid var(--line);
+    background:#0f1311 center/cover no-repeat}
+  .shot .img::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(10,13,12,.55))}
+  /* score ring card (whoop signature) */
+  .score{position:absolute;left:-30px;bottom:34px;z-index:3;background:rgba(20,25,23,.86);backdrop-filter:blur(10px);
+    border:1px solid var(--line);border-radius:20px;padding:20px 22px;display:flex;align-items:center;gap:18px;
+    box-shadow:0 30px 60px -30px #000}
+  .score .ring{position:relative;width:76px;height:76px;flex:0 0 auto}
+  .score .ring .v{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800}
+  .score .t b{display:block;font-size:13px;color:var(--muted);font-weight:600}
+  .score .t span{font-size:15px;font-weight:700}
+  .score .t .up{color:var(--lime);font-size:12px;font-weight:700}
+
+  /* metric band */
+  .band{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--surface)}
+  .band .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;padding:34px 22px}
+  .metric b{display:block;font-size:clamp(30px,4vw,44px);font-weight:800;letter-spacing:-.03em}
+  .metric b em{color:var(--lime);font-style:normal}
+  .metric span{color:var(--muted);font-size:14px}
+
+  /* steps dark */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:46px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:30px}
+  .card .n{width:44px;height:44px;border-radius:12px;background:rgba(199,249,78,.12);color:var(--lime);
+    display:flex;align-items:center;justify-content:center;margin-bottom:18px}
+  .card .n svg{width:22px;height:22px}
+  .card h3{font-size:20px;margin-bottom:8px}
+  .card p{color:var(--muted);font-size:15px}
+
+  /* system panel (data viz) */
+  .panel{display:grid;grid-template-columns:.9fr 1.1fr;gap:40px;align-items:center;margin-top:12px}
+  .bars{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:32px}
+  .bar{margin-bottom:20px}
+  .bar:last-child{margin-bottom:0}
+  .bar .l{display:flex;justify-content:space-between;font-size:14px;margin-bottom:9px}
+  .bar .l b{font-weight:700}.bar .l span{color:var(--muted)}
+  .bar .track{height:10px;border-radius:99px;background:rgba(255,255,255,.06);overflow:hidden}
+  .bar .track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--lime-d),var(--lime))}
+
+  /* meal (dark food) */
+  .meal{display:grid;grid-template-columns:1.1fr .9fr;gap:36px;align-items:center}
+  .meal .ph{border-radius:24px;aspect-ratio:4/3;background-size:cover;background-position:center;border:1px solid var(--line)}
+  .meal ul{list-style:none;margin-top:20px;display:flex;flex-direction:column;gap:14px}
+  .meal li{display:flex;gap:13px;font-size:16px;color:var(--ink)}
+  .meal li .c{flex:0 0 24px;height:24px;border-radius:7px;background:rgba(199,249,78,.14);display:flex;align-items:center;justify-content:center}
+  .meal li .c svg{width:14px;height:14px}
+
+  /* testimonials */
+  .quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:44px}
+  .q{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:26px}
+  .q p{font-size:15px;margin:0 0 16px}
+  .q .who{display:flex;align-items:center;gap:11px;font-size:14px}
+  .q .av{width:40px;height:40px;border-radius:50%;background-size:cover;background-position:center;flex:0 0 auto;border:1px solid var(--line)}
+  .q .who span{color:var(--muted)}
+
+  /* join */
+  .join{background:linear-gradient(160deg,#171d1a,#0d110f);border:1px solid var(--line);border-radius:28px;
+    padding:56px 46px;text-align:center;position:relative;overflow:hidden}
+  .join::before{content:"";position:absolute;top:-40%;left:50%;transform:translateX(-50%);width:80%;height:100%;
+    background:radial-gradient(closest-side,rgba(199,249,78,.16),transparent 70%)}
+  .join>*{position:relative;z-index:1}
+  .join h2{font-size:clamp(28px,4.4vw,46px)}
+  .join .price{font-size:44px;font-weight:800;margin:16px 0 6px}
+  .join .price em{color:var(--lime);font-style:normal}
+  .join .price s{font-size:20px;color:var(--muted);font-weight:600;margin-left:8px}
+  .join .m{color:var(--muted);font-size:14px;margin-bottom:26px}
+
+  footer{border-top:1px solid var(--line);color:var(--muted);font-size:14px;padding:46px 0 40px;margin-top:20px}
+  footer .cols{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:22px}
+  footer a:hover{color:var(--ink)}
+  .disc{font-size:12px;color:#5b665f;max-width:70ch;border-top:1px solid var(--line);padding-top:16px}
+
+  .mcta{display:none}
+  @media(max-width:860px){
+    .menu,.nav .btn{display:none}
+    .sec{padding:60px 0}
+    .hero .g{grid-template-columns:1fr;min-height:auto;padding-top:10px}
+    .shot{min-height:420px;margin-top:8px}
+    .score{left:10px}
+    .band .wrap{grid-template-columns:repeat(2,1fr);gap:26px 20px}
+    .steps,.quotes{grid-template-columns:1fr}
+    .panel,.meal{grid-template-columns:1fr}
+    .join{padding:40px 24px}
+    body{padding-bottom:80px}
+    .mcta{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:60;gap:12px;align-items:center;justify-content:space-between;
+      background:rgba(10,13,12,.94);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:12px 16px}
+    .mcta .btn{flex:1;justify-content:center}
+  }
+
+  /* умная липкая кнопка: прячется, когда на экране видна любая CTA */
+  .mcta{transform:translateY(130%);transition:transform .34s cubic-bezier(.2,.7,.2,1)}
+  .mcta.show{transform:none}
+
+  /* мобильные фиксы: скролл экранов + тень + убрать зазор под уехавшую кнопку */
+  @media(max-width:900px){
+    body{padding-bottom:0}
+    .showcase .phones{width:100%;overflow-x:auto;padding:14px 14px 52px;scroll-snap-type:x mandatory}
+    .showcase .phones .phone{scroll-snap-align:center}
+  }
+
+  /* мобильный бургер + выпадающая навигация */
+  .burger{display:none}
+  .menu-cta{display:none}
+  @media(max-width:900px){
+    .burger{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:1px solid var(--line,#e6e0d4);border-radius:12px;background:transparent;color:var(--ink,#20321F);cursor:pointer}
+    .burger svg{width:22px;height:22px;display:block}
+    .burger .i-close{display:none}
+    header.open .burger .i-open{display:none}
+    header.open .burger .i-close{display:block}
+    header .menu{display:none;position:absolute;top:66px;left:0;right:0;z-index:60;flex-direction:column;gap:0;align-items:stretch;background:var(--bg,#fff);padding:6px 20px 18px;border-bottom:1px solid var(--line,#e6e0d4);box-shadow:0 24px 40px -22px rgba(0,0,0,.28)}
+    header.open .menu{display:flex}
+    header .menu a:not(.menu-cta){padding:15px 2px;border-bottom:1px solid var(--line,#eee);font-size:16px;font-weight:600;color:var(--ink,#20321F)}
+    header .menu .menu-cta{display:inline-flex;justify-content:center;margin-top:14px;border-bottom:none;padding:14px 20px;font-size:16px}
+  }
+</style>
+</head>
+<body>
+
+<header><div class="wrap nav">
+  <div class="logo"><span class="dot"></span>NutriPlan</div>
+  <nav class="menu"><a href="#how">Метод</a><a href="#system">Система</a><a href="#fuel">Топливо</a><a href="#join">Доступ</a><a href="/login">Войти</a><a class="btn menu-cta" href="/quiz?l=pro">Собрать план</a></nav>
+  <a class="btn" href="/quiz?l=pro">Собрать план</a>
+  <button class="burger" aria-label="Меню" aria-expanded="false"><svg class="i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div></header>
+
+<!-- HERO -->
+<section class="hero"><div class="wrap g">
+  <div class="hero-copy">
+    <span class="kicker">Питание как система</span>
+    <h1>Тело — <em>проект</em>. Питание — его код</h1>
+    <p>Не диета и не сила воли. Точный план под твою цель, тренировки и восстановление — измеримо, управляемо, без гадания.</p>
+    <div class="hero-cta">
+      <a class="btn" href="/quiz?l=pro">Рассчитать мой план →</a>
+      <a class="btn ghost" href="#how">Как это работает</a>
+    </div>
+    <div style="margin-top:16px"><small style="color:var(--muted);font-size:13px">2 минуты · без карты · пересчёт под прогресс</small></div>
+  </div>
+  <div class="shot">
+    <div class="img" style="background-image:url(/assets/pro_athlete.png)"></div>
+    <div class="score">
+      <div class="ring">
+        <svg width="76" height="76" viewBox="0 0 76 76"><circle cx="38" cy="38" r="32" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7"/>
+          <circle cx="38" cy="38" r="32" fill="none" stroke="#C7F94E" stroke-width="7" stroke-linecap="round"
+            stroke-dasharray="201" stroke-dashoffset="28" transform="rotate(-90 38 38)"/></svg>
+        <div class="v">87</div>
+      </div>
+      <div class="t"><b>Баланс питания</b><span>Сегодня — оптимально</span><div class="up">▲ белок в норме</div></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- METRIC BAND -->
+<div class="band"><div class="wrap">
+  <div class="metric"><b><em>32K+</em></b><span>рассчитали план</span></div>
+  <div class="metric"><b>±<em>5г</em></b><span>точность по белку/день</span></div>
+  <div class="metric"><b><em>7</em> дней</b><span>меню сразу под цель</span></div>
+  <div class="metric"><b><em>4.9</em></b><span>и план готов</span></div>
+</div></div>
+
+<!-- STEPS -->
+<section id="how" class="sec"><div class="wrap">
+  <div class="center reveal"><span class="kicker">Метод</span>
+    <h2 style="margin-top:16px">Три шага — и система работает на тебя</h2></div>
+  <div class="steps">
+    <div class="card reveal"><div class="n"><svg viewBox="0 0 24 24" fill="none" stroke="#C7F94E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="3.4"/></svg></div><h3>Снимаем данные</h3><p>Цель, вес, тренировки, восстановление и вкусы — точный профиль за 2 минуты.</p></div>
+    <div class="card reveal"><div class="n"><svg viewBox="0 0 24 24" fill="none" stroke="#C7F94E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18V9M10 18V5M16 18v-6M22 18H2"/></svg></div><h3>Считаем план</h3><p>КБЖУ, распределение по дню и меню на неделю — под нагрузку, а не по усреднённым таблицам.</p></div>
+    <div class="card reveal"><div class="n"><svg viewBox="0 0 24 24" fill="none" stroke="#C7F94E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.5"/><path d="M21 4v5h-5"/></svg></div><h3>Пересобираем под прогресс</h3><p>Меняются результаты — меняется план. Система адаптируется, а не устаревает.</p></div>
+  </div>
+</div></section>
+
+<!-- SYSTEM PANEL -->
+<section id="system" class="sec" style="background:var(--surface)"><div class="wrap">
+  <div class="panel">
+    <div class="center reveal"><span class="kicker">Система</span>
+      <h2 style="margin-top:16px">Ты видишь, что работает</h2>
+      <p class="sub">Каждый приём — под задачу: белок для восстановления, углеводы вокруг тренировок, микронутриенты для энергии. Никакой магии — только управляемые величины.</p>
+      <div style="margin-top:26px"><a class="btn" href="/quiz?l=pro">Собрать мой план →</a></div>
+    </div>
+    <div class="bars reveal">
+      <div class="bar"><div class="l"><b>Белок</b><span>132 / 135 г</span></div><div class="track"><i style="width:97%"></i></div></div>
+      <div class="bar"><div class="l"><b>Углеводы вокруг тренировки</b><span>180 / 190 г</span></div><div class="track"><i style="width:92%"></i></div></div>
+      <div class="bar"><div class="l"><b>Жиры</b><span>58 / 60 г</span></div><div class="track"><i style="width:88%"></i></div></div>
+      <div class="bar"><div class="l"><b>Вода</b><span>2.4 / 2.6 л</span></div><div class="track"><i style="width:82%"></i></div></div>
+      <div class="bar"><div class="l"><b>Восстановление</b><span>оптимально</span></div><div class="track"><i style="width:90%"></i></div></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- FUEL -->
+<section id="fuel" class="sec"><div class="wrap">
+  <div class="meal">
+    <div class="ph reveal" style="background-image:url(/assets/pro_meal.png)"></div>
+    <div class="reveal">
+      <span class="kicker">Топливо</span>
+      <h2 style="margin:16px 0 6px;font-size:clamp(26px,3.6vw,38px)">Еда, которая работает на результат</h2>
+      <ul>
+        <li><span class="c"><svg viewBox="0 0 24 24" fill="none" stroke="#C7F94E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg></span><div><b>Обычные продукты</b>, готовка 15–20 минут — без спортпита и экзотики</div></li>
+        <li><span class="c"><svg viewBox="0 0 24 24" fill="none" stroke="#C7F94E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg></span><div><b>Список покупок</b> собран на неделю — один заход в магазин</div></li>
+        <li><span class="c"><svg viewBox="0 0 24 24" fill="none" stroke="#C7F94E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 6"/></svg></span><div><b>Замена в один тап</b> — не по вкусу блюдо, меню пересоберётся с тем же балансом</div></li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<!-- TESTIMONIALS -->
+<section class="sec" style="background:var(--surface)"><div class="wrap">
+  <div class="center mid reveal"><h2>Результат, а не обещания</h2></div>
+  <div class="quotes">
+    <div class="q reveal"><p>«За 10 недель минус 6% жира без потери силы. Всё измеримо — вижу белок, вижу прогресс»</p><div class="who"><span class="av" style="background:#E8ECF6;display:flex;align-items:center;justify-content:center;color:#4E5A78;font-weight:800;font-size:15px;line-height:1">И</span>Игорь · 3 трен/нед</div></div>
+    <div class="q reveal"><p>«Сушка без голодных срывов: 1600 ккал, но сытно. Минус 4 см в талии за 2 месяца»</p><div class="who"><span class="av" style="background:#EFE7F8;display:flex;align-items:center;justify-content:center;color:#6B4FA0;font-weight:800;font-size:15px;line-height:1">А</span>Аня · рельеф</div></div>
+    <div class="q reveal"><p>«Минус час планирования в день. Держу форму 4 месяца, меню пересобирается само»</p><div class="who"><span class="av" style="background:#E5F2EA;display:flex;align-items:center;justify-content:center;color:#2F7D4F;font-weight:800;font-size:15px;line-height:1">М</span>Марина · поддержание</div></div>
+  </div>
+</div></section>
+
+<!-- JOIN -->
+<section id="join" class="sec"><div class="wrap">
+  <div class="join reveal">
+    <span class="kicker" style="justify-content:center">Доступ</span>
+    <h2 style="margin-top:14px">Запусти систему сегодня</h2>
+    <div class="m">персональный план + меню на неделю · пересчёт под прогресс</div>
+    <a class="btn" href="/quiz?l=pro" style="padding:18px 40px;font-size:17px">Рассчитать мой план →</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <div class="cols">
+    <div class="logo"><span class="dot"></span>NutriPlan</div>
+    <div style="display:flex;gap:22px;flex-wrap:wrap"><a href="/offer">Оферта</a><a href="/privacy">Конфиденциальность</a><a href="/consent">Согласие</a><a href="/quiz?l=pro">Собрать план</a></div>
+  </div>
+  <p class="disc">Материалы носят справочный характер и не являются медицинской услугой, диагностикой или лечением.
+    Персональный план питания — рекомендательный подбор рациона по вашим данным. При заболеваниях
+    проконсультируйтесь со специалистом. Самозанятый Ульянин Никита Юрьевич · ИНН 772459697062 · support@mynutriplan.ru</p>
+</div></footer>
+
+<div class="mcta"><a class="btn" href="/quiz?l=pro" style="flex:1;justify-content:center">Рассчитать план →</a></div>
+
+<script>
+  (function(){var m=document.querySelector('.mcta');if(!m)return;
+    var ctas=[].slice.call(document.querySelectorAll('a.btn[href*="quiz"]'))
+      .filter(function(e){return !e.closest('.mcta')&&!e.closest('.nav')});
+    if(!ctas.length)return;var vis=new Set();
+    var io2=new IntersectionObserver(function(es){es.forEach(function(e){
+      e.isIntersecting?vis.add(e.target):vis.delete(e.target)});
+      m.classList.toggle('show',vis.size===0)},{threshold:0});
+    ctas.forEach(function(e){io2.observe(e)});})();
+  const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
+  document.querySelectorAll('.reveal').forEach((el,i)=>{el.style.transitionDelay=(i%3*70)+'ms';io.observe(el)});
+</script>
+
+<script>
+(function(){var h=document.querySelector('header');var b=h&&h.querySelector('.burger');if(!h||!b)return;
+  b.addEventListener('click',function(){var o=h.classList.toggle('open');b.setAttribute('aria-expanded',o?'true':'false');});
+  h.querySelectorAll('.menu a').forEach(function(a){a.addEventListener('click',function(){h.classList.remove('open');b.setAttribute('aria-expanded','false');});});
+})();
+</script>
+</body>
+</html>

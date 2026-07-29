@@ -35,12 +35,19 @@ suite "passed" against code that predated the fixes it was testing.
 `reuseExistingServer` is off for the same reason: test the image built from
 this tree, not whatever happens to be listening.
 
-**`BASE_URL=https://mynutriplan.ru npm test` WRITES TO PRODUCTION.** The journey
-test submits an email, so it creates real leads and bumps the funnel counters —
-one run added 2 leads and ~9 quiz hits, which had to be cleaned out of
-`data/leads.jsonl` and `data/counters.json` by hand. There is no `notrack` mode
-on this app yet (ЧистаяСделка has one, `/?notrack=1`). Until there is, run
-against prod only deliberately, and expect to clean up after.
+**Every run is in notrack mode, automatically.** `specs/_fixtures.ts` puts the
+`np_notrack` cookie on the context before the first navigation, so counters do
+not move, leads are not written and no email goes out. This is not a
+convenience — the first prod run, before the mode existed, added 2 live leads
+and ~9 quiz hits that had to be dug out of `data/leads.jsonl` and
+`data/counters.json` by hand. Relying on a person remembering a flag was not
+going to hold.
+
+`BASE_URL=https://mynutriplan.ru npm test` therefore runs against production
+safely — verified: leads 0, `quiz_slim` unchanged after a full pass. The two
+specs that observe goal calls are skipped there: the real Metrika snippet
+overwrites the `window.npGoal` stub, so the contract can only be watched where
+no counter is installed.
 
 Payments are out of scope by construction: without ЮKassa keys the app answers
 `503 payments not configured`, so the suite covers everything up to the paywall

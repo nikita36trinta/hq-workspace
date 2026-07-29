@@ -1,0 +1,1484 @@
+{
+ "dishes": [
+  {
+   "slug": "ovsyanaya-kasha-fruktami",
+   "title": "Овсяная каша с фруктами",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "grechnevaya-kasha-molokom",
+   "title": "Гречневая каша с молоком",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "pshennaya-kasha-tykvoy",
+   "title": "Пшенная каша с тыквой",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "risovaya-kasha-izyumom",
+   "title": "Рисовая каша с изюмом",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "yaichnitsa-glazunya",
+   "title": "Яичница глазунья",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "omlet-syrom",
+   "title": "Омлет с сыром",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "syrniki-smetanoy",
+   "title": "Сырники со сметаной",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "tvorozhnaya-zapekanka",
+   "title": "Творожная запеканка",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "bliny-tvorogom",
+   "title": "Блины с творогом",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "oladi-varenem",
+   "title": "Оладьи с вареньем",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "buterbrod-syrom",
+   "title": "Бутерброд с сыром",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "buterbrod-kolbasoy",
+   "title": "Бутерброд с колбасой",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "yaichnitsa-pomidorami",
+   "title": "Яичница с помидорами",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "omlet-vetchinoy",
+   "title": "Омлет с ветчиной",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "tosty-avokado",
+   "title": "Тосты с авокадо",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "mannaya-kasha-maslom",
+   "title": "Манная каша с маслом",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "buterbrod-pashtetom",
+   "title": "Бутерброд с паштетом",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "grenki-yaytsom",
+   "title": "Гренки с яйцом",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "tvorog-yagodami",
+   "title": "Творог с ягодами",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "yogurt-granoloy",
+   "title": "Йогурт с гранолой",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "smuzi-bananom",
+   "title": "Смузи с бананом",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "buterbrod-krasnoy-ryboy",
+   "title": "Бутерброд с красной рыбой",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "varenye-yaytsa",
+   "title": "Вареные яйца",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "yaichnitsa-bekonom",
+   "title": "Яичница с беконом",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "lenivye-vareniki",
+   "title": "Ленивые вареники",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "sendvich-kuritsey",
+   "title": "Сэндвич с курицей",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kukuruznye-hlopya-molokom",
+   "title": "Кукурузные хлопья с молоком",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "fruktovyy-salat",
+   "title": "Фруктовый салат",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "blinchiki-myasom",
+   "title": "Блинчики с мясом",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "pankeyki-siropom",
+   "title": "Панкейки с сиропом",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "zapekanka-makaron",
+   "title": "Запеканка из макарон",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "tvorog-zelenyu",
+   "title": "Творог с зеленью",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kruassan-dzhemom",
+   "title": "Круассан с джемом",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "yaichnitsa-sosiskami",
+   "title": "Яичница с сосисками",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "omlet-ovoschami",
+   "title": "Омлет с овощами",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "syrniki-izyumom",
+   "title": "Сырники с изюмом",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "buterbrod-yaytsom",
+   "title": "Бутерброд с яйцом",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "ovsyanka-vode",
+   "title": "Овсянка на воде",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kasha-zlakov",
+   "title": "Каша 5 злаков",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "tvorozhnye-oladi",
+   "title": "Творожные оладьи",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "buterbrod-avokado",
+   "title": "Бутерброд с авокадо",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "syrniki-yablokom",
+   "title": "Сырники с яблоком",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "ovoschnoy-omlet",
+   "title": "Овощной омлет",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "tost-yaytsom",
+   "title": "Тост с яйцом",
+   "meal": "breakfast",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kasha-kinoa",
+   "title": "Каша из киноа",
+   "meal": "breakfast",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "borsch-smetanoy",
+   "title": "Борщ со сметаной",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "schi-svezhey-kapusty",
+   "title": "Щи из свежей капусты",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "rassolnik-perlovkoy",
+   "title": "Рассольник с перловкой",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "sup-gorohovyy-kopchenostyami",
+   "title": "Суп гороховый с копченостями",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "gribnoy-sup-pyure",
+   "title": "Грибной суп-пюре",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kurinyy-sup-lapshoy",
+   "title": "Куриный суп с лапшой",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "solyanka-myasnaya",
+   "title": "Солянка мясная",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "uha-po-tsarski",
+   "title": "Уха по-царски",
+   "meal": "lunch",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "plov-svininoy",
+   "title": "Плов со свининой",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "plov-kuritsey",
+   "title": "Плов с курицей",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "grechka-kotletoy",
+   "title": "Гречка с котлетой",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "makarony-po-flotski",
+   "title": "Макароны по-флотски",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kartofelnoe-pyure-sosiskami",
+   "title": "Картофельное пюре с сосисками",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "zharenaya-kartoshka-gribami",
+   "title": "Жареная картошка с грибами",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "ovoschnoe-ragu",
+   "title": "Овощное рагу",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "golubtsy-myasnye",
+   "title": "Голубцы мясные",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "tefteli-risom",
+   "title": "Тефтели с рисом",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kurinaya-grudka-risom",
+   "title": "Куриная грудка с рисом",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "ryba-zapechennaya-ovoschami",
+   "title": "Рыба запеченная с овощами",
+   "meal": "lunch",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "salat-olive",
+   "title": "Салат Оливье",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "vinegret-klassicheskiy",
+   "title": "Винегрет классический",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "tsezar-kuritsey",
+   "title": "Цезарь с курицей",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "grecheskiy-salat",
+   "title": "Греческий салат",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "okroshka-kvase",
+   "title": "Окрошка на квасе",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "sup-harcho",
+   "title": "Суп-харчо",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "lagman-govyadinoy",
+   "title": "Лагман с говядиной",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "pelmeni-bulonom",
+   "title": "Пельмени с бульоном",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "vareniki-kartoshkoy",
+   "title": "Вареники с картошкой",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kotleta-po-kievski",
+   "title": "Котлета по-киевски",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "myaso-po-frantsuzski",
+   "title": "Мясо по-французски",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kurinye-otbivnye",
+   "title": "Куриные отбивные",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "rybnye-kotlety",
+   "title": "Рыбные котлеты",
+   "meal": "lunch",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "myasnye-zrazy",
+   "title": "Мясные зразы",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "plov-moreproduktami",
+   "title": "Плов с морепродуктами",
+   "meal": "lunch",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "sup-pyure-brokkoli",
+   "title": "Суп-пюре из брокколи",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "lenivye-golubtsy",
+   "title": "Ленивые голубцы",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "grechka-po-kupecheski",
+   "title": "Гречка по-купечески",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kartofelnaya-zapekanka",
+   "title": "Картофельная запеканка",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "myasnoy-gulyash",
+   "title": "Мясной гуляш",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kuritsa-souse",
+   "title": "Курица в соусе",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "ryba-klyare",
+   "title": "Рыба в кляре",
+   "meal": "lunch",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "salat-mimoza",
+   "title": "Салат Мимоза",
+   "meal": "lunch",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "salat-seld-shuboy",
+   "title": "Салат Сельдь под шубой",
+   "meal": "lunch",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "sup-frikadelkami",
+   "title": "Суп с фрикадельками",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "ovoschnoy-sup",
+   "title": "Овощной суп",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kartofelnyy-sup",
+   "title": "Картофельный суп",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "krem-sup-shampinonov",
+   "title": "Крем-суп из шампиньонов",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kurinye-naggetsy",
+   "title": "Куриные наггетсы",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "pasta-karbonara",
+   "title": "Паста Карбонара",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "pasta-boloneze",
+   "title": "Паста Болоньезе",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kuritsa-po-tayski",
+   "title": "Курица по-тайски",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "chechevichnyy-sup",
+   "title": "Чечевичный суп",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "sup-pyure-tykvy",
+   "title": "Суп-пюре из тыквы",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kuritsa-ovoschami",
+   "title": "Курица с овощами",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "salat-kapusty",
+   "title": "Салат из капусты",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "borsch-postnyy",
+   "title": "Борщ постный",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "sup-lapsha",
+   "title": "Суп-лапша",
+   "meal": "lunch",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kotlety-indeyki",
+   "title": "Котлеты из индейки",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kurinye-kotlety",
+   "title": "Куриные котлеты",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "myasnoy-rulet",
+   "title": "Мясной рулет",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "plov-baraninoy",
+   "title": "Плов с бараниной",
+   "meal": "lunch",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "vareniki-vishney",
+   "title": "Вареники с вишней",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kartofelnye-draniki",
+   "title": "Картофельные драники",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "grechka-gribami",
+   "title": "Гречка с грибами",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "ris-ovoschami",
+   "title": "Рис с овощами",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "rybnoe-file-zapechennoe",
+   "title": "Рыбное филе запеченное",
+   "meal": "dinner",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "zapekanka-tvoroga",
+   "title": "Запеканка из творога",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kurinoe-file-ovoschami",
+   "title": "Куриное филе с овощами",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kotlety-myasnye",
+   "title": "Котлеты мясные",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "ovoschnoy-salat-fetoy",
+   "title": "Овощной салат с фетой",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kurinaya-zapekanka",
+   "title": "Куриная запеканка",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "rybnaya-zapekanka",
+   "title": "Рыбная запеканка",
+   "meal": "dinner",
+   "veg": false,
+   "fish": true,
+   "lact": true
+  },
+  {
+   "slug": "grechnevaya-lapsha-ovoschami",
+   "title": "Гречневая лапша с овощами",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "pasta-tomatnym-sousom",
+   "title": "Паста с томатным соусом",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "ovoschnoe-karri",
+   "title": "Овощное карри",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kuritsa-teriyaki",
+   "title": "Курица терияки",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "steyk-lososya",
+   "title": "Стейк из лосося",
+   "meal": "dinner",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "kurinye-krylyshki",
+   "title": "Куриные крылышки",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "shashlyk-svininy",
+   "title": "Шашлык из свинины",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "shashlyk-kuritsy",
+   "title": "Шашлык из курицы",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "steyk-govyadiny",
+   "title": "Стейк из говядины",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "lazanya-myasnaya",
+   "title": "Лазанья мясная",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "lazanya-ovoschnaya",
+   "title": "Лазанья овощная",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "pitstsa-margarita",
+   "title": "Пицца Маргарита",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "pitstsa-pepperoni",
+   "title": "Пицца Пепперони",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "burger-govyadinoy",
+   "title": "Бургер с говядиной",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "burger-kuritsey",
+   "title": "Бургер с курицей",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "fahitos-kuritsey",
+   "title": "Фахитос с курицей",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "tako-farshem",
+   "title": "Тако с фаршем",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "ovoschnaya-tortilya",
+   "title": "Овощная тортилья",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kesadilya-syrom",
+   "title": "Кесадилья с сыром",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "humus-ovoschami",
+   "title": "Хумус с овощами",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "falafel-pite",
+   "title": "Фалафель в пите",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "vegetarianskiy-plov",
+   "title": "Вегетарианский плов",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "gril-ovoschi",
+   "title": "Гриль овощи",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kurinye-rulety",
+   "title": "Куриные рулеты",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "svinye-otbivnye",
+   "title": "Свиные отбивные",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "farshirovannyy-perets",
+   "title": "Фаршированный перец",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "zapechennaya-kuritsa",
+   "title": "Запеченная курица",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "zapechennaya-ryba",
+   "title": "Запеченная рыба",
+   "meal": "dinner",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "kartoshka-po-derevenski",
+   "title": "Картошка по-деревенски",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "makarony-syrom",
+   "title": "Макароны с сыром",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "grechka-tushenkoy",
+   "title": "Гречка с тушенкой",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "omlet-kolbasoy",
+   "title": "Омлет с колбасой",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "syrniki-bananom",
+   "title": "Сырники с бананом",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "draniki-smetanoy",
+   "title": "Драники со сметаной",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "tvorozhnaya-pasta",
+   "title": "Творожная паста",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "ovoschnoy-salat-tuntsom",
+   "title": "Овощной салат с тунцом",
+   "meal": "dinner",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "kurinyy-shnitsel",
+   "title": "Куриный шницель",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "pitstsa-chetyre-syra",
+   "title": "Пицца Четыре сыра",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "pasta-krevetkami",
+   "title": "Паста с креветками",
+   "meal": "dinner",
+   "veg": false,
+   "fish": true,
+   "lact": true
+  },
+  {
+   "slug": "rybnye-palochki",
+   "title": "Рыбные палочки",
+   "meal": "dinner",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "kartofelnye-kotlety",
+   "title": "Картофельные котлеты",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "grechka-kuritsey",
+   "title": "Гречка с курицей",
+   "meal": "dinner",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "yaichnitsa-gribami",
+   "title": "Яичница с грибами",
+   "meal": "dinner",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "tvorog-medom",
+   "title": "Творог с медом",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kefir-bulochkoy",
+   "title": "Кефир с булочкой",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "yabloko-svezhee",
+   "title": "Яблоко свежее",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "banan-svezhiy",
+   "title": "Банан свежий",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "orehi-assorti",
+   "title": "Орехи ассорти",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "suhofrukty-smes",
+   "title": "Сухофрукты смесь",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "yogurt-pitevoy",
+   "title": "Йогурт питьевой",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "tvorozhok-desertnyy",
+   "title": "Творожок десертный",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "syrniki-holodnye",
+   "title": "Сырники холодные",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "buterbrod-vetchinoy",
+   "title": "Бутерброд с ветчиной",
+   "meal": "snack",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "buterbrod-syrom-maslom",
+   "title": "Бутерброд с сыром и маслом",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "galety-syrom",
+   "title": "Галеты с сыром",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "morkov-svezhaya",
+   "title": "Морковь свежая",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "ogurets-svezhiy",
+   "title": "Огурец свежий",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "yaytso-varenoe",
+   "title": "Яйцо вареное",
+   "meal": "snack",
+   "veg": false,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "ryazhenka-pechenem",
+   "title": "Ряженка с печеньем",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "tost-dzhemom",
+   "title": "Тост с джемом",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "fruktovyy-smuzi",
+   "title": "Фруктовый смузи",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "tvorog-suhofruktami",
+   "title": "Творог с сухофруктами",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "bulochka-makom",
+   "title": "Булочка с маком",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "kruassan-shokoladom",
+   "title": "Круассан с шоколадом",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "sendvich-tuntsom",
+   "title": "Сэндвич с тунцом",
+   "meal": "snack",
+   "veg": false,
+   "fish": true,
+   "lact": false
+  },
+  {
+   "slug": "ovoschnye-palochki",
+   "title": "Овощные палочки",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": false
+  },
+  {
+   "slug": "kusochek-piroga",
+   "title": "Кусочек пирога",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  },
+  {
+   "slug": "batonchik-myusli",
+   "title": "Батончик мюсли",
+   "meal": "snack",
+   "veg": true,
+   "fish": false,
+   "lact": true
+  }
+ ]
+}

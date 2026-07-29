@@ -370,9 +370,27 @@ const stage=$('#stage'), fill=$('#fill'), count=$('#count'), back=$('#back'), to
 const playAll=()=>[...document.querySelectorAll('video')].forEach(v=>{v.muted=true;v.play().catch(()=>{})});
 const qNum=i=>STEPS.slice(0,i+1).filter(s=>s.q).length;
 
+// Цели воронки. Имена — ровно те, что заведены в Метрике (см. e2e/README и
+// доктрину site-analytics: цели создаются по событиям, которые сайт РЕАЛЬНО
+// шлёт, иначе они мёртвые). npGoal ставит счётчик; без счётчика — тихо ничего.
+const GOALS_SENT = {};
+// Имя track, а не goal: в renderPlan уже есть локальная const goal (текст цели
+// «для похудения»), и она затеняла хелпер — цели молча падали с
+// "goal is not a function" ровно на шаге отправки почты.
+function track(name){
+  if(GOALS_SENT[name]) return;          // один раз за сессию: шаг можно открыть дважды кнопкой «назад»
+  GOALS_SENT[name] = 1;
+  try{ if(window.npGoal) window.npGoal(name); }catch(e){}
+}
+
 function render(){
   const st=STEPS[idx];
   const chrome = st.q || st.type==='metrics';
+  // Точки, где воронка реально теряет людей: старт, шаг с ростом/весом
+  // (там была мёртвая кнопка), экран с почтой и раскрытая норма.
+  if(idx===0) track('quiz_start');
+  if(st.type==='metrics') track('quiz_metrics');
+  if(st.type==='plan') track(planRevealed ? 'quiz_norm_shown' : 'quiz_email_screen');
   // топ-бар (с кнопкой «Назад») виден везде, КРОМЕ intro/build/plan — иначе на note-экранах
   // юзер не мог вернуться и поправить ответ (кнопка была спрятана вместе с баром).
   topEl.classList.toggle('hide', st.type==='intro' || st.type==='build' || st.type==='plan');
@@ -650,6 +668,7 @@ function renderPlan(){
         if(r.status===422){ good=false; } }catch(e){ /* сеть — не блокируем раскрытие */ }
       if(!good){ err.textContent='Проверь адрес почты'; err.classList.add('show'); mail.focus();
         send.disabled=false; send.textContent='Показать мой план'; return; }
+      track("lead");
       leadEmail=v; planRevealed=true; saveState(); render(); window.scrollTo(0,0);
     });
   } else {
@@ -662,6 +681,7 @@ function renderPlan(){
 
 async function startPayment(){
   const t = document.querySelector('.tar.sel')?.dataset.t || 'sub';
+  track(t === 'sub' ? 'pay_click_sub' : 'pay_click_once');
   const url = t==='sub' ? '/api/pay/subscribe' : '/api/pay/create';
   const btn=$('#pay'); btn.disabled=true; btn.textContent='Открываю оплату…';
   try{

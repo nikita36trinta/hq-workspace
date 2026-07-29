@@ -1,0 +1,662 @@
+"""Серверный расчёт персонального плана + генерация меню и HTML-писем.
+
+Зеркалит расчёт из quiz.html (Mifflin-St Jeor). Меню — из курируемого банка блюд,
+порции считаются от нормы калорий пользователя (30/40/30). Учитывает «без мяса».
+"""
+from __future__ import annotations
+
+import html
+from urllib.parse import quote
+
+import dish_photos
+
+
+def _e(s) -> str:
+    """HTML-экранирование ЛЮБОГО динамического текста (LLM-вывод, поля юзера) — защита от XSS."""
+    return html.escape(str(s if s is not None else ""), quote=True)
+
+GOAL_TXT = {"lose": "снижения веса", "keep": "поддержания формы",
+            "gain": "набора массы", "health": "здорового питания"}
+DAYS = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+
+BANK = {
+    "omni": [
+        ("Овсянка с ягодами и орехами", "Курица с киноа и овощами", "Запечённая рыба и салат"),
+        ("Омлет с овощами и цельнозерновой тост", "Говядина с гречкой и брокколи", "Творожная запеканка и салат"),
+        ("Греческий йогурт с гранолой и бананом", "Индейка с булгуром и овощами", "Треска с тушёными овощами"),
+        ("Сырники с ягодным соусом", "Куриный суп и цельнозерновой хлеб", "Тёплый салат с говядиной"),
+        ("Яйца пашот на авокадо-тосте", "Лосось с рисом и спаржей", "Овощное рагу с курицей"),
+        ("Гречневая каша с яблоком и корицей", "Паста с индейкой и томатами", "Запечённая курица и салат"),
+        ("Смузи-боул с ягодами и семенами", "Плов с курицей и овощами", "Рыбные котлеты и овощи на пару"),
+    ],
+    "veg": [
+        ("Овсянка с ягодами и орехами", "Киноа-боул с нутом и овощами", "Тёплый салат с фетой и авокадо"),
+        ("Омлет с овощами и цельнозерновой тост", "Чечевичный суп и хлеб", "Творожная запеканка и салат"),
+        ("Йогурт с гранолой и бананом", "Булгур с печёными овощами и фетой", "Овощное рагу с фасолью"),
+        ("Сырники с ягодным соусом", "Паста с томатами и базиликом", "Тофу с овощами на пару"),
+        ("Яйца пашот на авокадо-тосте", "Ризотто с грибами", "Салат с киноа, нутом и овощами"),
+        ("Гречка с яблоком и корицей", "Овощное карри с рисом", "Запечённые овощи с моцареллой"),
+        ("Смузи-боул с ягодами и семенами", "Фалафель с овощами и хумусом", "Шакшука с хлебом"),
+    ],
+}
+
+
+def compute(quiz: dict) -> dict:
+    g = 5 if quiz.get("gender") == "m" else -161
+    try:
+        age = int(float(quiz.get("age") or 32))
+    except Exception:
+        age = 32
+    b = quiz.get("body") or {}
+    try:
+        w = float(b.get("weight") or 70); h = float(b.get("height") or 170)
+    except Exception:
+        w, h = 70.0, 170.0
+    bmr = 10 * w + 6.25 * h - 5 * age + g
+    af = {"sed": 1.2, "light": 1.375, "mod": 1.55, "high": 1.725}.get(quiz.get("activity"), 1.375)
+    cal = bmr * af
+    goal = quiz.get("goal")
+    if goal == "lose":
+        cal *= 0.80
+    elif goal == "gain":
+        cal *= 1.12
+    # Нижний порог: НИКОГДА не рекомендуем экстремальный дефицит (риск здоровью + не
+    # выполнимо). Медицинский минимум ~1200 ккал (ж) / 1500 ккал (м).
+    floor = 1500 if quiz.get("gender") == "m" else 1200
+    cal = max(cal, floor)
+    cal = int(round(cal / 10) * 10)
+    return {"cal": cal, "P": round(cal * 0.30 / 4), "F": round(cal * 0.30 / 9),
+            "C": round(cal * 0.40 / 4), "goal": GOAL_TXT.get(goal, "твоей цели")}
+
+
+def week(quiz: dict) -> list[dict]:
+    veg = "nomeat" in (quiz.get("diet") or [])
+    bank = BANK["veg"] if veg else BANK["omni"]
+    c = compute(quiz)["cal"]
+    kc = [round(c * 0.30), round(c * 0.40), round(c * 0.30)]
+    out = []
+    for i, (bf, ln, dn) in enumerate(bank):
+        out.append({"day": DAYS[i], "meals": [("Завтрак", bf, kc[0]),
+                                              ("Обед", ln, kc[1]), ("Ужин", dn, kc[2])]})
+    return out
+
+
+# ---------- HTML-письма ----------
+
+_CSS_WRAP = ("font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:560px;margin:0 auto;"
+             "background:#FBF8F1;color:#20321F;padding:0 0 32px")
+_GREEN, _GREEN_D, _MINT, _MUTED = "#16A34A", "#0E7A36", "#E7F8EC", "#6B7566"
+
+
+def _head(title: str, sub: str) -> str:
+    return (
+        f"<div style='background:#fff;padding:26px 24px 22px;border-bottom:1px solid #EEE7D8'>"
+        f"<div style='font-weight:800;font-size:20px'><span style='display:inline-block;width:11px;height:11px;"
+        f"border-radius:50%;background:{_GREEN};margin-right:8px;vertical-align:middle'></span>NutriPlan</div></div>"
+        f"<div style='padding:28px 24px 6px'><h1 style='margin:0;font-size:24px;letter-spacing:-.02em'>{title}</h1>"
+        f"<p style='color:{_MUTED};font-size:15px;margin:8px 0 0'>{sub}</p></div>")
+
+
+def _norm_card(p: dict) -> str:
+    def m(v, lab):
+        return (f"<td style='background:{_MINT};border-radius:12px;padding:10px;text-align:center'>"
+                f"<div style='font-size:19px;font-weight:800;color:{_GREEN_D}'>{v}</div>"
+                f"<div style='font-size:12px;color:{_MUTED}'>{lab}</div></td>")
+    return (
+        f"<div style='margin:16px 24px;background:#fff;border:1px solid #EEE7D8;border-radius:18px;padding:20px'>"
+        f"<div style='font-size:40px;font-weight:800;color:{_GREEN_D};letter-spacing:-.02em'>{p['cal']}"
+        f"<span style='font-size:14px;color:{_MUTED};font-weight:600'> ккал/день</span></div>"
+        f"<div style='color:{_MUTED};font-size:14px;margin-bottom:14px'>твоя норма для {p['goal']} без голода</div>"
+        f"<table width='100%' cellspacing='8' cellpadding='0'><tr>"
+        f"{m(p['P'],'белки, г')}{m(p['F'],'жиры, г')}{m(p['C'],'углеводы, г')}</tr></table></div>")
+
+
+def _day_block(d: dict) -> str:
+    rows = ""
+    for name, dish, kc in d["meals"]:
+        rows += (f"<tr><td style='padding:8px 0;border-top:1px solid #EEE7D8'>"
+                 f"<b style='font-size:14px'>{name}</b> — <span style='font-size:14px'>{dish}</span></td>"
+                 f"<td style='padding:8px 0;border-top:1px solid #EEE7D8;text-align:right;white-space:nowrap;"
+                 f"color:{_MUTED};font-size:13px'>{kc} ккал</td></tr>")
+    return (f"<div style='margin:0 24px 12px'><div style='font-size:13px;font-weight:800;color:{_MUTED};"
+            f"text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px'>{d['day']}</div>"
+            f"<table width='100%' cellspacing='0' cellpadding='0'>{rows}</table></div>")
+
+
+def _cta(href: str, label: str) -> str:
+    return (f"<div style='padding:22px 24px 6px'><a href='{href}' style='display:block;text-align:center;"
+            f"background:{_GREEN};color:#fff;text-decoration:none;font-weight:800;font-size:16px;"
+            f"padding:16px;border-radius:14px'>{label}</a></div>")
+
+
+def _foot() -> str:
+    return (f"<p style='color:{_MUTED};font-size:12px;text-align:center;padding:20px 24px 0;line-height:1.5'>"
+            f"Материалы носят справочный характер и не являются медицинской услугой. "
+            f"При заболеваниях проконсультируйтесь со специалистом.<br>Отписаться можно ответом на это письмо.</p>")
+
+
+def lead_html(quiz: dict, plan_link: str = "") -> str:
+    """Бесплатное письмо после квиза: норма + первый день + CTA на полный план."""
+    p = compute(quiz)
+    d1 = week(quiz)[0]
+    cta = _cta(plan_link, "Получить полный план на 7 дней") if plan_link else ""
+    return (f"<div style='{_CSS_WRAP}'>"
+            + _head("Твой план готов", "Рассчитали норму под твоё тело, активность и вкусы")
+            + _norm_card(p)
+            + f"<div style='padding:6px 24px 0;font-weight:800;font-size:16px'>Пример дня</div>"
+            + _day_block(d1)
+            + cta + _foot() + "</div>")
+
+
+# Письмо после оплаты строит menu_email_html (ниже) на РЕАЛЬНОМ LLM-плане.
+# paid_html (генерил из статичного банка) удалён как мёртвый код — не путать шаблоны.
+
+
+# ---------- Веб-страница плана (seed будущего PWA) + письмо-меню ----------
+
+def _meal_card(m: dict, day: int = 0, slot: str = "") -> str:
+    key = f"{day}:{slot}"
+    kc = m.get("kcal", "")
+    try:
+        kcnum = int(float(m.get("kcal") or 0))
+    except Exception:
+        kcnum = 0
+    macros = ""
+    if m.get("p") or m.get("c") or m.get("f"):
+        macros = (f"<span class='mm'>Б {_e(m.get('p','?'))} · Ж {_e(m.get('f','?'))} · У {_e(m.get('c','?'))}</span>")
+    ing = "".join(f"<li>{_e(i)}</li>" for i in (m.get("ingredients") or []))
+    steps = "".join(f"<li>{_e(s)}</li>" for s in (m.get("steps") or []))
+    details = ""
+    if ing or steps:
+        details = (f"<details><summary>Рецепт</summary>"
+                   + (f"<div class='dh'>Ингредиенты</div><ul class='ing'>{ing}</ul>" if ing else "")
+                   + (f"<div class='dh'>Приготовление</div><ol class='steps'>{steps}</ol>" if steps else "")
+                   + "</details>")
+    name = m.get("name", "")
+    slug = dish_photos.slugify(name)
+    img = (f"<img class='mimg' loading='lazy' data-slug='{_e(slug)}' alt='' "
+           f"src='/dish/{quote(slug)}?t={quote(name)}'>")
+    return (f"<div class='meal' data-k='{key}' data-kc='{kcnum}'><div class='mrow'>{img}"
+            f"<div class='minfo'><span class='slot'>{_e(m.get('slot',''))}</span>"
+            f"<div class='mname'>{_e(name)}</div>{macros}</div>"
+            f"<div class='kc'>{_e(kc)}<small>ккал</small></div></div>{details}"
+            f"<div class='mact'><button class='done' data-k='{key}'><span class='dc'></span>Приготовил</button>"
+            f"<button class='swap' data-day='{day}' data-slot='{slot}'>Заменить</button>"
+            f"<button class='dislike' data-name='{_e(name)}' title='Не нравится — убрать из меню'>"
+            f"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+            f"<path d='M17 2H7.3a2 2 0 0 0-2 1.7l-1.3 8A2 2 0 0 0 6 14h4l-.7 3.3a2 2 0 0 0 3.5 1.6L17 14'/>"
+            f"<path d='M17 2h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2'/></svg></button></div></div>")
+
+
+def _shopping(sh: list) -> str:
+    if not sh:
+        return ""
+    cats = ""
+    for c in sh:
+        items = "".join(f"<li>{_e(i)}</li>" for i in (c.get("items") or []))
+        cats += f"<div class='cat'><div class='ct'>{_e(c.get('cat',''))}</div><ul>{items}</ul></div>"
+    return f"<section class='sec'><h2>Список покупок</h2><div class='shop'>{cats}</div></section>"
+
+
+def _tips(tips: list) -> str:
+    if not tips:
+        return ""
+    li = "".join(f"<li><span class='c'></span><span>{_e(t)}</span></li>" for t in tips)
+    return f"<section class='sec'><h2>Советы под тебя</h2><ul class='tips'>{li}</ul></section>"
+
+
+_MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля",
+           "августа", "сентября", "октября", "ноября", "декабря"]
+
+
+def _fmt_ru_date(iso: str) -> str:
+    try:
+        from datetime import datetime
+        d = datetime.fromisoformat(iso)
+        return f"{d.day} {_MONTHS[d.month - 1]}"
+    except Exception:
+        return ""
+
+
+def _acct_html(sub, token: str) -> str:
+    """Секция «Подписка» в ЛК: статус + отмена/отвязка карты (требование ЮKassa)."""
+    if not sub:
+        return ""
+    if sub.get("status") == "active":
+        nxt = _fmt_ru_date(sub.get("next", ""))
+        amt = _e(sub.get("amount", "499"))
+        has_card = bool(sub.get("payment_method_id") or sub.get("has_card"))
+        card = ("<span class='cnote'>Карта привязана для автопродления</span>" if has_card
+                else "<span class='cnote'>Карта не привязана — автосписаний не будет</span>")
+        unbind = (f"<button class='unbindb' id='unbindCard' data-token='{_e(token)}'>Отвязать карту</button>"
+                  if has_card else "")
+        # При отвязанной карте не обещаем списание — доступ до конца периода, потом завершение.
+        sline = (f"Следующее списание: <b>{nxt}</b> · {amt} ₽/мес" if has_card
+                 else f"Автопродления не будет · доступ до <b>{nxt}</b>")
+        return (f"<section class='sec acct'><h2>Подписка</h2>"
+                f"<div class='subcard'><div class='sactive'>Активна</div>"
+                f"<div class='sline'>{sline}</div>{card}"
+                f"{unbind}"
+                f"<button class='cancelb' id='cancelSub' data-token='{token}'>Отменить подписку</button>"
+                f"<div class='cmsg' id='cmsg'></div></div></section>")
+    return (f"<section class='sec acct'><h2>Подписка</h2>"
+            f"<div class='subcard'><div class='scanceled'>Отменена</div>"
+            f"<div class='sline'>Списаний больше не будет. Доступ сохраняется до конца оплаченного периода.</div>"
+            f"</div></section>")
+
+
+def page_html(pl: dict, title: str = "Твой план питания", token: str = "", sub=None) -> str:
+    days = pl.get("days") or []
+    q = pl.get("quiz") or {}
+    try:
+        start_w = float((q.get("body") or {}).get("weight") or 0)
+    except Exception:
+        start_w = 0.0
+    goal_code = q.get("goal") or ""
+    exclude = (q.get("exclude") or "").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    water_goal = max(6, min(12, round(start_w * 30 / 250))) if start_w else 8
+    manifest = f"/app.webmanifest?t={token}" if token else "/app.webmanifest"
+    acct = _acct_html(sub, token)
+    tabs = "".join(f"<button class='tab{" on" if i==0 else ""}' data-d='{i}'>{d.get('day','')[:2]}</button>"
+                   for i, d in enumerate(days))
+    panels = ""
+    for i, d in enumerate(days):
+        meals = "".join(_meal_card(m, i, m.get("slot", "")) for m in (d.get("meals") or []))
+        tot = sum(int(m.get("kcal") or 0) for m in (d.get("meals") or []))
+        panels += (f"<div class='panel{" on" if i==0 else ""}' data-d='{i}'>"
+                   f"<div class='dtitle'>{d.get('day','')} <span>{tot} ккал</span></div>"
+                   f"<div class='calbar'><i class='calfill' data-d='{i}'></i></div>"
+                   f"<div class='caltxt' data-d='{i}' data-tot='{tot}'>Съедено 0 из {tot} ккал</div>"
+                   f"{meals}</div>")
+    return f"""<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>{title} · NutriPlan</title>
+<link rel="manifest" href="{manifest}">
+<meta name="theme-color" content="#16A34A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="NutriPlan">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<style>
+:root{{--g:#16A34A;--gd:#0E7A36;--soft:#E7F8EC;--ink:#20321F;--muted:#6B7566;--bg:#FBF8F1;--line:#EEE7D8;--card:#fff}}
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}}
+.wrap{{max-width:560px;margin:0 auto;padding:0 18px 60px}}
+header{{position:sticky;top:0;background:rgba(251,248,241,.9);backdrop-filter:blur(10px);padding:14px 0;z-index:5;border-bottom:1px solid var(--line)}}
+.brand{{max-width:560px;margin:0 auto;padding:0 18px;font-weight:800;font-size:19px;display:flex;align-items:center}}
+.brand .dot{{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--g);margin-right:8px}}
+.ins{{margin-left:auto;border:none;background:var(--g);color:#fff;font-weight:700;font-size:13px;padding:8px 14px;border-radius:99px;cursor:pointer}}
+.ins[hidden]{{display:none}}
+h1{{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:22px 0 4px}}
+.lead{{color:var(--muted);font-size:15px}}
+.norm{{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;margin-top:16px}}
+.norm .big{{font-size:40px;font-weight:800;color:var(--gd);letter-spacing:-.02em}}
+.norm .big small{{font-size:14px;color:var(--muted);font-weight:600}}
+.macros{{display:flex;gap:10px;margin-top:14px}}
+.macros div{{flex:1;background:var(--soft);border-radius:12px;padding:10px;text-align:center}}
+.macros b{{display:block;font-size:18px;color:var(--gd)}}.macros span{{font-size:12px;color:var(--muted)}}
+.tabs{{display:flex;gap:6px;overflow-x:auto;margin:22px 0 14px;position:sticky;top:52px;background:var(--bg);padding:6px 0;z-index:4}}
+.tab{{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--muted);font-weight:700;font-size:14px;
+  padding:9px 15px;border-radius:99px;cursor:pointer}}
+.tab.on{{background:var(--g);color:#fff;border-color:var(--g)}}
+.panel{{display:none}}.panel.on{{display:block;animation:in .3s ease}}
+@keyframes in{{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:none}}}}
+.dtitle{{font-weight:800;font-size:15px;margin:4px 0 12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}}
+.dtitle span{{color:var(--gd)}}
+.meal{{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px;margin-bottom:11px}}
+.mrow{{display:flex;justify-content:space-between;gap:12px;align-items:center}}
+.mimg{{width:64px;height:64px;flex:0 0 auto;border-radius:13px;object-fit:cover;background:var(--soft);display:block}}
+.minfo{{flex:1;min-width:0}}
+.slot{{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}}
+.mname{{font-size:16px;font-weight:700;margin-top:2px}}.mm{{font-size:12px;color:var(--muted)}}
+.kc{{font-weight:800;color:var(--gd);white-space:nowrap;font-size:15px}}.kc small{{font-size:11px;color:var(--muted);margin-left:2px}}
+details{{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}}
+summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
+.dh{{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;margin:10px 0 4px}}
+.ing,.steps{{padding-left:18px;font-size:14px;line-height:1.6}}.steps li{{margin-bottom:4px}}
+.sec{{margin-top:30px}}.sec h2{{font-size:20px;font-weight:800;letter-spacing:-.01em;margin-bottom:12px}}
+.shop{{display:flex;flex-direction:column;gap:12px}}
+.cat{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}}
+.ct{{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px}}
+.cat ul{{padding-left:18px;font-size:14px;line-height:1.7}}
+.tips{{list-style:none;display:flex;flex-direction:column;gap:12px}}
+.tips li{{display:flex;gap:10px;font-size:15px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px}}
+.tips .c{{width:8px;height:8px;border-radius:50%;background:var(--g);flex:0 0 auto;margin-top:7px}}
+.subcard{{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}}
+.sactive{{display:inline-block;background:var(--soft);color:var(--gd);font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:5px 12px;border-radius:99px}}
+.scanceled{{display:inline-block;background:#f3f4f6;color:#6b7280;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:5px 12px;border-radius:99px}}
+.sline{{margin-top:12px;font-size:15px}}
+.cnote{{display:block;color:var(--muted);font-size:13px;margin-top:4px}}
+.unbindb{{margin-top:16px;width:100%;border:1.5px solid var(--g);background:var(--card);color:var(--gd);font-weight:700;font-size:14px;padding:12px;border-radius:12px;cursor:pointer}}
+.unbindb:hover{{background:var(--soft)}}.unbindb:disabled{{opacity:.5}}
+.cancelb{{margin-top:10px;width:100%;border:1.5px solid var(--line);background:var(--card);color:#b91c1c;font-weight:700;font-size:14px;padding:12px;border-radius:12px;cursor:pointer}}
+.cancelb:hover{{border-color:#b91c1c}}.cancelb:disabled{{opacity:.5}}
+.cmsg{{margin-top:12px;font-size:14px;color:var(--gd);font-weight:700;display:none}}.cmsg.s{{display:block}}
+.plegal{{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);text-align:center;font-size:13px;color:var(--muted)}}
+.plegal .plinks a{{color:var(--muted);margin:0 8px;text-decoration:underline;text-underline-offset:2px}}
+.plegal .preq{{margin-top:10px}}.plegal .preq a{{color:var(--muted)}}
+.streakc{{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 15px;margin-top:16px}}
+.sm{{width:56px;height:56px;border-radius:14px;overflow:hidden;background:var(--soft);flex:0 0 auto}}
+.sm video,.sm img{{width:100%;height:100%;object-fit:cover;display:block}}
+.st .sbig{{font-size:22px;font-weight:800;color:var(--gd);letter-spacing:-.01em}}
+.st .sbig small{{font-size:13px;color:var(--muted);font-weight:600;margin-left:4px}}
+.st .ssub{{font-size:13px;color:var(--muted);margin-top:1px}}
+.tab.complete:not(.on){{border-color:var(--g);color:var(--gd)}}
+.tab.complete::before{{content:"✓ "}}
+.mact{{display:flex;gap:8px;margin-top:12px}}
+.done{{flex:1;border:1.5px solid var(--line);background:var(--card);color:var(--muted);font-weight:700;
+  font-size:14px;padding:11px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px}}
+.swap{{flex:0 0 auto;border:1.5px solid var(--line);background:var(--card);color:var(--muted);font-weight:700;
+  font-size:14px;padding:11px 16px;border-radius:12px;cursor:pointer}}
+.swap:hover{{border-color:var(--g);color:var(--gd)}}.swap:disabled{{opacity:.5}}
+.done .dc{{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;position:relative}}
+.meal.on .done{{border-color:var(--g);background:var(--soft);color:var(--gd)}}
+.meal.on .done .dc{{background:var(--g);border-color:var(--g)}}
+.meal.on .done .dc::after{{content:"";position:absolute;left:4px;top:1px;width:6px;height:10px;border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}}
+.meal.on .done::after{{content:" ✓"}}
+.calbar{{height:7px;background:var(--line);border-radius:99px;overflow:hidden;margin:0 0 6px}}
+.calfill{{display:block;height:100%;width:0;background:var(--g);border-radius:99px;transition:width .35s ease}}
+.calfill.over{{background:#E0912B}}
+.caltxt{{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:14px}}
+.water{{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 15px;margin-top:12px}}
+.wtop{{display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:800}}
+.wtop #wnum{{color:var(--muted);font-weight:700;font-size:13px}}
+.wcups{{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}}
+.cup{{width:24px;height:28px;padding:0;border:none;background:none;cursor:pointer;color:var(--line);transition:color .15s}}
+.cup svg{{width:100%;height:100%;display:block}}.cup.f{{color:var(--g)}}
+.wcard{{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}}
+.wrow{{display:flex;justify-content:space-between;align-items:flex-end}}
+.wbig{{font-size:34px;font-weight:800;color:var(--gd);letter-spacing:-.02em}}
+.wbig small{{font-size:14px;color:var(--muted);font-weight:600;margin-left:4px}}
+.wdelta{{font-weight:800;font-size:15px;color:var(--muted)}}
+.wdelta.g{{color:var(--gd)}}.wdelta.b{{color:#B45309}}
+.wspark{{width:100%;height:80px;margin:14px 0 4px;display:block}}
+.wspark path{{fill:none;stroke:var(--g);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}}
+.wspark circle{{fill:var(--g)}}
+.wadd{{display:flex;gap:8px;margin-top:12px}}
+.wadd input{{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font-size:16px;background:var(--bg);color:var(--ink)}}
+.wadd button{{border:none;border-radius:12px;background:var(--g);color:#fff;font-weight:700;font-size:15px;padding:0 18px;cursor:pointer;white-space:nowrap}}
+.whint{{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.4}}
+.prefcard{{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}}
+.phint{{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:12px}}
+.prefcard textarea{{width:100%;min-height:60px;resize:vertical;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px;font-family:inherit;background:var(--bg);color:var(--ink)}}
+.prefcard textarea:focus{{outline:none;border-color:var(--g)}}
+#savePrefs{{margin-top:12px;width:100%;border:none;border-radius:12px;background:var(--g);color:#fff;font-weight:800;font-size:15px;padding:14px;cursor:pointer}}
+#savePrefs:disabled{{opacity:.6}}
+.pmsg{{display:none;margin-top:12px;font-size:14px;color:var(--gd);font-weight:700}}.pmsg.s{{display:block}}
+.welcome{{position:fixed;inset:0;z-index:50;background:rgba(20,50,31,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px}}
+.welcome[hidden]{{display:none}}
+.wcard{{background:var(--card);border-radius:24px;padding:26px 24px 20px;max-width:360px;width:100%;text-align:center;box-shadow:0 30px 70px -20px rgba(0,0,0,.5);animation:in .35s ease}}
+.wmasc{{width:104px;height:104px;border-radius:26px;overflow:hidden;background:var(--soft);margin:0 auto 18px}}
+.wmasc video{{width:100%;height:100%;object-fit:cover;display:block}}
+.wstep h3{{font-size:21px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}}
+.wstep p{{font-size:15px;color:var(--muted);line-height:1.5}}
+.wdots{{display:flex;gap:7px;justify-content:center;margin:20px 0 16px}}
+.wdot{{width:7px;height:7px;border-radius:50%;background:var(--line);transition:all .2s}}
+.wdot.on{{background:var(--g);width:20px;border-radius:99px}}
+.wnext{{width:100%;border:none;border-radius:14px;background:var(--g);color:#fff;font-weight:800;font-size:16px;padding:15px;cursor:pointer}}
+.wskip{{margin-top:10px;border:none;background:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer}}
+</style></head><body>
+<header><div class="brand"><span class="dot"></span>NutriPlan<button id="install" class="ins" hidden>Установить</button></div></header>
+<div class="welcome" id="welcome" hidden>
+  <div class="wcard">
+    <div class="wmasc"><video autoplay loop muted playsinline poster="/assets/avocado_wave_sm.png"><source src="/assets/avocado_wave_sm.mp4" type="video/mp4"></video></div>
+    <div class="wstep"><h3>Привет! Это твой план</h3><p>Персональное меню на неделю — под твою цель, вкусы и ритм. Я рядом каждый день.</p></div>
+    <div class="wstep"><h3>Отмечай, что приготовил</h3><p>Жми «Приготовил» на блюдах — собирай серию дней подряд и держи темп без срывов.</p></div>
+    <div class="wstep"><h3>Следи за прогрессом</h3><p>Каждый день отмечай воду и записывай вес — увидишь, как двигаешься к цели.</p></div>
+    <div class="wdots"><span class="wdot"></span><span class="wdot"></span><span class="wdot"></span></div>
+    <button class="wnext" id="wnext">Далее</button>
+    <button class="wskip" id="wskip">Пропустить</button>
+  </div>
+</div>
+<div class="wrap">
+  <h1>{title}</h1><p class="lead">Персонально под твою цель, вкусы и ритм</p>
+  <div class="norm"><div class="big">{pl.get('cal','')}<small> ккал/день</small></div>
+    <div class="macros"><div><b>{pl.get('P','')}</b><span>белки, г</span></div>
+      <div><b>{pl.get('F','')}</b><span>жиры, г</span></div><div><b>{pl.get('C','')}</b><span>углеводы, г</span></div></div></div>
+  <div class="streakc">
+    <div class="sm"><video autoplay loop muted playsinline poster="/assets/avocado_celebrate_sm.png"><source src="/assets/avocado_celebrate_sm.mp4" type="video/mp4"></video></div>
+    <div class="st"><div class="sbig"><span id="prog">0</span><small>/{len(days)} дней выполнено</small></div>
+      <div class="ssub" id="streakmsg">Отмечай «Приготовил» — собери серию</div></div>
+  </div>
+  <div class="water"><div class="wtop"><b>Вода сегодня</b><span id="wnum">0 / {water_goal} ст.</span></div>
+    <div class="wcups" id="wcups"></div></div>
+  <div class="tabs">{tabs}</div>
+  {panels}
+  {_shopping(pl.get('shopping') or [])}
+  {_tips(pl.get('tips') or [])}
+  <section class="sec" id="weightsec"><h2>Твой вес</h2>
+    <div class="wcard">
+      <div class="wrow"><div class="wbig"><span id="wcur">—</span><small>кг</small></div>
+        <div class="wdelta" id="wdelta"></div></div>
+      <svg class="wspark" id="wspark" viewBox="0 0 300 80" preserveAspectRatio="none"></svg>
+      <div class="wadd"><input type="number" inputmode="decimal" step="0.1" id="winput" placeholder="Вес сегодня, кг">
+        <button id="wsave">Записать</button></div>
+      <div class="whint" id="whint"></div></div></section>
+  <section class="sec" id="prefsec"><h2>Что ты не ешь</h2>
+    <div class="prefcard">
+      <p class="phint">Перечисли продукты через запятую — уберём их из меню и рецептов, и пересоберём план.</p>
+      <textarea id="excl" placeholder="напр. грибы, кинза, печень, кофе">{exclude}</textarea>
+      <button id="savePrefs">Сохранить и пересобрать план</button>
+      <div class="pmsg" id="pmsg">Пересобираю план под твои исключения — это займёт до минуты…</div>
+    </div></section>
+  {acct}
+  <footer class="plegal">
+    <div class="plinks"><a href="/offer">Оферта</a><a href="/privacy">Политика ПДн</a><a href="/consent">Согласие</a><a href="/login">Войти по почте</a></div>
+    <div class="preq">Самозанятый Ульянин Никита Юрьевич · ИНН 772459697062 · <a href="mailto:support@mynutriplan.ru">support@mynutriplan.ru</a></div>
+  </footer>
+</div>
+<script>
+function activateDay(i){{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',+x.dataset.d===i));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',+p.dataset.d===i));
+}}
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{{
+  const i=+t.dataset.d; activateDay(i); history.replaceState(null,'','#d'+i);
+  window.scrollTo({{top:0,behavior:'smooth'}});
+}}));
+const NDAYS={len(days)};
+(function(){{const m=location.hash.match(/d(\\d+)/);
+  if(m){{activateDay(parseInt(m[1]));return;}}
+  let wd=(new Date().getDay()+6)%7; if(wd>=NDAYS) wd=0; activateDay(wd);}})();
+// app-loop: отметки «приготовил» + прогресс (localStorage)
+const T='{token}', DKEY='np_done_'+T;
+const START_W={start_w or 0}, GOAL="{goal_code}", WGOAL={water_goal};
+// онбординг-тур (показываем один раз на план)
+(function(){{
+  const ov=document.getElementById('welcome'); if(!ov) return;
+  const KEY='np_welcome_'+T; if(localStorage.getItem(KEY)) return;
+  const steps=ov.querySelectorAll('.wstep'), dots=ov.querySelectorAll('.wdot'), btn=document.getElementById('wnext');
+  let step=0;
+  function show(i){{steps.forEach((s,j)=>s.style.display=j===i?'block':'none');dots.forEach((d,j)=>d.classList.toggle('on',j===i));btn.textContent=i===steps.length-1?'Погнали!':'Далее';}}
+  function fin(){{localStorage.setItem(KEY,'1');ov.setAttribute('hidden','');}}
+  btn.onclick=()=>{{step<steps.length-1?show(++step):fin();}};
+  document.getElementById('wskip').onclick=fin;
+  show(0); ov.removeAttribute('hidden');
+}})();
+let done=JSON.parse(localStorage.getItem(DKEY)||'{{}}');
+function dayComplete(i){{const ks=[...document.querySelectorAll(".panel[data-d='"+i+"'] .meal")].map(el=>el.dataset.k);return ks.length>0 && ks.every(k=>done[k]);}}
+function paint(){{
+  document.querySelectorAll('.meal').forEach(el=>el.classList.toggle('on', !!done[el.dataset.k]));
+  const tabs=document.querySelectorAll('.tab'); let comp=0, run=0, best=0;
+  for(let i=0;i<tabs.length;i++){{const c=dayComplete(i); tabs[i].classList.toggle('complete',c);
+    if(c){{comp++;run++;best=Math.max(best,run);}} else run=0;}}
+  const pr=document.getElementById('prog'); if(pr) pr.textContent=comp;
+  const sm=document.getElementById('streakmsg');
+  if(sm) sm.innerHTML = best>=2 ? ('Серия <b>'+best+'</b> дней подряд — так держать!')
+    : comp>0 ? 'Отличное начало! Не бросай серию' : 'Отмечай «Приготовил» — собери серию';
+  document.querySelectorAll('.caltxt').forEach(tx=>{{
+    const di=tx.dataset.d, tot=+tx.dataset.tot||0; let eaten=0;
+    document.querySelectorAll(".panel[data-d='"+di+"'] .meal").forEach(el=>{{ if(done[el.dataset.k]) eaten+=(+el.dataset.kc||0); }});
+    tx.textContent='Съедено '+eaten+' из '+tot+' ккал';
+    const f=document.querySelector(".calfill[data-d='"+di+"']");
+    if(f){{ f.style.width=(tot?Math.min(100,Math.round(eaten/tot*100)):0)+'%'; f.classList.toggle('over',eaten>tot*1.05); }}
+  }});
+}}
+document.querySelectorAll('.done').forEach(b=>b.addEventListener('click',()=>{{
+  const k=b.dataset.k; if(done[k])delete done[k]; else done[k]=1;
+  localStorage.setItem(DKEY,JSON.stringify(done)); paint(); pushProgress();
+}}));
+paint();
+// трекер воды (сброс по дню)
+const WK=()=>'np_water_'+T+'_'+new Date().toISOString().slice(0,10);
+const CUP="<svg viewBox='0 0 24 24'><path d='M5 3h14l-1.4 16.2a2 2 0 0 1-2 1.8H8.4a2 2 0 0 1-2-1.8L5 3Z' fill='currentColor'/></svg>";
+function renderWater(){{
+  const c=document.getElementById('wcups'); if(!c)return;
+  const n=parseInt(localStorage.getItem(WK())||'0'); c.innerHTML='';
+  for(let i=1;i<=WGOAL;i++){{const b=document.createElement('button');b.className='cup'+(i<=n?' f':'');b.innerHTML=CUP;
+    b.onclick=()=>{{let cur=parseInt(localStorage.getItem(WK())||'0');cur=(cur===i)?i-1:i;localStorage.setItem(WK(),cur);renderWater();pushProgress();}};
+    c.appendChild(b);}}
+  const nn=document.getElementById('wnum'); if(nn)nn.textContent=n+' / '+WGOAL+' ст.';
+}}
+renderWater();
+// вес + тренд
+const WTK='np_wt_'+T, MN=['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+const fmtd=s=>{{const d=new Date(s);return d.getDate()+' '+MN[d.getMonth()];}};
+const loadWt=()=>{{try{{return JSON.parse(localStorage.getItem(WTK)||'[]');}}catch(e){{return[];}}}};
+function drawSpark(pts){{const svg=document.getElementById('wspark');if(!svg)return;
+  if(pts.length<1){{svg.innerHTML='';return;}}
+  const ws=pts.map(p=>p.w);let mn=Math.min(...ws),mx=Math.max(...ws);if(mx-mn<1){{mn-=1;mx+=1;}}
+  const W=300,H=80,pad=10,xf=i=>pts.length<2?W/2:pad+i*(W-2*pad)/(pts.length-1),yf=w=>H-pad-(w-mn)/(mx-mn)*(H-2*pad);
+  let d='';pts.forEach((p,i)=>{{d+=(i?'L':'M')+xf(i).toFixed(1)+' '+yf(p.w).toFixed(1)+' ';}});
+  const dots=pts.map((p,i)=>"<circle cx='"+xf(i).toFixed(1)+"' cy='"+yf(p.w).toFixed(1)+"' r='3'/>").join('');
+  svg.innerHTML="<path d='"+d+"'/>"+dots;
+}}
+function renderWeight(){{
+  const a=loadWt(),base=START_W>0?START_W:(a[0]?a[0].w:0),cur=a.length?a[a.length-1].w:(START_W>0?START_W:0);
+  const ce=document.getElementById('wcur');if(ce)ce.textContent=cur?String(cur).replace('.',','):'—';
+  const de=document.getElementById('wdelta');
+  if(de){{if(cur&&base){{const diff=Math.round((cur-base)*10)/10;
+    if(Math.abs(diff)<0.05){{de.textContent='±0 кг';de.className='wdelta';}}
+    else{{const good=GOAL==='gain'?diff>0:GOAL==='lose'?diff<0:true;
+      de.textContent=(diff>0?'+':'')+String(diff).replace('.',',')+' кг';de.className='wdelta '+(good?'g':'b');}}
+  }}else de.textContent='';}}
+  drawSpark((START_W>0?[{{d:'',w:START_W}}]:[]).concat(a));
+  const h=document.getElementById('whint');
+  if(h)h.textContent=a.length?('Записей: '+a.length+' · последняя '+fmtd(a[a.length-1].d)):
+    (START_W>0?('Старт из анкеты — '+String(START_W).replace('.',',')+' кг. Записывай раз в неделю — увидишь тренд.'):'Записывай вес раз в неделю — увидишь тренд.');
+}}
+const wsv=document.getElementById('wsave');
+if(wsv)wsv.onclick=()=>{{const el=document.getElementById('winput');const v=parseFloat((el.value||'').replace(',','.'));
+  if(!v||v<30||v>350){{el.style.borderColor='#DC2626';return;}}el.style.borderColor='';
+  const a=loadWt(),today=new Date().toISOString().slice(0,10),i=a.findIndex(e=>e.d===today);
+  if(i>=0)a[i].w=v;else a.push({{d:today,w:v}});a.sort((x,y)=>x.d<y.d?-1:1);
+  localStorage.setItem(WTK,JSON.stringify(a));el.value='';renderWeight();pushProgress();}};
+renderWeight();
+// ---- серверная синхронизация прогресса (стрик/вода/вес) к аккаунту ----
+function collectLocal(){{
+  const water={{}}; const wp='np_water_'+T+'_';
+  for(let i=0;i<localStorage.length;i++){{const k=localStorage.key(i);
+    if(k&&k.indexOf(wp)===0){{const v=parseInt(localStorage.getItem(k)||'0'); if(v)water[k.slice(wp.length)]=v;}}}}
+  let weight=[]; try{{weight=JSON.parse(localStorage.getItem('np_wt_'+T)||'[]');}}catch(e){{}}
+  return {{done:done, water:water, weight:weight, t:Date.now()}};  // t = версия для merge на сервере
+}}
+function applyLocal(p){{
+  if(!p)return;
+  done=p.done||{{}}; localStorage.setItem(DKEY,JSON.stringify(done));
+  Object.entries(p.water||{{}}).forEach(([d,n])=>localStorage.setItem('np_water_'+T+'_'+d,n));
+  localStorage.setItem('np_wt_'+T,JSON.stringify(p.weight||[]));
+}}
+let _pushT=null, _synced=false;
+function pushProgress(){{if(!_synced)return;clearTimeout(_pushT);_pushT=setTimeout(()=>{{
+  fetch('/api/plan/'+T+'/progress',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(collectLocal())}}).catch(()=>{{}});
+}},1000);}}
+// начальная синхронизация ОДИН раз: сервер ∪ локальное → перерисовать → отправить объединённое (дальше replace)
+fetch('/api/plan/'+T+'/progress').then(r=>r.json()).then(srv=>{{
+  const loc=collectLocal();
+  const mDone=Object.assign({{}},srv.done||{{}},loc.done||{{}});
+  const mWater=Object.assign({{}},srv.water||{{}}); Object.entries(loc.water||{{}}).forEach(([d,n])=>{{mWater[d]=Math.max(mWater[d]||0,n);}});
+  const wt={{}}; (srv.weight||[]).concat(loc.weight||[]).forEach(e=>{{if(e&&e.d)wt[e.d]=e;}});
+  applyLocal({{done:mDone,water:mWater,weight:Object.values(wt).sort((a,b)=>a.d<b.d?-1:1)}});
+  paint();renderWater();renderWeight();_synced=true;pushProgress();
+}}).catch(()=>{{_synced=true;}});
+// подгрузка фото блюд по мере генерации (первый юзер видит их через ~10–20с)
+(function(){{let tries=0;function poll(){{tries++;
+  const imgs=[...document.querySelectorAll('img.mimg[data-slug]')].filter(im=>!im.dataset.ready);
+  if(!imgs.length)return;
+  imgs.forEach(im=>{{fetch(im.getAttribute('src'),{{method:'HEAD'}}).then(r=>{{
+    if((r.headers.get('content-type')||'').indexOf('webp')>=0){{im.dataset.ready='1';im.src='/dish/'+im.dataset.slug+'?v='+Date.now();}}
+  }}).catch(()=>{{}});}});
+  if(tries<6)setTimeout(poll,5000);
+}}setTimeout(poll,5000);}})();
+// замена блюда (LLM-регенерация одного блюда, затем перезагрузка на том же дне)
+document.querySelectorAll('.swap').forEach(b=>b.addEventListener('click',async()=>{{
+  const day=+b.dataset.day, slot=b.dataset.slot, o=b.textContent; b.disabled=true; b.textContent='Подбираю…';
+  try{{
+    const r=await fetch('/api/plan/{token}/swap',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{day,slot}})}});
+    const j=await r.json(); if(!j.meal) throw 0;
+    delete done[day+':'+slot]; localStorage.setItem(DKEY,JSON.stringify(done));  // новое блюдо — сбрасываем «съедено»
+    try{{await fetch('/api/plan/'+T+'/progress',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(collectLocal())}});}}catch(e){{}}
+    location.hash='d'+day; location.reload();
+  }}catch(e){{ b.disabled=false; b.textContent=o; alert('Не удалось заменить — попробуй ещё раз'); }}
+}}));
+// отвязка карты (без отмены подписки) — двойное подтверждение
+const ub=document.getElementById('unbindCard');
+if(ub){{let a2=false;ub.addEventListener('click',async()=>{{
+  if(!a2){{a2=true;ub.textContent='Нажми ещё раз, чтобы отвязать карту';return;}}
+  ub.disabled=true;ub.textContent='Отвязываю…';
+  try{{
+    const r=await fetch('/api/sub/'+ub.dataset.token+'/unbind-card',{{method:'POST'}});
+    const j=await r.json();if(!j.ok)throw 0;
+    const m=document.getElementById('cmsg');
+    m.textContent='Карта отвязана — автосписаний больше не будет. Подписка активна до конца оплаченного периода.';
+    m.classList.add('s');ub.style.display='none';
+    const note=document.querySelector('.subcard .cnote');if(note)note.textContent='Карта не привязана — автосписаний не будет';
+  }}catch(e){{ub.disabled=false;ub.textContent='Отвязать карту';alert('Не удалось отвязать карту. Напиши на support@mynutriplan.ru');}}
+}});}}
+// отмена подписки — двойное подтверждение
+const cb=document.getElementById('cancelSub');
+if(cb){{let armed=false;cb.addEventListener('click',async()=>{{
+  if(!armed){{armed=true;cb.textContent='Нажми ещё раз, чтобы подтвердить';return;}}
+  cb.disabled=true;cb.textContent='Отменяю…';
+  try{{
+    const r=await fetch('/api/sub/'+cb.dataset.token+'/cancel',{{method:'POST'}});
+    const j=await r.json();if(!j.ok)throw 0;
+    const m=document.getElementById('cmsg');
+    m.textContent='Подписка отменена, карта отвязана. Автосписаний больше не будет — доступ сохраняется до конца оплаченного периода.';
+    m.classList.add('s');cb.style.display='none';
+    if(ub)ub.style.display='none';
+    const a=document.querySelector('.sactive');if(a)a.outerHTML="<div class='scanceled'>Отменена</div>";
+  }}catch(e){{cb.disabled=false;cb.textContent='Отменить подписку';alert('Не удалось отменить. Напиши на support@mynutriplan.ru');}}
+}});}}
+// «Что ты не ешь» — сохранить исключения и пересобрать план
+const sp=document.getElementById('savePrefs');
+if(sp)sp.onclick=async()=>{{
+  const v=(document.getElementById('excl').value||'').trim();
+  sp.disabled=true;sp.textContent='Пересобираю…';const pm=document.getElementById('pmsg');if(pm)pm.classList.add('s');
+  try{{
+    const r=await fetch('/api/plan/'+T+'/settings',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{exclude:v}})}});
+    const j=await r.json();if(!j.ok)throw 0;
+    location.reload();
+  }}catch(e){{sp.disabled=false;sp.textContent='Сохранить и пересобрать план';if(pm)pm.classList.remove('s');alert('Не удалось пересобрать. Попробуй ещё раз или напиши support@mynutriplan.ru');}}
+}};
+// «Не нравится» — добавить блюдо в стоп-лист и пересобрать план (тяжёлая LLM-операция → подтверждение)
+document.querySelectorAll('.dislike').forEach(b=>{{let armed=false;b.addEventListener('click',async()=>{{
+  if(!armed){{armed=true;b.title='Нажми ещё раз — уберу это блюдо и пересоберу план';b.style.color='#DC2626';
+    setTimeout(()=>{{armed=false;b.style.color='';b.title='Не нравится — убрать из меню';}},4000);return;}}
+  const name=b.dataset.name||''; document.querySelectorAll('.dislike').forEach(x=>x.disabled=true);
+  try{{
+    const r=await fetch('/api/plan/'+T+'/settings',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{dislike:name}})}});
+    const j=await r.json();if(!j.ok)throw 0; location.hash=''; location.reload();
+  }}catch(e){{document.querySelectorAll('.dislike').forEach(x=>x.disabled=false);alert('Не удалось обновить меню — попробуй ещё раз');}}
+}});}});
+// PWA: service worker + install prompt
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{{}});
+let deferred=null; const ib=document.getElementById('install');
+window.addEventListener('beforeinstallprompt',e=>{{e.preventDefault();deferred=e;ib.hidden=false;}});
+ib.addEventListener('click',async()=>{{if(!deferred)return;deferred.prompt();await deferred.userChoice;deferred=null;ib.hidden=true;}});
+window.addEventListener('appinstalled',()=>{{ib.hidden=true;}});
+</script></body></html>"""
+
+
+def menu_email_html(pl: dict, plan_link: str = "") -> str:
+    """Письмо после оплаты: краткое меню (без рецептов) + кнопка на полный план в вебе."""
+    days = "".join(_day_block({"day": d.get("day", ""), "meals": [
+        (m.get("slot", ""), m.get("name", ""), m.get("kcal", "")) for m in (d.get("meals") or [])]})
+        for d in (pl.get("days") or []))
+    cta = _cta(plan_link, "Открыть план с рецептами") if plan_link else ""
+    return (f"<div style='{_CSS_WRAP}'>"
+            + _head("Твой план на 7 дней", "Спасибо за оплату! Меню — ниже, рецепты и список покупок — в плане")
+            + _norm_card(pl) + cta
+            + "<div style='padding:14px 24px 0;font-weight:800;font-size:16px'>Меню на неделю</div>"
+            + days + _foot() + "</div>")
