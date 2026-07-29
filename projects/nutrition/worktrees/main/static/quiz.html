@@ -165,7 +165,7 @@
   .prog .glabel{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
   .prog .gdelta{background:var(--accent);color:var(--cta-ink);font-size:14px;font-weight:800;
     padding:4px 11px;border-radius:99px;white-space:nowrap;box-shadow:0 8px 18px -8px var(--accent)}
-  .prog .gwrap{position:relative;height:150px;margin-top:14px}
+  .prog .gwrap{position:relative;height:150px;margin:14px 0 26px}
   .prog svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
   /* Кружки и подписи — HTML поверх SVG, а не фигуры внутри него: SVG растянут
      по ширине (preserveAspectRatio=none), и любая окружность в нём превращалась
@@ -182,6 +182,16 @@
   .prog .endm video,.prog .endm img{width:100%;height:100%;object-fit:cover;display:block}
   .prog .tag{position:absolute;transform:translate(-50%,-50%);background:var(--field);border:1px solid var(--line);
     border-radius:10px;padding:4px 9px;font-size:13px;font-weight:800;box-shadow:0 8px 18px -10px rgba(0,0,0,.3)}
+  /* Вехи на пути. Две точки (старт/финиш) показывают только «откуда» и «куда»;
+     промежуточные превращают график в план с этапами — видно, что будет через
+     месяц, а не только в ноябре. Веса — линейная интерполяция того же прогноза,
+     поэтому в заголовке и стоит «примерно». */
+  .prog .mile{position:absolute;transform:translate(-50%,-50%);width:11px;height:11px;border-radius:50%;
+    background:var(--field);border:2.5px solid var(--accent);opacity:.75}
+  .prog .mkg{position:absolute;transform:translate(-50%,-50%);font-size:11.5px;font-weight:700;
+    color:var(--muted);white-space:nowrap}
+  .prog .guide-v{position:absolute;width:1px;border-left:1px dashed var(--line);opacity:.9}
+  .prog .tick{position:absolute;transform:translateX(-50%);font-size:11.5px;color:var(--muted);white-space:nowrap}
   .prog .axis{display:flex;justify-content:space-between;color:var(--muted);font-size:12.5px;margin-top:8px}
   .card{background:var(--field);border:1.5px solid var(--line);border-radius:22px;padding:22px;margin-top:16px}
   .kcal{display:flex;align-items:baseline;gap:10px}
@@ -210,7 +220,20 @@
   .locked{position:relative}
   .locked .veil{position:absolute;left:0;right:0;bottom:0;height:64%;border-radius:0 0 22px 22px;
     background:linear-gradient(180deg,transparent,var(--field) 78%);display:flex;align-items:flex-end;justify-content:center;
-    padding-bottom:16px;color:var(--muted);font-size:13px;font-weight:700}
+    padding-bottom:12px}
+  /* Из надписи «+ещё 6 дней меню» сделана кнопка. Надпись сообщала, что за
+     туманом что-то есть, но нажать на неё было нельзя — человек упирался в
+     закрытую дверь без ручки. Теперь она ведёт к тарифам. */
+  .locked .veil .go{display:inline-flex;align-items:center;gap:9px;background:var(--accent);color:var(--cta-ink);
+    border:none;border-radius:14px;font-size:14px;font-weight:800;padding:13px 18px;cursor:pointer;
+    box-shadow:0 14px 28px -14px var(--accent);transition:.16s;max-width:100%}
+  .locked .veil .go:hover{background:var(--accent-d)}
+  .locked .veil .go span{font-weight:600;opacity:.85;font-size:13px}
+  .locked .veil .go svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.4;
+    stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+  /* Замок на последней (скрытой) строке — «здесь заперто», а не «здесь пусто». */
+  .meal .mi.lock{background:var(--line);opacity:.9}
+  .meal .mi.lock svg{width:16px;height:16px;stroke:var(--muted)}
 
   .email{margin-top:22px}
   .email h3{font-size:19px;font-weight:800;letter-spacing:-.01em}
@@ -286,10 +309,77 @@
   .done .mail{color:var(--ink);font-weight:700}
 
   @media(max-width:380px){.opt{padding:14px}.opt .ic{width:38px;height:38px}}
+
+  /* ═══ Стекло ══════════════════════════════════════════════════════════════
+     Материал вместо плоских белых прямоугольников: под контентом — мягкое
+     цветное свечение, карточки полупрозрачные и размывают то, что за ними.
+     Ощущение стекла даёт не сама прозрачность, а СВЕТЯЩАЯСЯ КРОМКА сверху
+     (inset-подсветка) — без неё выходит просто мутный прямоугольник.
+
+     Все цвета выведены из переменных темы, поэтому восемь лендингов сохраняют
+     свою палитру, а не получают один общий фиолетовый градиент.               */
+  :root{
+    --glass: color-mix(in srgb, var(--field) 58%, transparent);
+    --glass-soft: color-mix(in srgb, var(--field) 42%, transparent);
+    --glass-edge: color-mix(in srgb, #fff 70%, transparent);
+    --glass-line: color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+
+  /* Подсветка за контентом. Три пятна, а не десять: каждое — это большой
+     размытый слой, и на телефоне за них платят батареей. */
+  .aura{position:fixed;inset:-20% -10%;z-index:-1;pointer-events:none;
+    background:
+      radial-gradient(36% 26% at 14% 8%,  color-mix(in srgb, var(--accent) 34%, transparent), transparent 70%),
+      radial-gradient(40% 30% at 92% 26%, color-mix(in srgb, var(--soft) 96%, transparent), transparent 72%),
+      radial-gradient(46% 30% at 8% 58%,  color-mix(in srgb, var(--accent) 20%, transparent), transparent 74%),
+      radial-gradient(54% 34% at 78% 84%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 72%);
+    filter:blur(34px);opacity:1}
+
+  .plan .card, .plan .prog, .plan .pw{
+    background:var(--glass);
+    -webkit-backdrop-filter:blur(26px) saturate(170%);
+    backdrop-filter:blur(26px) saturate(170%);
+    border:1px solid var(--glass-line);
+    box-shadow:
+      inset 0 1px 0 var(--glass-edge),          /* кромка, ловящая свет */
+      inset 0 -1px 0 color-mix(in srgb, var(--ink) 4%, transparent),
+      0 26px 50px -34px color-mix(in srgb, var(--ink) 40%, transparent);
+  }
+  .plan .pw{border-color:color-mix(in srgb, var(--accent) 38%, transparent)}
+
+  /* Вложенные плитки — тоньше и без своего размытия: вкладывать backdrop-filter
+     друг в друга дорого, а разницы почти не видно. */
+  .plan .macros div, .plan .tar{
+    background:var(--glass-soft);
+    border:1px solid var(--glass-line);
+    box-shadow:inset 0 1px 0 var(--glass-edge);
+  }
+  .plan .tar.sel{
+    background:color-mix(in srgb, var(--soft) 72%, transparent);
+    border-color:var(--accent);
+  }
+  /* Туман над скрытым днём должен растворяться в стекле, а не в белом листе. */
+  .plan .locked .veil{
+    background:linear-gradient(180deg, transparent, color-mix(in srgb, var(--field) 72%, transparent) 76%);
+  }
+
+  /* Если браузер не умеет размытие — материал становится плотным, иначе текст
+     поплывёт по цветным пятнам. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
+    .plan .card, .plan .prog, .plan .pw{background:var(--field)}
+    .plan .macros div, .plan .tar{background:var(--soft)}
+  }
+  /* Уважаем системную просьбу убрать прозрачность. */
+  @media (prefers-reduced-transparency: reduce){
+    .aura{display:none}
+    .plan .card, .plan .prog, .plan .pw{background:var(--field);backdrop-filter:none;-webkit-backdrop-filter:none}
+    .plan .macros div, .plan .tar{background:var(--soft)}
+  }
 </style>
 </head>
 <body>
-  <div class="shell">
+  <div class="aura" aria-hidden="true"></div>
+<div class="shell">
     <div class="top" id="top">
       <div class="brand"><span class="dot"></span>NutriPlan</div>
       <div class="row">
@@ -727,7 +817,37 @@ function renderPlan(){
   const endKg = pg.endLabel ? parseInt(pg.endLabel, 10) : null;
   const deltaKg = endKg !== null ? Math.abs(startKg - endKg) : null;
   const yTop = y1 / 150 * 100;      // высота конечной точки, %
-  const yStart = y0 / 150 * 100;
+  const yStartPct = y0 / 150 * 100;
+  // Точки берём С САМОЙ КРИВОЙ, а не «на глазок»: путь — кубическая кривая
+  // Безье, и линейная прикидка увела бы метки с линии.
+  const bez = (t, a, b, c, d) => {
+    const u = 1 - t;
+    return u*u*u*a + 3*u*u*t*b + 3*u*t*t*c + t*t*t*d;
+  };
+  const miles = (() => {
+    if (endKg === null) return [];          // без целевого веса промежуточных значений нет
+    const out = [];
+    for (const frac of [0.33, 0.66]) {   // две вехи, а не три: на 390px три подписи справа сталкивались с финальной
+      // ищем t, при котором x ближе всего к нужной доле ширины
+      const wantX = 10 + (288 - 10) * frac;
+      let best = 0, bestD = 1e9;
+      for (let i = 0; i <= 200; i++) {
+        const t = i / 200;
+        const d = Math.abs(bez(t, 10, 120, 150, 288) - wantX);
+        if (d < bestD) { bestD = d; best = t; }
+      }
+      const x = bez(best, 10, 120, 150, 288);
+      const y = bez(best, y0, y0, y1, y1);
+      const prog = (y - y0) / ((y1 - y0) || 1);          // 0 в начале, 1 в конце
+      out.push({
+        xp: x / 298 * 100,
+        yp: y / 150 * 100,
+        kg: Math.round(startKg + (endKg - startKg) * prog),
+        label: Math.max(1, Math.round(pg.weeks * frac)) + ' нед.',
+      });
+    }
+    return out;
+  })();
   const graph = `<div class="prog">
       <div class="ghead">
         <span class="glabel">Прогноз</span>
@@ -746,16 +866,22 @@ function renderPlan(){
           <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3.5" stroke-linecap="round"
             vector-effect="non-scaling-stroke"/>
         </svg>
-        <div class="dot start" style="left:3.4%;top:${yStart}%"></div>
-        <div class="kg start" style="left:3.4%;top:calc(${yStart}% - 20px)">${startKg} кг</div>
+        ${miles.map(m => `
+          <div class="guide-v" style="left:${m.xp}%;top:${m.yp}%;height:calc(${100 - m.yp}% + 6px)"></div>
+          <div class="mile" style="left:${m.xp}%;top:${m.yp}%"></div>
+          <div class="mkg" style="left:${m.xp}%;top:calc(${m.yp}% - 17px)">${m.kg} кг</div>
+          <div class="tick" style="left:${m.xp}%;top:calc(100% + 9px)">${m.label}</div>`).join('')}
+        <div class="tick" style="left:3.4%;top:calc(100% + 9px);transform:translateX(-10%)">Сегодня</div>
+        <div class="tick" style="left:96.6%;top:calc(100% + 9px);transform:translateX(-90%)">${pg.dateStr}</div>
+        <div class="dot start" style="left:3.4%;top:${yStartPct}%"></div>
+        <div class="kg start" style="left:3.4%;top:calc(${yStartPct}% - 20px)">${startKg} кг</div>
         <div class="dot end" style="left:96.6%;top:${yTop}%"></div>
-        ${endKg !== null ? `<div class="kg end" style="left:86%;top:calc(${yTop}% ${pg.down ? '+ 26px' : '- 26px'})">${endKg} кг</div>` : ''}
+        ${endKg !== null ? `<div class="kg end" style="left:88%;top:calc(${yTop}% ${pg.down ? '- 24px' : '+ 24px'})">${endKg} кг</div>` : ''}
         <!-- Маскота в графике нет намеренно: он либо наезжал на плашку с
              дельтой (кривая вверх), либо садился на саму линию и закрывал
              конечную точку. И по существу он здесь конкурировал с главным —
              числом. На интро-экранах и в пузыре у каждого вопроса он остаётся. -->
       </div>
-      <div class="axis"><span>Сегодня</span><span>${pg.dateStr}</span></div>
     </div>`;
 
   const locked = `
@@ -778,7 +904,8 @@ function renderPlan(){
         <div class="meal"><span class="mi">${IC.cup}</span><span class="mt"><b>Завтрак</b><span>Овсянка с ягодами и орехами</span></span><span class="kc">${m1} ккал</span></div>
         <div class="meal"><span class="mi">${IC.plate}</span><span class="mt"><b>Обед</b><span>Курица с киноа и овощами</span></span><span class="kc">${m2} ккал</span></div>
         <div class="meal"><span class="mi">${IC.bowl}</span><span class="mt"><b>Ужин</b><span>Запечённая рыба и салат</span></span><span class="kc">${m3} ккал</span></div>
-        <div class="veil">+ ещё 6 дней меню в полном плане</div>
+        <div class="veil"><button class="go" id="toPw" type="button">Открыть все 7 дней
+          <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
       </div>
     </div>
     <div class="bridge"><b>Норма — это половина дела.</b> <span>Вторая половина — что именно
@@ -821,7 +948,24 @@ function renderPlan(){
     ${planRevealed ? revealed : locked}
   </div>`;
   playAll();
-  if(planRevealed) loadRealDay();
+  if(planRevealed){
+    loadRealDay();
+    // Кнопка из-под тумана ведёт к тарифам. Скроллим сами, а не якорем:
+    // якорь оставил бы #hash в адресе и сломал бы возврат «назад».
+    const go = document.getElementById('toPw');
+    if(go) go.addEventListener('click', () => {
+      const pw = document.querySelector('.pw');
+      if(pw) pw.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+    // Замок на последнем приёме пищи: под туманом должно читаться «заперто»,
+    // а не «здесь пусто».
+    const rows = document.querySelectorAll('#dayBlock .meal');
+    const last = rows[rows.length - 1];
+    if(last){
+      const mi = last.querySelector('.mi');
+      if(mi){ mi.classList.add('lock'); mi.innerHTML = IC.lock; }
+    }
+  }
 
   if(!planRevealed){
     const send=$('#send'), mail=$('#mail'), err=$('#err');
