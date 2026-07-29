@@ -83,3 +83,10 @@ no separate verify step in the scenario — the gate lives inside the pipeline.
 - **Cost:** each product is an Opus coding agent + an Opus QA reviewer that runs
   the smoke test, with up to `attempts` build cycles. This is the expensive
   phase — run it deliberately, not on every edit.
+
+## What comes after
+
+The MVP running is not the finish line. Once it takes real traffic and real
+payments, switch to **`operate-web-product.md`** — the operate-phase recipe:
+reading the funnel step by step, separating defects from hypotheses, touching
+ads without wrecking the data, and testing prod without polluting stats.

@@ -7,3 +7,4 @@ node_modules/
 !.hq/_runtime/.gitkeep
 .runtime/
 .DS_Store
+registrant.env
