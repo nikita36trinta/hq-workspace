@@ -204,28 +204,51 @@
   .lockic svg{width:20px;height:20px}
   .lockhint{color:var(--muted);font-size:14px;margin-top:12px}
 
+  /* Связка между личным результатом и покупкой. Раньше карточка нормы просто
+     обрывалась и следом шла коробка с ценой — переход читался как «а теперь
+     плати», без объяснения, за что. */
+  .bridge{margin:22px 2px 0;font-size:16px;line-height:1.45}
+  .bridge b{font-weight:800}
+  .bridge span{color:var(--muted)}
+
   /* paywall — полный план */
-  .pw{margin-top:20px;background:var(--field);border:1.5px solid var(--accent);border-radius:22px;padding:22px;
+  .pw{margin-top:16px;background:var(--field);border:1.5px solid var(--accent);border-radius:22px;padding:22px 20px;
     box-shadow:0 24px 50px -30px var(--accent)}
-  .pw-h{font-size:19px;font-weight:800;letter-spacing:-.01em}
-  .pw-l{list-style:none;margin:14px 0 4px;display:flex;flex-direction:column;gap:10px}
-  .pw-l li{display:flex;align-items:flex-start;gap:10px;font-size:15px}
-  .pw-l li .c{width:20px;height:20px;border-radius:50%;background:var(--soft);flex:0 0 auto;margin-top:1px;
+  .pw-h{font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+  .pw-sub{color:var(--muted);font-size:14px;margin-top:5px}
+  .pw-l{list-style:none;margin:18px 0 4px;display:flex;flex-direction:column;gap:13px}
+  .pw-l li{display:flex;align-items:flex-start;gap:11px;font-size:15px;line-height:1.35}
+  .pw-l li b{display:block;font-weight:700}
+  .pw-l li i{display:block;font-style:normal;color:var(--muted);font-size:13px;margin-top:1px}
+  .pw-l li .c{width:26px;height:26px;border-radius:9px;background:var(--soft);flex:0 0 auto;margin-top:1px;
     display:flex;align-items:center;justify-content:center}
-  .pw-l li .c svg{width:12px;height:12px;stroke:var(--accent)}
-  .pw .foot{position:static;background:none;margin-top:14px;padding:0}
-  /* тарифы */
-  .tar{display:flex;align-items:center;gap:12px;border:1.5px solid var(--line);border-radius:15px;padding:14px 15px;margin-top:12px;cursor:pointer;transition:.15s}
-  .tar.sel{border-color:var(--accent);background:var(--soft)}
+  .pw-l li .c svg{width:15px;height:15px;stroke:var(--accent-d);fill:none;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round}
+  .pw .foot{position:static;background:none;margin-top:16px;padding:0}
+
+  /* тарифы: выбранный должен быть заметно «главнее», иначе выбор не читается */
+  .tars{margin-top:20px;display:flex;flex-direction:column;gap:10px}
+  .tar{display:flex;align-items:flex-start;gap:11px;border:1.5px solid var(--line);border-radius:16px;
+    padding:14px 15px;cursor:pointer;transition:.15s;background:var(--field)}
+  .tar .trad{margin-top:2px}
+  .tar:hover{border-color:#c9dfd0}
+  .tar.sel{border-color:var(--accent);border-width:2px;background:var(--soft);padding:16px 15px}
   .tar .trad{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;position:relative}
   .tar.sel .trad{border-color:var(--accent)}
   .tar.sel .trad::after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--accent)}
   .tar .tl{flex:1;min-width:0}
-  .tar .tl b{display:flex;align-items:center;gap:8px;font-size:16px}
-  .tbadge{background:var(--accent);color:var(--cta-ink);font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.03em}
-  .tdesc{display:block;font-size:13px;color:var(--muted);margin-top:2px}
-  .tp{font-size:22px;font-weight:800;color:var(--accent-d);white-space:nowrap}
-  .tp small{font-size:13px;color:var(--muted);font-weight:600}
+  .tar .tl b{display:flex;align-items:center;gap:7px;font-size:16px;flex-wrap:wrap;line-height:1.25}
+  .tbadge{background:var(--accent);color:var(--cta-ink);font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:99px;letter-spacing:.02em;white-space:nowrap}
+  .tdesc{display:block;font-size:13px;color:var(--muted);margin-top:3px}
+  .tp{text-align:right;white-space:nowrap;flex:0 0 auto}
+  .tp b{display:block;font-size:22px;font-weight:800;color:var(--accent-d);line-height:1.1}
+  .tp small{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
+
+  /* Честные опоры вместо мелкой серой строчки: то, что реально выполняется. */
+  .pw-trust{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .pw-trust span{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+  .pw-trust svg{width:13px;height:13px;stroke:var(--accent);fill:none;stroke-width:2.4;
+    stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 
   .done{position:fixed;inset:0;z-index:50;background:var(--bg);display:none;flex-direction:column;
     align-items:center;justify-content:center;text-align:center;padding:30px;animation:in .4s ease}
@@ -584,6 +607,19 @@ function renderPlan(){
   const goal=GOAL_TXT[answers.goal]||'твоей цели';
   const pg=prognosis(w,target,answers.goal);
   const m1=Math.round(cal*0.30), m2=Math.round(cal*0.40), m3=Math.round(cal*0.30);
+
+  // Числа для оффера — считаются из ответов и из цен, пришедших с сервера.
+  // Никаких «обычно 2990₽» и прочих зачёркиваний: сравнивать можно только то,
+  // что мы действительно берём.
+  const MEALS_N = {'2':2, '3':3, '3s':5, 'if':2};
+  const mealsN = MEALS_N[answers.meals] || 3;
+  const mealsTxt = mealsN + ' ' + (mealsN===1?'приём':(mealsN<5?'приёма':'приёмов')) + ' пищи в день';
+  const dishCount = mealsN * 7;
+  // Подписка — новый план каждую неделю, то есть ~4 плана в месяц. Отсюда
+  // честная цена за план, которая и объясняет бейдж вместо голого «выгодно».
+  const perPlan = Math.round(SUB_PRICE / 4);
+  const subDay = Math.round(SUB_PRICE / 30);
+  const onceDay = Math.round(PRICE / 7);
   const y0 = pg.down ? 34 : 116, y1 = pg.down ? 116 : 34;
   const path = `M 10 ${y0} C 120 ${y0}, 150 ${y1}, 288 ${y1}`;
   const graph = `<div class="prog">
@@ -626,22 +662,36 @@ function renderPlan(){
         <div class="veil">+ ещё 6 дней меню в полном плане</div>
       </div>
     </div>
+    <div class="bridge"><b>Норма — это половина дела.</b> <span>Вторая половина — что именно
+      класть в тарелку каждый день, чтобы в неё попадать и не срываться.</span></div>
     <div class="pw">
-      <div class="pw-h">Полный план + приложение</div>
+      <div class="pw-h">Полный план на 7 дней</div>
+      <div class="pw-sub">Собран под ${cal} ккал, твои вкусы и ${mealsTxt}</div>
       <ul class="pw-l">
-        <li><span class="c">${IC.check}</span>Меню на неделю под твои вкусы и цель</li>
-        <li><span class="c">${IC.check}</span>КБЖУ и рецепты каждого блюда</li>
-        <li><span class="c">${IC.check}</span>Список покупок + замена любого блюда</li>
-        <li><span class="c">${IC.check}</span>Приложение на телефон со стриком и прогрессом</li>
+        <li><span class="c">${IC.check}</span><span><b>${dishCount} блюд на неделю</b><i>Каждое — с рецептом, весом порции и КБЖУ</i></span></li>
+        <li><span class="c">${IC.check}</span><span><b>Список покупок на всю неделю</b><i>Одним списком, чтобы сходить в магазин один раз</i></span></li>
+        <li><span class="c">${IC.check}</span><span><b>Не нравится блюдо — меняешь в один тап</b><i>Замена подбирается под ту же норму</i></span></li>
+        <li><span class="c">${IC.check}</span><span><b>План в телефоне, прогресс и вес</b><i>Ставится как приложение, работает и без интернета</i></span></li>
       </ul>
-      <label class="tar sel" data-t="sub"><span class="trad"></span>
-        <div class="tl"><b>Подписка<span class="tbadge">выгодно</span></b><span class="tdesc">Новый план каждую неделю · замены · поддержка</span></div>
-        <div class="tp">${SUB_PRICE} ₽<small>/мес</small></div></label>
-      <label class="tar" data-t="once"><span class="trad"></span>
-        <div class="tl"><b>Разовый план</b><span class="tdesc">План на 7 дней, без обновлений</span></div>
-        <div class="tp">${PRICE} ₽</div></label>
-      <div class="foot"><button class="cta" id="pay">Оформить →</button>
-        <div class="trust">Оплата ЮKassa · чек на почту · нажимая, принимаешь <a href="/offer" target="_blank">Оферту</a></div></div>
+
+      <div class="tars">
+        <label class="tar sel" data-t="sub"><span class="trad"></span>
+          <div class="tl"><b>Подписка<span class="tbadge">${perPlan} ₽ за план</span></b>
+            <span class="tdesc">Новый план каждую неделю · ${subDay} ₽ в день</span></div>
+          <div class="tp"><b>${SUB_PRICE} ₽</b><small>в месяц</small></div></label>
+        <label class="tar" data-t="once"><span class="trad"></span>
+          <div class="tl"><b>Разовый план</b>
+            <span class="tdesc">Один план на 7 дней · ${onceDay} ₽ в день</span></div>
+          <div class="tp"><b>${PRICE} ₽</b><small>разово</small></div></label>
+      </div>
+
+      <div class="foot"><button class="cta" id="pay">Оформить →</button></div>
+      <div class="pw-trust">
+        <span>${IC.check} Отмена в один клик</span>
+        <span>${IC.check} Чек на почту</span>
+        <span>${IC.check} Оплата через ЮKassa</span>
+      </div>
+      <div class="trust" style="margin-top:10px">Нажимая, принимаешь <a href="/offer" target="_blank">Оферту</a></div>
     </div>`;
 
   stage.innerHTML = `<div class="step plan">
