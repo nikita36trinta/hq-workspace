@@ -287,11 +287,28 @@
 const L = "__LANDING__", SRC = "__SRC__", DARK = __DARK__, PRICE = __PRICE__, SUB_PRICE = __SUB_PRICE__;
 // маскот: мелкое ужатое видео (10-40КБ) + превью-постер — для маленьких мест (гид/лоадер/прогноз)
 const masc = (pose='wave') => `<video autoplay loop muted playsinline poster="/assets/avocado_${pose}_sm.png"><source src="/assets/avocado_${pose}_sm.mp4" type="video/mp4"></video>`;
-// Крупные места (.mbig, 220 CSS-пикселей → 440 физических на 2x-экране).
-// Здесь стоял ЛИБО мелкий 240×240 вариант — и его было видно, картинка
-// «шакалила», — ЛИБО полный 984×932 на 2.5 МБ, что для мобильного перебор.
-// Средний 480×480 закрывает оба случая: чётко и 65–205 КБ вместо 2.5 МБ.
-const mascBig = (pose='wave') => `<video autoplay loop muted playsinline poster="/assets/avocado_${pose}_md.jpg"><source src="/assets/avocado_${pose}_md.mp4" type="video/mp4"></video>`;
+// Крупные места (.mbig). Контейнер задан как min(60vw,220px), то есть
+// 220 CSS-пикселей ВЕЗДЕ — и на мониторе, и на телефоне. Физический размер
+// равен 220 × devicePixelRatio, поэтому решает плотность экрана, а не «десктоп
+// против мобильного»: телефону с DPR 3 нужно 660 пикселей, обычному монитору —
+// 220. Делить по ширине окна было бы ровно наоборот.
+//
+//   DPR < 1.5  → 240 (18–40 КБ)   обычный монитор
+//   DPR < 2.5  → 480 (65–205 КБ)  ретина, большинство телефонов
+//   DPR ≥ 2.5  → 720 (110–290 КБ) плотные экраны телефонов
+//
+// Save-Data («экономия трафика» в браузере) опускает на ступень вниз: человек
+// прямо попросил не тратить его мегабайты.
+const MASC_TIER = (() => {
+  try {
+    const c = navigator.connection || {};
+    const dpr = window.devicePixelRatio || 1;
+    let t = dpr >= 2.5 ? '_lg' : (dpr >= 1.5 ? '_md' : '_sm');
+    if (c.saveData) t = t === '_lg' ? '_md' : '_sm';
+    return t;
+  } catch (e) { return '_md'; }
+})();
+const mascBig = (pose='wave') => `<video autoplay loop muted playsinline poster="/assets/avocado_${pose}${MASC_TIER}.jpg"><source src="/assets/avocado_${pose}${MASC_TIER}.mp4" type="video/mp4"></video>`;
 
 const IC = {
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
