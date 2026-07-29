@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Соберём твой план питания · NutriPlan</title>
+<style>
+  :root{
+    --accent:#16A34A; --accent-d:#0E7A36; --soft:#E7F8EC; --muted:#6B7566;
+    --ink:#20321F; --bg:#FBF8F1; --field:#FFFFFF; --line:#EEE7D8; --cta-ink:#FFFFFF;
+  }
+  /*THEMEHOOK*/
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100dvh}
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;cursor:pointer}
+
+  .shell{max-width:520px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;
+    padding:0 20px calc(20px + env(safe-area-inset-bottom))}
+
+  /* top bar */
+  .top{position:sticky;top:0;z-index:10;background:var(--bg);padding:14px 0 10px}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:18px;padding:2px 0 12px}
+  .brand .dot{width:11px;height:11px;border-radius:50%;background:var(--accent)}
+  .top .row{display:flex;align-items:center;gap:12px;height:34px}
+  /* Шапку на intro/build/plan убираем ИЗ ПОТОКА, а не прячем: visibility:hidden
+     сохраняла её место, и экран плана открывался с пустой полосой в 99px над
+     заголовком — на мобильном это почти четверть первого экрана, съеденная
+     ничем. */
+  .top.hide{display:none}
+  .back{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--field);
+    color:var(--ink);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;transition:.15s}
+  .back:hover{border-color:var(--accent)}
+  .back[hidden]{display:none}
+  .track{flex:1;height:7px;border-radius:99px;background:var(--soft);overflow:hidden}
+  .fill{height:100%;width:0;border-radius:99px;background:var(--accent);transition:width .45s cubic-bezier(.2,.7,.2,1)}
+  .count{font-size:13px;font-weight:700;color:var(--muted);flex:0 0 auto;min-width:34px;text-align:right}
+
+  main{flex:1;display:flex;flex-direction:column;justify-content:flex-start;padding-top:8px}
+  .step{animation:in .38s cubic-bezier(.2,.7,.2,1)}
+  @keyframes in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+
+  /* mascot guide (question in a speech bubble) */
+  .guide{display:flex;align-items:flex-start;gap:12px;margin-bottom:6px}
+  .guide .m{width:70px;height:70px;flex:0 0 auto;border-radius:18px;overflow:hidden;background:var(--soft)}
+  .guide .m video,.guide .m img{width:100%;height:100%;object-fit:cover;display:block}
+  .bubble{position:relative;background:var(--field);border:1px solid var(--line);border-radius:6px 16px 16px 16px;
+    padding:12px 15px;font-weight:800;font-size:clamp(18px,4.6vw,22px);letter-spacing:-.01em;line-height:1.22;
+    box-shadow:0 12px 26px -18px rgba(0,0,0,.25)}
+  .bubble::before{content:"";position:absolute;left:-7px;top:14px;width:12px;height:12px;background:var(--field);
+    border-left:1px solid var(--line);border-bottom:1px solid var(--line);transform:rotate(45deg)}
+  .q-sub{color:var(--muted);font-size:15px;margin:14px 0 0 2px}
+  .opts{display:flex;flex-direction:column;gap:11px;margin-top:22px}
+
+  .opt{display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+    background:var(--field);border:1.5px solid var(--line);border-radius:16px;padding:16px 17px;
+    color:var(--ink);font-size:16px;transition:.16s}
+  .opt:hover{border-color:var(--accent)}
+  .opt.sel{border-color:var(--accent);background:var(--soft)}
+  .opt .ic{width:42px;height:42px;border-radius:12px;background:var(--soft);flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;transition:.16s}
+  .opt.sel .ic{background:var(--accent)}
+  .opt .ic svg{width:22px;height:22px;stroke:var(--accent);transition:.16s}
+  .opt.sel .ic svg{stroke:var(--cta-ink)}
+  .opt .tx{flex:1;min-width:0}
+  .opt .tx b{display:block;font-weight:700;font-size:16px}
+  .opt .tx span{display:block;color:var(--muted);font-size:13.5px;margin-top:1px}
+  .opt .mk{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;transition:.16s}
+  .opt.sel .mk{border-color:var(--accent);background:var(--accent)}
+  .opt .mk svg{width:13px;height:13px;stroke:var(--cta-ink);opacity:0;transition:.16s}
+  .opt.sel .mk svg{opacity:1}
+  .opt.sq .mk{border-radius:7px}
+
+  /* metrics */
+  .metrics{display:flex;flex-direction:column;gap:14px;margin-top:22px}
+  .field{background:var(--field);border:1.5px solid var(--line);border-radius:16px;padding:12px 16px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;transition:.16s}
+  .field:focus-within{border-color:var(--accent)}
+  .field label{color:var(--muted);font-size:15px;font-weight:600;flex:0 0 auto}
+  .field .in{display:flex;align-items:baseline;gap:6px}
+  .field input{width:92px;border:none;background:transparent;color:var(--ink);text-align:right;
+    font-size:22px;font-weight:800;outline:none;-moz-appearance:textfield}
+  .field input::-webkit-outer-spin-button,.field input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .field .u{color:var(--muted);font-size:14px;font-weight:700}
+
+  /* bottom CTA */
+  .foot{position:sticky;bottom:0;background:linear-gradient(180deg,transparent,var(--bg) 26%);
+    padding:16px 0 calc(10px + env(safe-area-inset-bottom));margin-top:22px}
+  .cta{width:100%;border:none;border-radius:15px;background:var(--accent);color:var(--cta-ink);
+    font-size:17px;font-weight:800;padding:17px;transition:.16s;box-shadow:0 14px 30px -14px var(--accent)}
+  .cta:hover:not(:disabled){background:var(--accent-d)}
+  .cta:disabled{opacity:.4;box-shadow:none;cursor:default}
+  .trust{text-align:center;color:var(--muted);font-size:12.5px;margin-top:11px}
+  .trust a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+  .skip{display:block;margin:14px auto 0;background:none;border:none;color:var(--muted);font-size:14px;
+    font-weight:600;text-decoration:underline;text-underline-offset:3px}
+
+  /* intro / rapport screens */
+  .intro{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    padding:20px 0 8px;min-height:70dvh}
+  .intro .bub{background:var(--field);border:1px solid var(--line);border-radius:22px;padding:20px 22px;
+    font-weight:800;font-size:clamp(22px,6vw,30px);letter-spacing:-.02em;line-height:1.18;max-width:15ch;
+    box-shadow:0 20px 40px -26px rgba(0,0,0,.28);position:relative;animation:pop .4s ease}
+  .intro .bub::after{content:"";position:absolute;bottom:-9px;left:50%;transform:translateX(-50%) rotate(45deg);
+    width:16px;height:16px;background:var(--field);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .intro .mbig{width:min(60vw,220px);aspect-ratio:1;border-radius:32px;overflow:hidden;background:var(--soft);
+    margin-top:30px;box-shadow:0 40px 70px -34px rgba(0,0,0,.35);animation:pop .5s ease}
+  .intro .mbig video,.intro .mbig img{width:100%;height:100%;object-fit:cover;display:block}
+  /* note / подбадривание — маскот сверху, потом текст */
+  .note .mbig{margin-top:0;margin-bottom:22px;width:min(46vw,170px)}
+  .nt-h{font-size:clamp(23px,5.6vw,30px);font-weight:800;letter-spacing:-.02em;line-height:1.18;max-width:16ch}
+  .nt-b{color:var(--muted);font-size:16px;margin-top:12px;max-width:32ch}
+  .nt-l{list-style:none;margin-top:24px;display:flex;flex-direction:column;gap:14px;text-align:left;width:100%;max-width:340px}
+  .nt-l li{display:flex;align-items:center;gap:12px;font-size:16px;font-weight:600}
+  .nt-l li .c{width:26px;height:26px;border-radius:50%;background:var(--accent);flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+  .nt-l li .c svg{width:14px;height:14px;stroke:var(--cta-ink)}
+
+  /* build loader — circular */
+  .build{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding-top:10px}
+  .ringwrap{position:relative;width:180px;height:180px;margin:0 auto}
+  .ringwrap svg{transform:rotate(-90deg)}
+  .ringwrap .pc{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:34px;font-weight:800;letter-spacing:-.02em}
+  .ringwrap .mc{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .ringwrap .mc .mm{width:74px;height:74px;border-radius:20px;overflow:hidden;background:var(--soft);opacity:0;transition:.4s}
+  .ringwrap.done .mc .mm{opacity:1}
+  .ringwrap.done .pc{opacity:0}
+  .ringwrap .mm video,.ringwrap .mm img{width:100%;height:100%;object-fit:cover;display:block}
+  .build h2{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:26px 0 0}
+  .checks{list-style:none;margin:26px auto 0;max-width:320px;display:flex;flex-direction:column;gap:12px;text-align:left}
+  .checks li{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--muted);opacity:.4;transition:.3s}
+  .checks li.on{opacity:1;color:var(--ink)}
+  .checks li .c{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;transition:.3s}
+  .checks li.on .c{border-color:var(--accent);background:var(--accent)}
+  .checks li .c svg{width:13px;height:13px;stroke:var(--cta-ink);opacity:0;transition:.3s}
+  .checks li.on .c svg{opacity:1}
+
+  /* plan preview */
+  .plan{padding-top:6px}
+  .plan .kick{display:inline-flex;align-items:center;gap:7px;background:var(--soft);color:var(--accent-d);
+    font-weight:800;font-size:12.5px;letter-spacing:.03em;text-transform:uppercase;padding:6px 13px;border-radius:99px}
+  .plan h2{font-size:clamp(23px,5.6vw,30px);font-weight:800;letter-spacing:-.02em;margin:14px 0 2px}
+  .plan h2 em{color:var(--accent-d);font-style:normal}
+  .plan .lead{color:var(--muted);font-size:15px}
+  /* prognosis graph */
+  .prog{margin-top:18px;background:var(--field);border:1.5px solid var(--line);border-radius:22px;padding:20px 18px 14px}
+  .prog .gwrap{position:relative;height:150px;margin-top:6px}
+  .prog svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  .prog .endm{position:absolute;width:56px;height:56px;border-radius:15px;overflow:hidden;background:var(--soft);
+    transform:translate(-50%,-100%);box-shadow:0 14px 26px -14px rgba(0,0,0,.3)}
+  .prog .endm video,.prog .endm img{width:100%;height:100%;object-fit:cover;display:block}
+  .prog .tag{position:absolute;transform:translate(-50%,-50%);background:var(--field);border:1px solid var(--line);
+    border-radius:10px;padding:4px 9px;font-size:13px;font-weight:800;box-shadow:0 8px 18px -10px rgba(0,0,0,.3)}
+  .prog .axis{display:flex;justify-content:space-between;color:var(--muted);font-size:12.5px;margin-top:8px}
+  .card{background:var(--field);border:1.5px solid var(--line);border-radius:22px;padding:22px;margin-top:16px}
+  .kcal{display:flex;align-items:baseline;gap:10px}
+  .kcal .big{font-size:44px;font-weight:800;color:var(--accent-d);letter-spacing:-.02em;line-height:1}
+  .kcal .lab{color:var(--muted);font-size:14px}
+  .macros{display:flex;gap:10px;margin-top:18px}
+  .macros div{flex:1;background:var(--soft);border-radius:13px;padding:11px;text-align:center}
+  .macros b{display:block;font-size:19px;font-weight:800;color:var(--accent-d)}
+  .macros span{font-size:12px;color:var(--muted)}
+  .day{margin-top:14px}
+  .day .dh{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+  .meal{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+  .meal .mi{width:34px;height:34px;border-radius:10px;background:var(--soft);flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+  .meal .mi svg{width:18px;height:18px;stroke:var(--accent)}
+  .meal .mt b{display:block;font-size:14.5px}.meal .mt span{font-size:12.5px;color:var(--muted)}
+  .meal .kc{margin-left:auto;font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap}
+  .locked{position:relative}
+  .locked .veil{position:absolute;left:0;right:0;bottom:0;height:64%;border-radius:0 0 22px 22px;
+    background:linear-gradient(180deg,transparent,var(--field) 78%);display:flex;align-items:flex-end;justify-content:center;
+    padding-bottom:16px;color:var(--muted);font-size:13px;font-weight:700}
+
+  .email{margin-top:22px}
+  .email h3{font-size:19px;font-weight:800;letter-spacing:-.01em}
+  .email p{color:var(--muted);font-size:14px;margin-top:5px}
+  .email .inp{margin-top:14px;background:var(--field);border:1.5px solid var(--line);border-radius:15px;padding:15px 17px;display:flex;align-items:center;transition:.16s}
+  .email .inp:focus-within{border-color:var(--accent)}
+  .email input{width:100%;border:none;background:transparent;color:var(--ink);font-size:16px;outline:none}
+  .email .err{color:#DC2626;font-size:13px;margin-top:8px;display:none}
+  .email .err.show{display:block}
+
+  /* email-gate: замок на числе */
+  .dh2{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .lockrow{display:flex;align-items:center;gap:12px;margin-top:8px}
+  .lockn{font-size:40px;font-weight:800;letter-spacing:.06em;color:var(--muted);filter:blur(.5px)}
+  .lockn small{font-size:16px;letter-spacing:0;filter:none}
+  .lockic{width:38px;height:38px;border-radius:11px;background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--accent-d)}
+  .lockic svg{width:20px;height:20px}
+  .lockhint{color:var(--muted);font-size:14px;margin-top:12px}
+
+  /* paywall — полный план */
+  .pw{margin-top:20px;background:var(--field);border:1.5px solid var(--accent);border-radius:22px;padding:22px;
+    box-shadow:0 24px 50px -30px var(--accent)}
+  .pw-h{font-size:19px;font-weight:800;letter-spacing:-.01em}
+  .pw-l{list-style:none;margin:14px 0 4px;display:flex;flex-direction:column;gap:10px}
+  .pw-l li{display:flex;align-items:flex-start;gap:10px;font-size:15px}
+  .pw-l li .c{width:20px;height:20px;border-radius:50%;background:var(--soft);flex:0 0 auto;margin-top:1px;
+    display:flex;align-items:center;justify-content:center}
+  .pw-l li .c svg{width:12px;height:12px;stroke:var(--accent)}
+  .pw .foot{position:static;background:none;margin-top:14px;padding:0}
+  /* тарифы */
+  .tar{display:flex;align-items:center;gap:12px;border:1.5px solid var(--line);border-radius:15px;padding:14px 15px;margin-top:12px;cursor:pointer;transition:.15s}
+  .tar.sel{border-color:var(--accent);background:var(--soft)}
+  .tar .trad{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;position:relative}
+  .tar.sel .trad{border-color:var(--accent)}
+  .tar.sel .trad::after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--accent)}
+  .tar .tl{flex:1;min-width:0}
+  .tar .tl b{display:flex;align-items:center;gap:8px;font-size:16px}
+  .tbadge{background:var(--accent);color:var(--cta-ink);font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;text-transform:uppercase;letter-spacing:.03em}
+  .tdesc{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+  .tp{font-size:22px;font-weight:800;color:var(--accent-d);white-space:nowrap}
+  .tp small{font-size:13px;color:var(--muted);font-weight:600}
+
+  .done{position:fixed;inset:0;z-index:50;background:var(--bg);display:none;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;padding:30px;animation:in .4s ease}
+  .done.show{display:flex}
+  .done .ring{width:88px;height:88px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;box-shadow:0 24px 50px -20px var(--accent)}
+  .done .ring svg{width:44px;height:44px;stroke:var(--cta-ink);stroke-width:3}
+  .done h2{font-size:27px;font-weight:800;letter-spacing:-.02em;margin:22px 0 8px}
+  .done p{color:var(--muted);font-size:16px;max-width:34ch}
+  .done .mail{color:var(--ink);font-weight:700}
+
+  @media(max-width:380px){.opt{padding:14px}.opt .ic{width:38px;height:38px}}
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="top" id="top">
+      <div class="brand"><span class="dot"></span>NutriPlan</div>
+      <div class="row">
+        <button class="back" id="back" aria-label="Назад">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="track"><div class="fill" id="fill"></div></div>
+        <div class="count" id="count"></div>
+      </div>
+    </div>
+    <main id="stage"></main>
+  </div>
+
+  <div class="done" id="done">
+    <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+    <h2>План собран!</h2>
+    <p>Отправили персональный план на 7 дней на <span class="mail" id="doneMail"></span>. Проверь почту — письмо уже летит.</p>
+  </div>
+
+<script>
+const L = "__LANDING__", SRC = "__SRC__", DARK = __DARK__, PRICE = __PRICE__, SUB_PRICE = __SUB_PRICE__;
+// маскот: мелкое ужатое видео (10-40КБ) + превью-постер — для маленьких мест (гид/лоадер/прогноз)
+const masc = (pose='wave') => `<video autoplay loop muted playsinline poster="/assets/avocado_${pose}_sm.png"><source src="/assets/avocado_${pose}_sm.mp4" type="video/mp4"></video>`;
+// полное видео — для крупных интро-экранов
+const mascBig = (pose='wave') => `<video autoplay loop muted playsinline poster="/assets/avocado_${pose}.png"><source src="/assets/avocado_${pose}.mp4" type="video/mp4"></video>`;
+
+const IC = {
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
+  lose:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15l5-5 4 3 7-8"/><path d="M20 5v4h-4"/></svg>',
+  keep:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/><circle cx="12" cy="12" r="8"/></svg>',
+  gain:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V10M12 20V4M18 20v-7"/></svg>',
+  health:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg>',
+  sed:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="14" width="16" height="6" rx="2"/><path d="M8 14V7a2 2 0 0 1 2-2h4"/></svg>',
+  light:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><path d="M12 8v6l-3 6M12 14l3 6M7 10h10"/></svg>',
+  mod:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h3l2-6 3 12 2-8 2 4h4"/></svg>',
+  high:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
+  bowl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18a9 9 0 0 1-18 0z"/><path d="M12 3v3M9 5v1M15 5v1"/></svg>',
+  cup:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h11v5a5 5 0 0 1-11 0z"/><path d="M16 9h2a2 2 0 0 1 0 4h-2"/><path d="M5 21h11"/></svg>',
+  plate:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4"/></svg>',
+  lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>',
+};
+
+const STEPS = [
+  {type:'intro', pose:'wave', bubble:'Привет! Я твой Авокадо-гид'},
+  {type:'intro', pose:'cheer', bubble:'Отвечай честно — за 2 минуты соберу план под тебя'},
+
+  {q:1, type:'single', key:'goal', pose:'ask', h:'Что для тебя главная цель?', sub:'Соберём план именно под неё', opts:[
+    {v:'lose', b:'Сбросить вес', s:'Плавно и без голода', ic:'lose'},
+    {v:'keep', b:'Держать форму', s:'Закрепить результат', ic:'keep'},
+    {v:'gain', b:'Набрать массу', s:'Чистый набор, рост мышц', ic:'gain'},
+    {v:'health', b:'Наладить питание', s:'Энергия и самочувствие', ic:'health'},
+  ]},
+  {q:1, type:'multi', key:'why', pose:'think', h:'Почему это важно тебе?', sub:'Можно выбрать несколько — так план будет точнее', skip:true, opts:[
+    {v:'confidence', b:'Чувствовать себя увереннее'},
+    {v:'health', b:'Улучшить здоровье'},
+    {v:'energy', b:'Больше сил и энергии'},
+    {v:'event', b:'Подготовиться к событию'},
+    {v:'habit', b:'Наладить привычки надолго'},
+  ]},
+  {type:'note', pose:'cheer', title:'Отлично — это уже полдела', body:'Тем, у кого есть чёткое «зачем», держаться плана в разы проще. Дальше — пара цифр, чтобы всё рассчитать точно.', cta:'Продолжить'},
+
+  {q:1, type:'single', key:'gender', pose:'ask', h:'Укажи пол', sub:'Нужно для точного расчёта нормы калорий', opts:[
+    {v:'f', b:'Женский'}, {v:'m', b:'Мужской'},
+  ]},
+  {q:1, type:'single', key:'age', pose:'ask', h:'Сколько тебе лет?', opts:[
+    {v:'24', b:'18–29'}, {v:'34', b:'30–39'}, {v:'44', b:'40–49'}, {v:'54', b:'50 и старше'},
+  ]},
+  {q:1, type:'metrics', key:'body', pose:'think', h:'Твои параметры', sub:'Рассчитаем норму калорий под тело и цель', fields:[
+    {k:'height', label:'Рост', u:'см', ph:'170', min:120, max:230},
+    {k:'weight', label:'Вес сейчас', u:'кг', ph:'70', min:35, max:250},
+    {k:'target', label:'Желаемый вес', u:'кг', ph:'64', min:35, max:250, opt:true},
+  ]},
+  {q:1, type:'single', key:'activity', pose:'run', h:'Сколько двигаешься за неделю?', opts:[
+    {v:'sed', b:'Почти не двигаюсь', s:'Сидячий образ жизни', ic:'sed'},
+    {v:'light', b:'1–2 тренировки', s:'Лёгкая активность', ic:'light'},
+    {v:'mod', b:'3–4 тренировки', s:'Регулярно', ic:'mod'},
+    {v:'high', b:'5+ тренировок', s:'Каждый день в движении', ic:'high'},
+  ]},
+  {q:1, type:'single', key:'meals', pose:'ask', h:'Сколько приёмов пищи удобно?', sub:'Подстроим меню под твой ритм', opts:[
+    {v:'2', b:'2 приёма', s:'Плотно, реже'},
+    {v:'3', b:'3 приёма', s:'Классика'},
+    {v:'3s', b:'3 + перекусы', s:'Чаще и понемногу'},
+    {v:'if', b:'Интервальное окно', s:'Ем в ограниченное время'},
+  ]},
+  {q:1, type:'multi', key:'barriers', pose:'think', h:'Что мешало раньше?', sub:'Можно выбрать несколько', opts:[
+    {v:'time', b:'Нет времени готовить'},
+    {v:'sweet', b:'Срывы на сладкое'},
+    {v:'what', b:'Не знаю, что есть'},
+    {v:'run', b:'Ем на бегу'},
+    {v:'count', b:'Сложно считать калории'},
+    {v:'yoyo', b:'Вес быстро возвращается'},
+  ]},
+  {q:1, type:'multi', key:'diet', pose:'ask', h:'Есть ограничения в еде?', sub:'Учтём в подборе блюд', opts:[
+    {v:'all', b:'Ем всё', solo:true},
+    {v:'nomeat', b:'Без мяса'},
+    {v:'nolact', b:'Без лактозы'},
+    {v:'nogluten', b:'Без глютена'},
+    {v:'nofish', b:'Не ем рыбу и морепродукты'},
+    {v:'nuts', b:'Аллергия на орехи'},
+  ]},
+  {q:1, type:'multi', key:'favorites', pose:'ask', h:'Что любишь есть?', sub:'Добавим это в меню почаще', opts:[
+    {v:'meat', b:'Мясо и птица'},
+    {v:'fish', b:'Рыба и морепродукты'},
+    {v:'veg', b:'Овощи и салаты'},
+    {v:'grain', b:'Крупы и паста'},
+    {v:'dairy', b:'Молочное'},
+    {v:'sweet', b:'Сладкое в меру'},
+  ]},
+  {q:1, type:'single', key:'cook', pose:'cheer', h:'Сколько времени на готовку?', sub:'Подберём рецепты под твой ритм', opts:[
+    {v:'q15', b:'До 15 минут', s:'Быстро и просто', ic:'cup'},
+    {v:'q30', b:'20–30 минут', s:'Обычная готовка', ic:'plate'},
+    {v:'any', b:'Люблю готовить', s:'Можно рецепты посложнее', ic:'bowl'},
+    {v:'none', b:'Совсем без готовки', s:'Готовое и доставка', ic:'cup'},
+  ]},
+  {type:'note', pose:'celebrate', title:'Что тебя ждёт', list:['Больше энергии и лёгкость каждый день','Результат без жёстких диет и голода','Привычки, которые останутся с тобой'], cta:'Собрать мой план'},
+
+  {type:'build'},
+  {type:'plan'},
+];
+
+const QTOTAL = STEPS.filter(s=>s.q).length;
+const answers = {};
+let idx = 0;
+
+const $ = s=>document.querySelector(s);
+const stage=$('#stage'), fill=$('#fill'), count=$('#count'), back=$('#back'), topEl=$('#top');
+const playAll=()=>[...document.querySelectorAll('video')].forEach(v=>{v.muted=true;v.play().catch(()=>{})});
+const qNum=i=>STEPS.slice(0,i+1).filter(s=>s.q).length;
+
+function render(){
+  const st=STEPS[idx];
+  const chrome = st.q || st.type==='metrics';
+  // топ-бар (с кнопкой «Назад») виден везде, КРОМЕ intro/build/plan — иначе на note-экранах
+  // юзер не мог вернуться и поправить ответ (кнопка была спрятана вместе с баром).
+  topEl.classList.toggle('hide', st.type==='intro' || st.type==='build' || st.type==='plan');
+  back.hidden = idx===0 || st.type==='build' || st.type==='plan';
+  if(st.q){ const n=qNum(idx); fill.style.width=(n/QTOTAL*100)+'%'; count.textContent=n+'/'+QTOTAL; }
+  if(st.type==='intro') renderIntro(st);
+  else if(st.type==='note') renderNote(st);
+  else if(st.type==='single'||st.type==='multi') renderChoice(st);
+  else if(st.type==='metrics') renderMetrics(st);
+  else if(st.type==='build') renderBuild();
+  else if(st.type==='plan') renderPlan();
+  playAll();
+}
+
+function guide(text, pose){
+  return `<div class="guide"><div class="m">${masc(pose)}</div><div class="bubble">${text}</div></div>`;
+}
+
+function renderIntro(st){
+  stage.innerHTML = `<div class="step intro">
+    <div class="bub">${st.bubble}</div>
+    <div class="mbig">${mascBig(st.pose||'wave')}</div>
+    <div class="foot" style="width:100%"><button class="cta" id="next">Далее</button></div>
+  </div>`;
+  $('#next').addEventListener('click', nextStep);
+}
+
+function renderNote(st){
+  stage.innerHTML = `<div class="step intro note">
+    <div class="mbig">${masc(st.pose||'cheer')}</div>
+    <h2 class="nt-h">${st.title}</h2>
+    ${st.body?`<p class="nt-b">${st.body}</p>`:''}
+    ${st.list?`<ul class="nt-l">${st.list.map(x=>`<li><span class="c">${IC.check}</span><span>${x}</span></li>`).join('')}</ul>`:''}
+    <div class="foot" style="width:100%"><button class="cta" id="next">${st.cta||'Далее'}</button></div>
+  </div>`;
+  $('#next').addEventListener('click', nextStep);
+}
+
+function optRow(st,o){
+  const sel = st.type==='single' ? answers[st.key]===o.v : (answers[st.key]||[]).includes(o.v);
+  const icon = o.ic ? `<span class="ic">${IC[o.ic]}</span>` : '';
+  const sub = o.s ? `<span>${o.s}</span>` : '';
+  const sq = st.type==='multi' ? ' sq' : '';
+  return `<button class="opt${sq}${sel?' sel':''}" data-v="${o.v}">${icon}<span class="tx"><b>${o.b}</b>${sub}</span><span class="mk">${IC.check}</span></button>`;
+}
+
+function renderChoice(st){
+  const multi = st.type==='multi';
+  stage.innerHTML = `<div class="step">
+    ${guide(st.h, st.pose)}${st.sub?`<p class="q-sub">${st.sub}</p>`:''}
+    <div class="opts">${st.opts.map(o=>optRow(st,o)).join('')}</div>
+    <div class="foot"><button class="cta" id="next">Далее</button>${st.skip?`<button class="skip" id="skip">Пропустить</button>`:''}</div>
+  </div>`;
+  const nx=$('#next');
+  const canNext = () => multi ? !!(answers[st.key] && answers[st.key].length) : (answers[st.key] != null);
+  nx.disabled = !canNext();
+  stage.querySelectorAll('.opt').forEach(el=>el.addEventListener('click', ()=>{
+    const v=el.dataset.v;
+    if(!multi){
+      answers[st.key]=v;
+      stage.querySelectorAll('.opt').forEach(x=>x.classList.toggle('sel', x===el));  // можно перевыбрать
+      nx.disabled=false; saveState();
+    } else {
+      let arr=answers[st.key]||[]; const o=st.opts.find(x=>x.v===v);
+      if(o.solo){ arr=arr.includes(v)?[]:[v]; }
+      else{ arr=arr.filter(x=>{const so=st.opts.find(y=>y.v===x);return !(so&&so.solo);}); arr=arr.includes(v)?arr.filter(x=>x!==v):[...arr,v]; }
+      answers[st.key]=arr; saveState(); renderChoice(st);
+    }
+  }));
+  nx.addEventListener('click', nextStep);
+  if(st.skip) $('#skip').addEventListener('click', ()=>{ answers[st.key]=answers[st.key]||[]; nextStep(); });
+}
+
+function renderMetrics(st){
+  const b=answers[st.key]||{};
+  stage.innerHTML = `<div class="step">
+    ${guide(st.h, st.pose)}${st.sub?`<p class="q-sub">${st.sub}</p>`:''}
+    <div class="metrics">${st.fields.map(f=>`
+      <div class="field"><label>${f.label}${f.opt?' <span style="opacity:.6">(по желанию)</span>':''}</label>
+        <div class="in"><input type="number" inputmode="numeric" data-k="${f.k}" placeholder="${f.ph}" min="${f.min}" max="${f.max}" value="${b[f.k]||''}"><span class="u">${f.u}</span></div></div>`).join('')}
+    </div>
+    <div class="foot"><button class="cta" id="next" disabled>Далее</button><div class="trust">Данные нужны только для расчёта — не публикуются</div></div>
+  </div>`;
+  const nx=$('#next');
+  const chk=()=>{ const o={}; let ok=true;
+    stage.querySelectorAll('input').forEach(i=>{ if(i.value) o[i.dataset.k]=+i.value; });
+    st.fields.forEach(f=>{ if(!f.opt){ const v=o[f.k]; if(!v||v<f.min||v>f.max) ok=false; } });
+    answers[st.key]=o; nx.disabled=!ok; };
+  stage.querySelectorAll('input').forEach(i=>i.addEventListener('input',chk)); chk();
+  nx.addEventListener('click', nextStep);
+}
+
+// Персист состояния квиза: refresh/сворачивание вкладки не должны стирать 11 шагов и пейволл.
+const SKEY='np_quiz_v2';
+function saveState(){ try{ localStorage.setItem(SKEY, JSON.stringify(
+  {answers, idx, planRevealed, leadEmail, t:Date.now()})); }catch(e){} }
+function loadState(){ try{ const s=JSON.parse(localStorage.getItem(SKEY)||'null');
+  if(s && s.answers && (Date.now()-(s.t||0) < 864e5)){ // не старше суток
+    Object.assign(answers, s.answers); idx=Math.min(s.idx||0, STEPS.length-1);
+    planRevealed=!!s.planRevealed; leadEmail=s.leadEmail||'';
+    if(STEPS[idx] && STEPS[idx].type==='build') idx=Math.max(0, idx-1); // build транзиентный
+    return true; } }catch(e){} return false; }
+function clearState(){ try{ localStorage.removeItem(SKEY); }catch(e){} }
+function nextStep(){ idx++; saveState(); render(); window.scrollTo(0,0); }
+back.addEventListener('click', ()=>{ if(idx>0){ idx--; saveState(); render(); window.scrollTo(0,0);} });
+
+function renderBuild(){
+  const R=80, C=2*Math.PI*R;
+  stage.innerHTML = `<div class="step build">
+    <div class="ringwrap" id="rw">
+      <svg width="180" height="180" viewBox="0 0 180 180">
+        <circle cx="90" cy="90" r="${R}" fill="none" stroke="var(--soft)" stroke-width="12"/>
+        <circle id="rc" cx="90" cy="90" r="${R}" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round"
+          stroke-dasharray="${C}" stroke-dashoffset="${C}" style="transition:stroke-dashoffset .3s linear"/>
+      </svg>
+      <div class="pc" id="pc">0%</div>
+      <div class="mc"><div class="mm">${masc('think')}</div></div>
+    </div>
+    <h2>Собираю твой план…</h2>
+    <ul class="checks" id="checks">
+      <li><span class="c">${IC.check}</span>Считаю норму калорий и КБЖУ</li>
+      <li><span class="c">${IC.check}</span>Подбираю блюда под твои вкусы</li>
+      <li><span class="c">${IC.check}</span>Собираю меню и список покупок</li>
+      <li><span class="c">${IC.check}</span>Настраиваю прогресс и поддержку</li>
+    </ul></div>`;
+  playAll();
+  const rc=$('#rc'), pc=$('#pc'), rw=$('#rw'), lis=[...document.querySelectorAll('#checks li')];
+  let p=0;
+  const tick=setInterval(()=>{
+    p=Math.min(100, p+(p<80?5:3));
+    rc.style.strokeDashoffset = C*(1-p/100); pc.textContent=p+'%';
+    const on=Math.floor(p/25); lis.forEach((li,i)=>li.classList.toggle('on', i<on));
+    if(p>=100){ clearInterval(tick); lis.forEach(li=>li.classList.add('on')); rw.classList.add('done'); setTimeout(nextStep,550); }
+  }, 140);
+}
+
+function calcPlan(){
+  const g=answers.gender==='m'?5:-161, age=+answers.age||32, b=answers.body||{};
+  const w=+b.weight||70, h=+b.height||170;
+  const bmr=10*w+6.25*h-5*age+g;
+  const af={sed:1.2,light:1.375,mod:1.55,high:1.725}[answers.activity]||1.375;
+  let cal=bmr*af;
+  if(answers.goal==='lose') cal*=0.80; else if(answers.goal==='gain') cal*=1.12;
+  cal=Math.max(cal, answers.gender==='m'?1500:1200); // порог: не показываем экстремальный дефицит
+  cal=Math.round(cal/10)*10;
+  return {cal, P:Math.round(cal*0.30/4), F:Math.round(cal*0.30/9), C:Math.round(cal*0.40/4), w, target:+b.target||0};
+}
+const GOAL_TXT={lose:'снижения веса',keep:'поддержания формы',gain:'набора массы',health:'здорового питания'};
+
+function prognosis(w,target,goal){
+  // возвращает {headline, curveDown, weeks, dateStr, endLabel}
+  let weeks=8, endLabel='', down = goal!=='gain';
+  // target учитываем только если он согласован с целью (lose → меньше текущего, gain → больше),
+  // иначе прогноз рисует абсурд («похудеешь» до веса БОЛЬШЕ текущего).
+  const valid = target && ((goal==='lose' && target < w) || (goal==='gain' && target > w));
+  if(valid && Math.abs(w-target)>=1){
+    const diff=Math.abs(w-target), perWeek=goal==='gain'?0.35:0.6;
+    weeks=Math.max(3, Math.min(52, Math.round(diff/perWeek)));
+    endLabel=target+' кг';
+  }
+  const d=new Date(); d.setDate(d.getDate()+weeks*7);
+  const dateStr=d.toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
+  const headline = endLabel
+    ? `Ты придёшь к <em>${endLabel}</em> примерно к ${dateStr}`
+    : `Первые результаты — уже через <em>${weeks} недель</em>`;
+  return {headline, down, dateStr, endLabel};
+}
+
+let planRevealed=false, leadEmail='';
+function renderPlan(){
+  const {cal,P,F,C,w,target}=calcPlan();
+  const goal=GOAL_TXT[answers.goal]||'твоей цели';
+  const pg=prognosis(w,target,answers.goal);
+  const m1=Math.round(cal*0.30), m2=Math.round(cal*0.40), m3=Math.round(cal*0.30);
+  const y0 = pg.down ? 34 : 116, y1 = pg.down ? 116 : 34;
+  const path = `M 10 ${y0} C 120 ${y0}, 150 ${y1}, 288 ${y1}`;
+  const graph = `<div class="prog">
+      <div class="gwrap">
+        <svg viewBox="0 0 298 150" preserveAspectRatio="none">
+          <defs><linearGradient id="pgf" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="var(--accent)" stop-opacity=".18"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
+          </linearGradient></defs>
+          <path d="${path} L 288 150 L 10 150 Z" fill="url(#pgf)" stroke="none"/>
+          <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="10" cy="${y0}" r="5" fill="var(--accent)"/>
+          <circle cx="288" cy="${y1}" r="6" fill="var(--accent)"/>
+        </svg>
+        <div class="endm" style="left:96%;top:${y1/150*100}%">${masc('celebrate')}</div>
+        ${pg.endLabel?`<div class="tag" style="left:90%;top:${y1/150*100+18}%">${pg.endLabel}</div>`:''}
+      </div>
+      <div class="axis"><span>Сегодня</span><span>${pg.dateStr}</span></div>
+    </div>`;
+
+  const locked = `
+    <div class="card">
+      <div class="dh2">Твоя дневная норма</div>
+      <div class="lockrow"><span class="lockn">••••<small> ккал</small></span><span class="lockic">${IC.lock}</span></div>
+      <p class="lockhint">Введи почту — и откроем точную норму калорий, БЖУ и первый день меню под твою цель.</p>
+      <div class="email"><div class="inp"><input type="email" id="mail" placeholder="твой@email.ru" autocomplete="email" inputmode="email"></div>
+        <div class="err" id="err">Проверь адрес — кажется, есть опечатка</div></div>
+    </div>
+    <div class="foot"><button class="cta" id="send">Показать мою норму →</button>
+      <div class="trust">Оставляя email, ты принимаешь <a href="/consent" target="_blank">Согласие</a> и <a href="/privacy" target="_blank">Политику ПДн</a></div></div>`;
+
+  const revealed = `
+    <div class="card">
+      <div class="kcal"><span class="big">${cal}</span><span class="lab">ккал в день —<br>твоя норма для ${goal} без голода</span></div>
+      <div class="macros"><div><b>${P}</b><span>белки, г</span></div><div><b>${F}</b><span>жиры, г</span></div><div><b>${C}</b><span>углеводы, г</span></div></div>
+      <div class="day locked">
+        <div class="dh">Пример дня — первый из 7</div>
+        <div class="meal"><span class="mi">${IC.cup}</span><span class="mt"><b>Завтрак</b><span>Овсянка с ягодами и орехами</span></span><span class="kc">${m1} ккал</span></div>
+        <div class="meal"><span class="mi">${IC.plate}</span><span class="mt"><b>Обед</b><span>Курица с киноа и овощами</span></span><span class="kc">${m2} ккал</span></div>
+        <div class="meal"><span class="mi">${IC.bowl}</span><span class="mt"><b>Ужин</b><span>Запечённая рыба и салат</span></span><span class="kc">${m3} ккал</span></div>
+        <div class="veil">+ ещё 6 дней меню в полном плане</div>
+      </div>
+    </div>
+    <div class="pw">
+      <div class="pw-h">Полный план + приложение</div>
+      <ul class="pw-l">
+        <li><span class="c">${IC.check}</span>Меню на неделю под твои вкусы и цель</li>
+        <li><span class="c">${IC.check}</span>КБЖУ и рецепты каждого блюда</li>
+        <li><span class="c">${IC.check}</span>Список покупок + замена любого блюда</li>
+        <li><span class="c">${IC.check}</span>Приложение на телефон со стриком и прогрессом</li>
+      </ul>
+      <label class="tar sel" data-t="sub"><span class="trad"></span>
+        <div class="tl"><b>Подписка<span class="tbadge">выгодно</span></b><span class="tdesc">Новый план каждую неделю · замены · поддержка</span></div>
+        <div class="tp">${SUB_PRICE} ₽<small>/мес</small></div></label>
+      <label class="tar" data-t="once"><span class="trad"></span>
+        <div class="tl"><b>Разовый план</b><span class="tdesc">План на 7 дней, без обновлений</span></div>
+        <div class="tp">${PRICE} ₽</div></label>
+      <div class="foot"><button class="cta" id="pay">Оформить →</button>
+        <div class="trust">Оплата ЮKassa · чек на почту · нажимая, принимаешь <a href="/offer" target="_blank">Оферту</a></div></div>
+    </div>`;
+
+  stage.innerHTML = `<div class="step plan">
+    <span class="kick">Твой план готов</span>
+    <h2>${pg.headline}</h2>
+    <p class="lead">Мягкий темп без голода — под твоё тело и вкусы</p>
+    ${graph}
+    ${planRevealed ? revealed : locked}
+  </div>`;
+  playAll();
+
+  if(!planRevealed){
+    const send=$('#send'), mail=$('#mail'), err=$('#err');
+    const ok=v=>/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+    mail.addEventListener('input', ()=>err.classList.remove('show'));
+    send.addEventListener('click', async ()=>{
+      const v=mail.value.trim();
+      if(!ok(v)){ err.classList.add('show'); mail.focus(); return; }
+      send.disabled=true; send.textContent='Открываю…';
+      // Проверяем ответ сервера: если email отклонён (422) — НЕ раскрываем план, показываем ошибку.
+      let good=true;
+      try{ const r=await fetch('/api/lead',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email:v,landing:L,goal:answers.goal||'',quiz:answers,src:SRC})});
+        if(r.status===422){ good=false; } }catch(e){ /* сеть — не блокируем раскрытие */ }
+      if(!good){ err.textContent='Проверь адрес почты'; err.classList.add('show'); mail.focus();
+        send.disabled=false; send.textContent='Показать мой план'; return; }
+      leadEmail=v; planRevealed=true; saveState(); render(); window.scrollTo(0,0);
+    });
+  } else {
+    stage.querySelectorAll('.tar').forEach(el=>el.addEventListener('click', ()=>{
+      stage.querySelectorAll('.tar').forEach(x=>x.classList.toggle('sel', x===el));
+    }));
+    $('#pay').addEventListener('click', startPayment);
+  }
+}
+
+async function startPayment(){
+  const t = document.querySelector('.tar.sel')?.dataset.t || 'sub';
+  const url = t==='sub' ? '/api/pay/subscribe' : '/api/pay/create';
+  const btn=$('#pay'); btn.disabled=true; btn.textContent='Открываю оплату…';
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:leadEmail,landing:L,goal:answers.goal||'',quiz:answers,src:SRC})});
+    const j=await r.json();
+    if(j.url){ location.href=j.url; return; }
+    if(j.already && j.plan_url){ location.href=j.plan_url; return; } // подписка уже есть
+    if(r.status===422){ btn.disabled=false; btn.textContent='Оформить →';
+      alert('Похоже, адрес почты не подошёл. Вернись на шаг назад и проверь email.'); return; }
+    throw new Error(j.error||'no url');
+  }catch(e){
+    btn.disabled=false; btn.textContent='Оформить →';
+    alert('Оплата временно недоступна. Попробуй ещё раз чуть позже.');
+  }
+}
+
+// ?resume=TOKEN из лид-письма → подтянуть ответы и открыть СРАЗУ пейволл (не 11 шагов заново)
+const RESUME=new URLSearchParams(location.search).get('resume');
+if(RESUME){
+  fetch('/api/lead/resume/'+encodeURIComponent(RESUME)).then(r=>r.ok?r.json():null).then(d=>{
+    if(d&&d.quiz){ Object.assign(answers,d.quiz); leadEmail=d.email||''; planRevealed=true;
+      idx=STEPS.findIndex(s=>s.type==='plan'); if(idx<0) idx=STEPS.length-1; saveState(); }
+    else loadState();
+    render();
+  }).catch(()=>{ loadState(); render(); });
+} else { loadState(); render(); }
+</script>
+</body>
+</html>
