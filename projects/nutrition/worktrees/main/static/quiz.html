@@ -287,8 +287,11 @@
 const L = "__LANDING__", SRC = "__SRC__", DARK = __DARK__, PRICE = __PRICE__, SUB_PRICE = __SUB_PRICE__;
 // маскот: мелкое ужатое видео (10-40КБ) + превью-постер — для маленьких мест (гид/лоадер/прогноз)
 const masc = (pose='wave') => `<video autoplay loop muted playsinline poster="/assets/avocado_${pose}_sm.png"><source src="/assets/avocado_${pose}_sm.mp4" type="video/mp4"></video>`;
-// полное видео — для крупных интро-экранов
-const mascBig = (pose='wave') => `<video autoplay loop muted playsinline poster="/assets/avocado_${pose}.png"><source src="/assets/avocado_${pose}.mp4" type="video/mp4"></video>`;
+// Крупные места (.mbig, 220 CSS-пикселей → 440 физических на 2x-экране).
+// Здесь стоял ЛИБО мелкий 240×240 вариант — и его было видно, картинка
+// «шакалила», — ЛИБО полный 984×932 на 2.5 МБ, что для мобильного перебор.
+// Средний 480×480 закрывает оба случая: чётко и 65–205 КБ вместо 2.5 МБ.
+const mascBig = (pose='wave') => `<video autoplay loop muted playsinline poster="/assets/avocado_${pose}_md.jpg"><source src="/assets/avocado_${pose}_md.mp4" type="video/mp4"></video>`;
 
 const IC = {
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
@@ -443,7 +446,7 @@ function renderIntro(st){
 
 function renderNote(st){
   stage.innerHTML = `<div class="step intro note">
-    <div class="mbig">${masc(st.pose||'cheer')}</div>
+    <div class="mbig">${mascBig(st.pose||'cheer')}</div>
     <h2 class="nt-h">${st.title}</h2>
     ${st.body?`<p class="nt-b">${st.body}</p>`:''}
     ${st.list?`<ul class="nt-l">${st.list.map(x=>`<li><span class="c">${IC.check}</span><span>${x}</span></li>`).join('')}</ul>`:''}
