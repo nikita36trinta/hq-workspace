@@ -148,3 +148,28 @@ test.describe("regressions · multi-select", () => {
 		expect(await page.locator("#stage button.opt.sel").count(), "оба варианта должны остаться выбранными").toBe(2);
 	});
 });
+
+test.describe("regressions · возврат с оплаты", () => {
+	/**
+	 * Found 2026-07-29: страница /pay/success показывала «Оплата получена!» во
+	 * ВСЕХ случаях, кроме явного canceled. Человек закрывал окно ЮKassa не
+	 * заплатив (статус остаётся pending), возвращался — и читал, что деньги
+	 * получены. То же самое при недоступном API и при ненайденном заказе.
+	 *
+	 * По HTTP воспроизводится только ветка «заказа нет» — остальные требуют
+	 * ответа ЮKassa и закреплены в tests_pay_states.py.
+	 */
+	test("несуществующий заказ не выдаётся за оплаченный", async ({ page }) => {
+		await page.goto("/pay/success?o=definitelynotanorder");
+		const h1 = page.locator("h1");
+		await expect(h1).toBeVisible();
+		await expect(h1, "утверждать оплату, ничего о ней не зная, нельзя").not.toContainText(/Оплата получена/i);
+		await expect(h1).toContainText(/Не нашли/i);
+	});
+
+	test("страницы оплаты красят фон на всю ширину", async ({ page }) => {
+		await page.goto("/pay/success?o=definitelynotanorder");
+		const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+		expect(bg, "фон должен быть на body, иначе по бокам белые поля").toBe("rgb(251, 248, 241)");
+	});
+});

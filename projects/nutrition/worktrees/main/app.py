@@ -1570,6 +1570,35 @@ def plan_ready(token: str) -> JSONResponse:
     return JSONResponse({"ready": bool(tok and (PLANS / f"{tok}.json").exists())})
 
 
+def _pay_unknown_page() -> HTMLResponse:
+    """Заказ или платёж не нашлись — API молчит, ссылка старая, заказа нет.
+    Раньше в этом случае показывалось «Оплата получена!»: мы утверждали факт
+    списания, ничего о нём не зная. Лучше честно признать неопределённость и
+    дать канал связи, чем угадать в пользу приятного варианта."""
+    return HTMLResponse(_inject_metrika(
+        "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<title>Не нашли платёж · NutriPlan</title>"
+        "<style>html,body{margin:0;background:#FBF8F1}</style>"
+        "</head><body>"
+        "<div style=\"font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;"
+        "min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;"
+        "text-align:center;padding:30px;background:#FBF8F1;color:#20321F\">"
+        "<div style='width:88px;height:88px;border-radius:50%;background:#FEF3C7;display:flex;"
+        "align-items:center;justify-content:center'><svg width='40' height='40' viewBox='0 0 24 24' "
+        "fill='none' stroke='#B98900' stroke-width='3' stroke-linecap='round'><path d='M12 8v5'/>"
+        "<path d='M12 17h.01'/><circle cx='12' cy='12' r='9'/></svg></div>"
+        "<h1 style='margin:22px 0 8px;font-size:26px'>Не нашли этот платёж</h1>"
+        "<p style='color:#6B7566;font-size:16px;max-width:36ch'>Ссылка могла устареть. Если деньги "
+        "списались — план придёт на почту, ничего делать не нужно. Если списания не было, попробуй "
+        "оформить заново.</p>"
+        "<a href='/quiz' style='margin-top:22px;display:inline-block;background:#16A34A;color:#fff;"
+        "text-decoration:none;font-weight:800;padding:15px 28px;border-radius:14px'>К плану</a>"
+        "<p style='color:#8A9384;font-size:13px;margin-top:16px'>Вопросы — "
+        "<a href='mailto:support@mynutriplan.ru' style='color:#0E7A36'>support@mynutriplan.ru</a></p>"
+        "</div></body></html>"), status_code=200)
+
+
 def _pay_failed_page(base_url_hint: str = "") -> HTMLResponse:
     return HTMLResponse(_inject_metrika(
         "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
@@ -1594,20 +1623,36 @@ def _pay_failed_page(base_url_hint: str = "") -> HTMLResponse:
 
 @app.get("/pay/success", response_class=HTMLResponse)
 def pay_success(o: str = "") -> HTMLResponse:
-    """После оплаты: сверяем реальный статус платежа (ЮKassa мог редиректить и при отмене!).
-    succeeded/pending → поллим готовность плана и открываем; canceled/нет → «Оплата не прошла»."""
+    """Возврат с ЮKassa. Экран определяется ПЕРЕПРОВЕРЕННЫМ статусом платежа,
+    а не фактом редиректа: ЮKassa возвращает сюда и когда человек просто закрыл
+    окно оплаты.
+
+    Раньше «Оплата получена!» показывалась во всех случаях, кроме явного
+    `canceled` — то есть при `pending`, при недоступном API и при ненайденном
+    заказе человеку сообщали, что деньги получены, когда их не было. Это ложь
+    о деньгах, худший вид ошибки в оплате.
+
+    Состояния:
+      succeeded / план уже есть → «Оплата получена», поллим и открываем план
+      pending, waiting_for_capture → «Платёж обрабатывается», поллим (может
+                                     дозавершиться), но НЕ утверждаем оплату
+      canceled                    → «Оплата не прошла»
+      всё остальное               → «Не нашли платёж» — честнее, чем гадать
+    """
     oid = "".join(c for c in (o or "") if c.isalnum())[:40]
-    # Проверяем фактический статус платежа по заказу — не доверяем самому факту редиректа.
     order = _find_order(oid) if oid else {}
     pid = order.get("payment_id", "")
-    st = ""
-    if pid:
-        st = _yk_get_payment(pid).get("status", "")
-        if st in ("canceled", "") and not (PLANS / f"{oid}.json").exists():
-            # Отменён/не найден и плана ещё нет — показываем честный экран ошибки.
-            # (succeeded/pending/waiting_for_capture → ниже обычный поллинг)
-            if st == "canceled":
-                return _pay_failed_page()
+    st = _yk_get_payment(pid).get("status", "") if pid else ""
+    plan_ready = bool(oid) and (PLANS / f"{oid}.json").exists()
+
+    if st == "canceled" and not plan_ready:
+        return _pay_failed_page()
+    if not plan_ready and st not in ("succeeded", "pending", "waiting_for_capture"):
+        # Нет заказа, нет платежа или API молчит. Не выдумываем статус.
+        return _pay_unknown_page()
+
+    paid = plan_ready or st == "succeeded"
+
     poll = ""
     if oid:
         poll = (
@@ -1620,6 +1665,7 @@ def pay_success(o: str = "") -> HTMLResponse:
             "Проверь входящие (и \\u00abПромоакции\\u00bb).';}"
             "}).catch(function(){setTimeout(tick,5000);});}"
             "setTimeout(tick,3000);})();</script>")
+
     # Цель оплаты — только при ПЕРЕПРОВЕРЕННОМ succeeded. Сам факт редиректа
     # с ЮKassa ничего не значит: она редиректит и при отмене. Защита от
     # повторов — sessionStorage по заказу, иначе обновление страницы (а тут
@@ -1631,6 +1677,17 @@ def pay_success(o: str = "") -> HTMLResponse:
             "if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,'1');"
             "if(window.npGoal)window.npGoal('pay_success');}}catch(e){}})();</script>")
 
+    title = "Оплата получена!" if paid else "Платёж обрабатывается"
+    body = ("Авокадо собирает твой план (≈1 минута) — страница откроет его сама. "
+            "Ссылка придёт и на почту.") if paid else (
+            "Банк ещё не подтвердил платёж. Если деньги спишутся, план соберётся "
+            "автоматически и ссылка придёт на почту — эту страницу можно закрыть.")
+    mark = ("<svg width='44' height='44' viewBox='0 0 24 24' fill='none' stroke='#fff' stroke-width='3' "
+            "stroke-linecap='round' stroke-linejoin='round'><path d='M5 13l4 4L19 7'/></svg>") if paid else (
+            "<svg width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='#fff' stroke-width='3' "
+            "stroke-linecap='round'><path d='M12 7v5l3 2'/><circle cx='12' cy='12' r='9'/></svg>")
+    ring_bg = "#16A34A" if paid else "#B98900"
+
     return HTMLResponse(_inject_metrika(
         # <head> здесь настоящий, а не для красоты: _inject_metrika вставляет
         # счётчик ПЕРЕД </head>, и без него страница возврата оставалась без
@@ -1638,19 +1695,16 @@ def pay_success(o: str = "") -> HTMLResponse:
         # а Метрика и Директ об этом не узнали.
         "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>Оплата получена · NutriPlan</title>"
+        f"<title>{title} · NutriPlan</title>"
         "<style>html,body{margin:0;background:#FBF8F1}</style>"
         "</head><body>"
         "<div style=\"font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;"
         "min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;"
         "text-align:center;padding:30px;background:#FBF8F1;color:#20321F\">"
-        "<div style='width:88px;height:88px;border-radius:50%;background:#16A34A;display:flex;align-items:center;"
-        "justify-content:center;box-shadow:0 24px 50px -20px #16A34A'>"
-        "<svg width='44' height='44' viewBox='0 0 24 24' fill='none' stroke='#fff' stroke-width='3' "
-        "stroke-linecap='round' stroke-linejoin='round'><path d='M5 13l4 4L19 7'/></svg></div>"
-        "<h1 style='margin:22px 0 8px;font-size:27px'>Оплата получена!</h1>"
-        "<p id='wait' style='color:#6B7566;font-size:16px;max-width:36ch'>Авокадо собирает твой план "
-        "(≈1 минута) — страница откроет его сама. Ссылка придёт и на почту.</p>"
+        f"<div style='width:88px;height:88px;border-radius:50%;background:{ring_bg};display:flex;"
+        f"align-items:center;justify-content:center;box-shadow:0 24px 50px -20px {ring_bg}'>{mark}</div>"
+        f"<h1 style='margin:22px 0 8px;font-size:27px'>{title}</h1>"
+        f"<p id='wait' style='color:#6B7566;font-size:16px;max-width:36ch'>{body}</p>"
         "<div style='margin-top:18px;width:34px;height:34px;border:3px solid #DCFCE7;border-top-color:#16A34A;"
         "border-radius:50%;animation:sp 1s linear infinite'></div>"
         "<style>@keyframes sp{to{transform:rotate(360deg)}}</style>"
