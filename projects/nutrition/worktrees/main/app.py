@@ -1385,14 +1385,23 @@ def sub_unbind_card_api(token: str) -> JSONResponse:
 @app.get("/plan/{token}", response_class=HTMLResponse)
 def plan_page(token: str) -> HTMLResponse:
     """Веб-страница персонального плана (главный экран PWA) + управление подпиской."""
+    safe = "".join(c for c in token if c.isalnum())
     pl = _load_plan(token)
+    if not pl and safe in DEMO_TOKENS:
+        # Демо-план провизионируется сам. Раньше существовала только демо-ПОДПИСКА,
+        # а сам план надо было положить руками — поэтому на любом свежем деплое
+        # /plan/sample отдавал 404, и площадка, на которой мы предлагаем
+        # безопасно щёлкать интерфейс, просто не открывалась.
+        import plan_ai
+        pl = plan_ai.generate_plan({})
+        pl["quiz"] = {}
+        _save_plan(safe, pl)
     if not pl:
         return HTMLResponse("<!doctype html><meta charset='utf-8'>"
             "<div style='font-family:sans-serif;text-align:center;padding:60px'>"
             "<h1>План не найден</h1><p>Ссылка устарела или неверна. <a href='/login'>Войти по почте</a></p></div>",
             status_code=404)
     import plan
-    safe = "".join(c for c in token if c.isalnum())
     if safe in DEMO_TOKENS:
         _save_sub(_demo_sub(safe))  # демо всегда в исходном виде (для проверки ЮKassa)
     sub = _load_sub(safe)

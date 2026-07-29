@@ -86,6 +86,14 @@
   .field input{width:92px;border:none;background:transparent;color:var(--ink);text-align:right;
     font-size:22px;font-weight:800;outline:none;-moz-appearance:textfield}
   .field input::-webkit-outer-spin-button,.field input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  /* Плейсхолдер должен ЧИТАТЬСЯ как подсказка. Раньше он наследовал размер и
+     насыщенность введённого значения, и пустое поле выглядело заполненным:
+     человек считал шаг пройденным и упирался в кнопку, которая молчит. */
+  .field input::placeholder{color:var(--muted);opacity:.5;font-weight:500}
+  .field.bad{border-color:#DC2626}
+  .mhint{color:#DC2626;font-size:13.5px;margin-top:10px;display:none}
+  .mhint.show{display:block}
+  .cta.dim{opacity:.55}
   .field .u{color:var(--muted);font-size:14px;font-weight:700}
 
   /* bottom CTA */
@@ -446,15 +454,34 @@ function renderMetrics(st){
       <div class="field"><label>${f.label}${f.opt?' <span style="opacity:.6">(по желанию)</span>':''}</label>
         <div class="in"><input type="number" inputmode="numeric" data-k="${f.k}" placeholder="${f.ph}" min="${f.min}" max="${f.max}" value="${b[f.k]||''}"><span class="u">${f.u}</span></div></div>`).join('')}
     </div>
-    <div class="foot"><button class="cta" id="next" disabled>Далее</button><div class="trust">Данные нужны только для расчёта — не публикуются</div></div>
+    <div class="foot"><button class="cta" id="next">Далее</button>
+      <div class="mhint" id="mhint"></div>
+      <div class="trust">Данные нужны только для расчёта — не публикуются</div></div>
   </div>`;
-  const nx=$('#next');
-  const chk=()=>{ const o={}; let ok=true;
+  const nx=$('#next'), hint=$('#mhint');
+  // Какие обязательные поля не заполнены (или вне диапазона).
+  const missing=()=>{ const o={};
     stage.querySelectorAll('input').forEach(i=>{ if(i.value) o[i.dataset.k]=+i.value; });
-    st.fields.forEach(f=>{ if(!f.opt){ const v=o[f.k]; if(!v||v<f.min||v>f.max) ok=false; } });
-    answers[st.key]=o; nx.disabled=!ok; };
+    answers[st.key]=o;
+    return st.fields.filter(f=>!f.opt).filter(f=>{ const v=o[f.k]; return !v||v<f.min||v>f.max; }); };
+  const chk=()=>{ const bad=missing();
+    nx.classList.toggle('dim', bad.length>0);
+    if(!bad.length){ hint.classList.remove('show');
+      stage.querySelectorAll('.field.bad').forEach(el=>el.classList.remove('bad')); } };
   stage.querySelectorAll('input').forEach(i=>i.addEventListener('input',chk)); chk();
-  nx.addEventListener('click', nextStep);
+  // Кнопка НЕ отключена: раньше она была disabled и на нажатие не отвечала
+  // ничем — при плейсхолдерах, похожих на значения, это читалось как «сайт
+  // сломан». Отказ должен быть громким: подсвечиваем поле и говорим, чего ждём.
+  nx.addEventListener('click', ()=>{
+    const bad=missing();
+    if(!bad.length){ hint.classList.remove('show'); nextStep(); return; }
+    const names=bad.map(f=>f.label.toLowerCase()).join(' и ');
+    hint.textContent = `Укажи ${names} — без этого не посчитать норму калорий`;
+    hint.classList.add('show');
+    stage.querySelectorAll('.field.bad').forEach(el=>el.classList.remove('bad'));
+    const first=stage.querySelector(`input[data-k="${bad[0].k}"]`);
+    if(first){ first.closest('.field').classList.add('bad'); first.focus(); }
+  });
 }
 
 // Персист состояния квиза: refresh/сворачивание вкладки не должны стирать 11 шагов и пейволл.
