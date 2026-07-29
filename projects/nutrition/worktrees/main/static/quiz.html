@@ -480,7 +480,14 @@ function renderChoice(st){
       let arr=answers[st.key]||[]; const o=st.opts.find(x=>x.v===v);
       if(o.solo){ arr=arr.includes(v)?[]:[v]; }
       else{ arr=arr.filter(x=>{const so=st.opts.find(y=>y.v===x);return !(so&&so.solo);}); arr=arr.includes(v)?arr.filter(x=>x!==v):[...arr,v]; }
-      answers[st.key]=arr; saveState(); renderChoice(st);
+      answers[st.key]=arr; saveState();
+      // Раньше тут стоял renderChoice(st) — полная перерисовка экрана на КАЖДЫЙ
+      // тап. Вместе с innerHTML заново запускалась входная анимация .step и
+      // перезапускалось видео маскота: экран моргал и выглядел так, будто
+      // отрисовывается с нуля. Состояние отражается классами, DOM пересобирать
+      // незачем.
+      stage.querySelectorAll('.opt').forEach(x=>x.classList.toggle('sel', arr.includes(x.dataset.v)));
+      nx.disabled = !canNext();
     }
   }));
   nx.addEventListener('click', nextStep);

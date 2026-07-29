@@ -98,3 +98,53 @@ test.describe("regressions", () => {
 		await expect(page.locator("body")).toContainText(/ккал/i);
 	});
 });
+
+test.describe("regressions · multi-select", () => {
+	/**
+	 * Found 2026-07-29: выбор варианта на шаге «можно выбрать несколько» вызывал
+	 * renderChoice(st) — полную пересборку stage.innerHTML. Вместе с DOM заново
+	 * запускалась входная анимация .step и перезапускалось видео маскота: экран
+	 * моргал на каждый тап и выглядел так, будто отрисовывается с нуля.
+	 *
+	 * Проверяем не «нет анимации» (её не измерить надёжно), а причину: узел
+	 * экрана должен ПЕРЕЖИТЬ выбор.
+	 */
+	test("выбор нескольких вариантов не пересобирает экран", async ({ page }) => {
+		await page.goto("/quiz?l=slim");
+
+		// доходим до первого шага с множественным выбором
+		for (let i = 0; i < 12; i++) {
+			const txt = await page.locator("#stage").innerText();
+			if (/Можно выбрать несколько/i.test(txt)) break;
+			const opts = page.locator("#stage button.opt");
+			if ((await opts.count()) > 0 && (await page.locator("#stage button.opt.sel").count()) === 0) {
+				await opts.first().click();
+			}
+			const next = page.locator("#next");
+			if (await next.isVisible().catch(() => false)) await next.click();
+			await page.waitForTimeout(250);
+		}
+		expect(
+			/Можно выбрать несколько/i.test(await page.locator("#stage").innerText()),
+			"не дошли до шага с множественным выбором",
+		).toBe(true);
+
+		// метим текущий узел экрана — пересборка innerHTML его уничтожит
+		await page.evaluate(() => {
+			const el = document.querySelector("#stage .step") as HTMLElement | null;
+			if (el) el.dataset.mark = "keep";
+		});
+
+		const opts = page.locator("#stage button.opt");
+		await opts.nth(1).click();
+		await page.waitForTimeout(200);
+		await opts.nth(2).click();
+		await page.waitForTimeout(200);
+
+		const survived = await page.evaluate(
+			() => (document.querySelector("#stage .step") as HTMLElement | null)?.dataset.mark === "keep",
+		);
+		expect(survived, "экран пересобрался на выборе варианта — вернулось моргание").toBe(true);
+		expect(await page.locator("#stage button.opt.sel").count(), "оба варианта должны остаться выбранными").toBe(2);
+	});
+});
