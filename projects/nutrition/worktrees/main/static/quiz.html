@@ -615,6 +615,14 @@ function renderPlan(){
   const mealsN = MEALS_N[answers.meals] || 3;
   const mealsTxt = mealsN + ' ' + (mealsN===1?'приём':(mealsN<5?'приёма':'приёмов')) + ' пищи в день';
   const dishCount = mealsN * 7;
+  // 14 блюд, 21 блюдо, 35 блюд — без склонения на экране висело «21 блюд».
+  const plural = (n, one, few, many) => {
+    const d10 = n % 10, d100 = n % 100;
+    if (d10 === 1 && d100 !== 11) return one;
+    if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return few;
+    return many;
+  };
+  const dishWord = plural(dishCount, "блюдо", "блюда", "блюд");
   // Подписка — новый план каждую неделю, то есть ~4 плана в месяц. Отсюда
   // честная цена за план, которая и объясняет бейдж вместо голого «выгодно».
   const perPlan = Math.round(SUB_PRICE / 4);
@@ -668,7 +676,7 @@ function renderPlan(){
       <div class="pw-h">Полный план на 7 дней</div>
       <div class="pw-sub">Собран под ${cal} ккал, твои вкусы и ${mealsTxt}</div>
       <ul class="pw-l">
-        <li><span class="c">${IC.check}</span><span><b>${dishCount} блюд на неделю</b><i>Каждое — с рецептом, весом порции и КБЖУ</i></span></li>
+        <li><span class="c">${IC.check}</span><span><b>${dishCount} ${dishWord} на неделю</b><i>Каждое — с рецептом, весом порции и КБЖУ</i></span></li>
         <li><span class="c">${IC.check}</span><span><b>Список покупок на всю неделю</b><i>Одним списком, чтобы сходить в магазин один раз</i></span></li>
         <li><span class="c">${IC.check}</span><span><b>Не нравится блюдо — меняешь в один тап</b><i>Замена подбирается под ту же норму</i></span></li>
         <li><span class="c">${IC.check}</span><span><b>План в телефоне, прогресс и вес</b><i>Ставится как приложение, работает и без интернета</i></span></li>
