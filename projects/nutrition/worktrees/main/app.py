@@ -1571,9 +1571,12 @@ def plan_ready(token: str) -> JSONResponse:
 
 
 def _pay_failed_page(base_url_hint: str = "") -> HTMLResponse:
-    return HTMLResponse(
-        "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+    return HTMLResponse(_inject_metrika(
+        "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<title>Оплата не прошла · NutriPlan</title>"
+        "<style>html,body{margin:0;background:#FBF8F1}</style>"
+        "</head><body>"
         "<div style=\"font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;"
         "min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;"
         "text-align:center;padding:30px;background:#FBF8F1;color:#20321F\">"
@@ -1584,7 +1587,8 @@ def _pay_failed_page(base_url_hint: str = "") -> HTMLResponse:
         "<p style='color:#6B7566;font-size:16px;max-width:34ch'>Деньги не списаны. Возможно, банк отклонил "
         "платёж или ты закрыл окно оплаты. Попробуй ещё раз — это займёт минуту.</p>"
         "<a href='/quiz' style='margin-top:22px;display:inline-block;background:#16A34A;color:#fff;"
-        "text-decoration:none;font-weight:800;padding:15px 28px;border-radius:14px'>Попробовать снова</a></div>",
+        "text-decoration:none;font-weight:800;padding:15px 28px;border-radius:14px'>Попробовать снова</a></div>"
+        "</body></html>"),
         status_code=200)
 
 
@@ -1634,7 +1638,9 @@ def pay_success(o: str = "") -> HTMLResponse:
         # а Метрика и Директ об этом не узнали.
         "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>Оплата получена · NutriPlan</title></head><body>"
+        "<title>Оплата получена · NutriPlan</title>"
+        "<style>html,body{margin:0;background:#FBF8F1}</style>"
+        "</head><body>"
         "<div style=\"font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;"
         "min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;"
         "text-align:center;padding:30px;background:#FBF8F1;color:#20321F\">"
