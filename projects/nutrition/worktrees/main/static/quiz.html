@@ -157,10 +157,27 @@
   .plan h2 em{color:var(--accent-d);font-style:normal}
   .plan .lead{color:var(--muted);font-size:15px}
   /* prognosis graph */
-  .prog{margin-top:18px;background:var(--field);border:1.5px solid var(--line);border-radius:22px;padding:20px 18px 14px}
-  .prog .gwrap{position:relative;height:150px;margin-top:6px}
+  .prog{margin-top:18px;background:var(--field);border:1.5px solid var(--line);border-radius:22px;
+    padding:16px 18px 14px;overflow:hidden}
+  /* Шапка карточки: слева — что это, справа — САМОЕ ГЛАВНОЕ число, дельта.
+     Раньше её не было вовсе: разницу человек должен был вычитать в уме. */
+  .prog .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:2px}
+  .prog .glabel{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .prog .gdelta{background:var(--accent);color:var(--cta-ink);font-size:14px;font-weight:800;
+    padding:4px 11px;border-radius:99px;white-space:nowrap;box-shadow:0 8px 18px -8px var(--accent)}
+  .prog .gwrap{position:relative;height:150px;margin-top:14px}
   .prog svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-  .prog .endm{position:absolute;width:56px;height:56px;border-radius:15px;overflow:hidden;background:var(--soft);
+  /* Кружки и подписи — HTML поверх SVG, а не фигуры внутри него: SVG растянут
+     по ширине (preserveAspectRatio=none), и любая окружность в нём превращалась
+     в овал. Заодно ничего не наезжает друг на друга. */
+  .prog .dot{position:absolute;transform:translate(-50%,-50%);border-radius:50%;background:var(--accent)}
+  .prog .dot.start{width:11px;height:11px;opacity:.45}
+  .prog .dot.end{width:15px;height:15px;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 18%,transparent)}
+  .prog .kg{position:absolute;transform:translate(-50%,-50%);font-size:13px;font-weight:800;
+    background:var(--field);border:1px solid var(--line);border-radius:99px;padding:3px 10px;white-space:nowrap}
+  .prog .kg.start{color:var(--muted);font-weight:700;background:transparent;border:0;padding:0}
+  .prog .kg.end{color:var(--accent-d);box-shadow:0 8px 20px -12px rgba(0,0,0,.4)}
+  .prog .endm{position:absolute;width:52px;height:52px;border-radius:15px;overflow:hidden;background:var(--soft);
     transform:translate(-50%,-100%);box-shadow:0 14px 26px -14px rgba(0,0,0,.3)}
   .prog .endm video,.prog .endm img{width:100%;height:100%;object-fit:cover;display:block}
   .prog .tag{position:absolute;transform:translate(-50%,-50%);background:var(--field);border:1px solid var(--line);
@@ -634,7 +651,7 @@ function prognosis(w,target,goal){
   const headline = endLabel
     ? `Ты придёшь к <em>${endLabel}</em> примерно к ${dateStr}`
     : `Первые результаты — уже через <em>${weeks} недель</em>`;
-  return {headline, down, dateStr, endLabel};
+  return {headline, down, dateStr, endLabel, weeks};
 }
 
 // Настоящий первый день плана + фото блюд.
@@ -703,19 +720,40 @@ function renderPlan(){
   const onceDay = Math.round(PRICE / 7);
   const y0 = pg.down ? 34 : 116, y1 = pg.down ? 116 : 34;
   const path = `M 10 ${y0} C 120 ${y0}, 150 ${y1}, 288 ${y1}`;
+  // Прогноз веса. Числа те же, что в заголовке, — меняется только то, КАК они
+  // поданы: раньше маскот наезжал на подпись «60 кг», та ломалась на две строки
+  // и закрывала дату, а кружки внутри растянутого SVG превращались в овалы.
+  const startKg = Math.round(w);
+  const endKg = pg.endLabel ? parseInt(pg.endLabel, 10) : null;
+  const deltaKg = endKg !== null ? Math.abs(startKg - endKg) : null;
+  const yTop = y1 / 150 * 100;      // высота конечной точки, %
+  const yStart = y0 / 150 * 100;
   const graph = `<div class="prog">
+      <div class="ghead">
+        <span class="glabel">Прогноз</span>
+        ${deltaKg ? `<span class="gdelta">${pg.down ? '−' : '+'}${deltaKg} кг за ${pg.weeks} нед.</span>` : ''}
+      </div>
       <div class="gwrap">
         <svg viewBox="0 0 298 150" preserveAspectRatio="none">
           <defs><linearGradient id="pgf" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="var(--accent)" stop-opacity=".18"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
+            <stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/>
+            <stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
           </linearGradient></defs>
           <path d="${path} L 288 150 L 10 150 Z" fill="url(#pgf)" stroke="none"/>
-          <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round"/>
-          <circle cx="10" cy="${y0}" r="5" fill="var(--accent)"/>
-          <circle cx="288" cy="${y1}" r="6" fill="var(--accent)"/>
+          ${endKg !== null ? `<line x1="10" y1="${y1}" x2="288" y2="${y1}" stroke="var(--accent)"
+            stroke-width="1.5" stroke-dasharray="2 7" stroke-linecap="round" opacity=".45"
+            vector-effect="non-scaling-stroke"/>` : ''}
+          <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3.5" stroke-linecap="round"
+            vector-effect="non-scaling-stroke"/>
         </svg>
-        <div class="endm" style="left:96%;top:${y1/150*100}%">${masc('celebrate')}</div>
-        ${pg.endLabel?`<div class="tag" style="left:90%;top:${y1/150*100+18}%">${pg.endLabel}</div>`:''}
+        <div class="dot start" style="left:3.4%;top:${yStart}%"></div>
+        <div class="kg start" style="left:3.4%;top:calc(${yStart}% - 20px)">${startKg} кг</div>
+        <div class="dot end" style="left:96.6%;top:${yTop}%"></div>
+        ${endKg !== null ? `<div class="kg end" style="left:86%;top:calc(${yTop}% ${pg.down ? '+ 26px' : '- 26px'})">${endKg} кг</div>` : ''}
+        <!-- Маскота в графике нет намеренно: он либо наезжал на плашку с
+             дельтой (кривая вверх), либо садился на саму линию и закрывал
+             конечную точку. И по существу он здесь конкурировал с главным —
+             числом. На интро-экранах и в пузыре у каждого вопроса он остаётся. -->
       </div>
       <div class="axis"><span>Сегодня</span><span>${pg.dateStr}</span></div>
     </div>`;
