@@ -1021,6 +1021,102 @@ class Lead(BaseModel):
     src: str = "organic"
 
 
+# Блюда для «Примера дня» на экране оплаты.
+#
+# Каталог dishes.json — это общая домашняя кухня: там есть и пицца пепперони, и
+# картофельное пюре с сосисками, и шашлык. Показывать их человеку, который две
+# минуты назад ответил «хочу похудеть», нельзя — экран сразу перестаёт выглядеть
+# как план питания. Калорийности в каталоге нет, отобрать «по весу» нечем,
+# поэтому набор отобран руками.
+#
+# Все названия ВЗЯТЫ ИЗ КАТАЛОГА, а не выдуманы: только для каталожных блюд
+# существуют (и до-генерируются) фото, и только они попадают в оплаченный план.
+PREVIEW_PICKS = {
+    "breakfast": ["Овсяная каша с фруктами", "Омлет с овощами", "Творог с ягодами",
+                  "Йогурт с гранолой", "Тосты с авокадо", "Яичница с помидорами",
+                  "Овсянка на воде", "Смузи с бананом"],
+    "lunch": ["Куриная грудка с рисом", "Рыба запеченная с овощами", "Греческий салат",
+              "Овощное рагу", "Суп-пюре из брокколи", "Винегрет классический",
+              "Цезарь с курицей"],
+    "dinner": ["Куриное филе с овощами", "Рыбное филе запеченное", "Овощной салат с фетой",
+               "Гречка с грибами", "Рис с овощами", "Гриль овощи", "Стейк из лосося",
+               "Овощное карри"],
+}
+
+
+class PreviewReq(BaseModel):
+    quiz: dict = {}
+
+
+@app.post("/api/preview/day")
+def preview_day(req: PreviewReq) -> JSONResponse:
+    """Первый день плана по ответам квиза — для экрана оплаты.
+
+    Раньше «Пример дня» был захардкожен в вёрстке: всем показывались овсянка,
+    курица и рыба — в том числе тем, кто ответил «без мяса», прямо под фразой
+    «собран под твои вкусы».
+
+    Берём блюда из ТОГО ЖЕ каталога, из которого собирается ОПЛАЧЕННЫЙ план
+    (dishes.json через plan_ai._allowed_by_meal): он учитывает вегетарианство,
+    рыбу, лактозу, аллергены и исключения — и для его блюд гарантированно есть
+    фото. Старый банк в plan.py на это не способен: он ветвится только по
+    «без мяса», а его 36 блюд вообще отсутствуют в каталоге, поэтому картинок
+    для них не будет никогда (генерация намеренно ограничена каталогом).
+
+    Выбор детерминированный: один и тот же человек при обновлении страницы
+    видит тот же день, разные — разные блюда.
+
+    Побочных эффектов нет: ничего не пишем, почту не принимаем, счётчики не
+    трогаем.
+    """
+    import hashlib
+
+    import plan
+    quiz = req.quiz or {}
+    kc = plan.compute(quiz)["cal"]
+    split = [round(kc * 0.30), round(kc * 0.40), round(kc * 0.30)]
+    labels = [("Завтрак", "breakfast"), ("Обед", "lunch"), ("Ужин", "dinner")]
+
+    meals = []
+    try:
+        import plan_ai
+        allowed = plan_ai._allowed_by_meal(quiz)
+        by_title = {d["title"]: d for d in plan_ai._catalog()}
+        seed = int(hashlib.sha1(
+            json.dumps(quiz, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:8], 16)
+        for i, (label, key) in enumerate(labels):
+            pool = allowed.get(key) or []
+            # Сначала отобранные, и только если ограничения вырезали их все —
+            # весь разрешённый каталог: лучше неожиданное блюдо, чем пустой
+            # экран у человека с редким набором ограничений.
+            picks = [t for t in PREVIEW_PICKS.get(key, []) if t in pool]
+            pool = picks or pool
+            if not pool:
+                meals = []
+                break
+            title = pool[(seed + i * 7) % len(pool)]
+            d = by_title.get(title, {})
+            meals.append({"meal": label, "title": title, "kcal": split[i],
+                          "slug": d.get("slug", ""),
+                          "photo": bool(d.get("slug")) and dish_photos.has_photo(d["slug"])})
+    except Exception:  # noqa: BLE001
+        meals = []
+
+    if not meals:
+        # Каталог не дал ни одного блюда под эти ограничения — отдаём запасной
+        # день из банка. Он беднее, зато существует всегда.
+        try:
+            day = plan.week(quiz)[0]
+            meals = [{"meal": name, "title": title, "kcal": kcal,
+                      "slug": dish_photos.slugify(title),
+                      "photo": dish_photos.has_photo(dish_photos.slugify(title))}
+                     for name, title, kcal in day["meals"]]
+        except Exception:  # noqa: BLE001
+            return JSONResponse({"meals": []})
+
+    return JSONResponse({"meals": meals})
+
+
 @app.post("/api/lead")
 def save_lead(lead: Lead, request: Request, bg: BackgroundTasks) -> JSONResponse:
     rec = lead.model_dump()

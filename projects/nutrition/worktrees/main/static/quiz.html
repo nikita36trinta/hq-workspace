@@ -178,7 +178,16 @@
   .day .dh{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
   .meal{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
   .meal .mi{width:34px;height:34px;border-radius:10px;background:var(--soft);flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+  /* С фотографией строка становится витриной, а не списком: 34px хватало
+     иконке, но еду в таком размере не разглядеть — а ради «понятно, что
+     покупаешь» всё и затевалось. */
+  .meal.hasphoto .mi{width:56px;height:56px;border-radius:13px}
+  .meal.hasphoto{padding:11px 0}
   .meal .mi svg{width:18px;height:18px;stroke:var(--accent)}
+  /* Фото блюда встаёт на место иконки: человек видит СВОЙ завтрак, а не
+     абстрактный значок. Картинки уже есть — общий кэш по слагу, /dish/<slug>. */
+  .meal .mi img{width:100%;height:100%;object-fit:cover;border-radius:10px;display:block}
+  .meal .mi{overflow:hidden}
   .meal .mt b{display:block;font-size:14.5px}.meal .mt span{font-size:12.5px;color:var(--muted)}
   .meal .kc{margin-left:auto;font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap}
   .locked{position:relative}
@@ -628,6 +637,43 @@ function prognosis(w,target,goal){
   return {headline, down, dateStr, endLabel};
 }
 
+// Настоящий первый день плана + фото блюд.
+//
+// В вёрстке лежит запасной вариант (овсянка/курица/рыба) — он рисуется сразу,
+// чтобы экран не мигал пустотой и не сломался при отвалившейся сети. Но
+// показывать его ВСЕМ было ошибкой: человек, ответивший «без мяса», читал
+// «Собран под твои вкусы», а под этим — курицу и рыбу. Сервер считает день по
+// тем же правилам, что и бесплатное письмо, так что экран и письмо совпадают.
+async function loadRealDay(){
+  const box = document.getElementById('dayBlock');
+  if(!box) return;
+  let data;
+  try{
+    const r = await fetch('/api/preview/day', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({quiz:answers})});
+    data = await r.json();
+  }catch(e){ return; }                    // сеть отвалилась — остаётся запасной день
+  const meals = (data && data.meals) || [];
+  if(!meals.length) return;
+  const rows = box.querySelectorAll('.meal');
+  meals.slice(0, rows.length).forEach((m, i) => {
+    const row = rows[i];
+    // Фото ставим ТОЛЬКО когда оно реально есть: заглушка-кружок на месте
+    // иконки выглядит как сломанная картинка, иконка честнее.
+    if(m.photo && m.slug){
+      const img = document.createElement('img');
+      img.src = '/dish/' + encodeURIComponent(m.slug);
+      img.alt = m.title; img.loading = 'lazy';
+      const mi = row.querySelector('.mi');
+      if(mi){ mi.innerHTML = ''; mi.appendChild(img); row.classList.add('hasphoto'); }
+    }
+    const t = row.querySelector('.mt');
+    if(t) t.innerHTML = '<b>' + m.meal + '</b><span>' + m.title + '</span>';
+    const kc = row.querySelector('.kc');
+    if(kc) kc.textContent = m.kcal + ' ккал';
+  });
+}
+
 let planRevealed=false, leadEmail='';
 function renderPlan(){
   const {cal,P,F,C,w,target}=calcPlan();
@@ -689,7 +735,7 @@ function renderPlan(){
     <div class="card">
       <div class="kcal"><span class="big">${cal}</span><span class="lab">ккал в день —<br>твоя норма для ${goal} без голода</span></div>
       <div class="macros"><div><b>${P}</b><span>белки, г</span></div><div><b>${F}</b><span>жиры, г</span></div><div><b>${C}</b><span>углеводы, г</span></div></div>
-      <div class="day locked">
+      <div class="day locked" id="dayBlock">
         <div class="dh">Пример дня — первый из 7</div>
         <div class="meal"><span class="mi">${IC.cup}</span><span class="mt"><b>Завтрак</b><span>Овсянка с ягодами и орехами</span></span><span class="kc">${m1} ккал</span></div>
         <div class="meal"><span class="mi">${IC.plate}</span><span class="mt"><b>Обед</b><span>Курица с киноа и овощами</span></span><span class="kc">${m2} ккал</span></div>
@@ -737,6 +783,7 @@ function renderPlan(){
     ${planRevealed ? revealed : locked}
   </div>`;
   playAll();
+  if(planRevealed) loadRealDay();
 
   if(!planRevealed){
     const send=$('#send'), mail=$('#mail'), err=$('#err');
