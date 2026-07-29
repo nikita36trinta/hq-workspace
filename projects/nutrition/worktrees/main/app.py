@@ -1108,9 +1108,12 @@ def pay_create(req: PayReq, request: Request) -> JSONResponse:
         r.raise_for_status()
         j = r.json()
         url = (j.get("confirmation") or {}).get("confirmation_url", "")
+        # pay_url сохраняем, чтобы человек мог ВЕРНУТЬСЯ к неоплаченному платежу.
+        # Без него единственным выходом с экрана «платёж обрабатывается» было
+        # оформить заказ заново.
         _write_order({"order": oid, "payment_id": j.get("id"), "status": j.get("status"),
                       "email": req.email, "landing": slug, "goal": req.goal, "quiz": req.quiz,
-                      "src": req.src, "amount": PRICE_RUB,
+                      "src": req.src, "amount": PRICE_RUB, "pay_url": url,
                       "ts": datetime.now(timezone.utc).isoformat()})
         _bump(f"pay_init_{slug}")
         return JSONResponse({"url": url}) if url else JSONResponse({"error": "no url"}, status_code=502)
@@ -1157,7 +1160,8 @@ def pay_subscribe(req: PayReq, request: Request) -> JSONResponse:
         url = (j.get("confirmation") or {}).get("confirmation_url", "")
         _write_order({"order": sid, "type": "subscription", "payment_id": j.get("id"), "status": j.get("status"),
                       "email": req.email, "landing": slug, "goal": req.goal, "quiz": req.quiz,
-                      "src": req.src, "amount": SUB_PRICE_RUB, "ts": datetime.now(timezone.utc).isoformat()})
+                      "src": req.src, "amount": SUB_PRICE_RUB, "pay_url": url,
+                      "ts": datetime.now(timezone.utc).isoformat()})
         _bump(f"sub_init_{slug}")
         return JSONResponse({"url": url}) if url else JSONResponse({"error": "no url"}, status_code=502)
     except Exception:
@@ -1644,6 +1648,7 @@ def pay_success(o: str = "") -> HTMLResponse:
     pid = order.get("payment_id", "")
     st = _yk_get_payment(pid).get("status", "") if pid else ""
     plan_ready = bool(oid) and (PLANS / f"{oid}.json").exists()
+    pay_url = order.get("pay_url", "")
 
     if st == "canceled" and not plan_ready:
         return _pay_failed_page()
@@ -1677,6 +1682,18 @@ def pay_success(o: str = "") -> HTMLResponse:
             "if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,'1');"
             "if(window.npGoal)window.npGoal('pay_success');}}catch(e){}})();</script>")
 
+    # Пока платёж висит в pending, ссылка ЮKassa ещё жива — человеку, который
+    # закрыл окно и передумал, надо дать вернуться туда же, а не проходить всё
+    # заново. Ссылка живёт не вечно, поэтому рядом всегда есть запасной путь.
+    actions = ""
+    if not paid:
+        back = (f"<a href=\"{pay_url}\" style=\"display:inline-block;background:#16A34A;color:#fff;"
+                "text-decoration:none;font-weight:800;padding:15px 28px;border-radius:14px\">"
+                "Вернуться к оплате</a>") if pay_url else ""
+        again = ("<a href=\"/quiz\" style=\"display:block;margin-top:14px;color:#6B7566;font-size:14px;"
+                 "text-decoration:underline;text-underline-offset:3px\">Оформить заново</a>")
+        actions = f"<div style=\"margin-top:22px\">{back}{again}</div>"
+
     title = "Оплата получена!" if paid else "Платёж обрабатывается"
     body = ("Авокадо собирает твой план (≈1 минута) — страница откроет его сама. "
             "Ссылка придёт и на почту.") if paid else (
@@ -1705,6 +1722,7 @@ def pay_success(o: str = "") -> HTMLResponse:
         f"align-items:center;justify-content:center;box-shadow:0 24px 50px -20px {ring_bg}'>{mark}</div>"
         f"<h1 style='margin:22px 0 8px;font-size:27px'>{title}</h1>"
         f"<p id='wait' style='color:#6B7566;font-size:16px;max-width:36ch'>{body}</p>"
+        + actions +
         "<div style='margin-top:18px;width:34px;height:34px;border:3px solid #DCFCE7;border-top-color:#16A34A;"
         "border-radius:50%;animation:sp 1s linear infinite'></div>"
         "<style>@keyframes sp{to{transform:rotate(360deg)}}</style>"

@@ -44,6 +44,10 @@ def _title(resp) -> str:
     return m.group(1) if m else "(нет заголовка)"
 
 
+def _has(resp, text: str) -> bool:
+    return text in resp.body.decode()
+
+
 def main() -> int:
     A._find_order = lambda oid: {"payment_id": "pid-fake"} if oid == "ord1" else {}
     failed = 0
@@ -61,6 +65,31 @@ def main() -> int:
     ok = got == "Не нашли этот платёж"
     failed += 0 if ok else 1
     print(f"{'ok ' if ok else 'FAIL'} {'нет заказа':<22} -> {got}")
+
+    # Из «обрабатывается» должен быть выход: назад к тому же платежу, пока
+    # ссылка ЮKassa жива, и запасной путь, когда её нет.
+    A._find_order = lambda oid: {"payment_id": "pid", "pay_url": "https://pay.example/xyz"}
+    A._yk_get_payment = lambda pid: {"status": "pending"}
+    r = A.pay_success("ord1")
+    for label, cond in (("кнопка «Вернуться к оплате»", _has(r, "Вернуться к оплате")),
+                        ("ссылка «Оформить заново»", _has(r, "Оформить заново"))):
+        failed += 0 if cond else 1
+        print(f"{'ok ' if cond else 'FAIL'} pending: {label}")
+
+    # Без сохранённой ссылки кнопки быть не должно — вести некуда.
+    A._find_order = lambda oid: {"payment_id": "pid"}
+    r = A.pay_success("ord1")
+    cond = not _has(r, "Вернуться к оплате") and _has(r, "Оформить заново")
+    failed += 0 if cond else 1
+    print(f"{'ok ' if cond else 'FAIL'} pending без pay_url: только «Оформить заново»")
+
+    # На успехе никаких «вернуться» быть не должно.
+    A._find_order = lambda oid: {"payment_id": "pid", "pay_url": "https://pay.example/xyz"}
+    A._yk_get_payment = lambda pid: {"status": "succeeded"}
+    r = A.pay_success("ord1")
+    cond = not _has(r, "Вернуться к оплате")
+    failed += 0 if cond else 1
+    print(f"{'ok ' if cond else 'FAIL'} succeeded: кнопки возврата нет")
 
     print("FAILED" if failed else "OK: все ветки возврата с оплаты честны")
     return 1 if failed else 0
