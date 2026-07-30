@@ -247,3 +247,45 @@ test.describe("regressions · пример дня на пейволле", () => 
 		expect(await page.evaluate(() => location.search)).not.toContain("reset");
 	});
 });
+
+test.describe("regressions · гейт почты", () => {
+	/**
+	 * Found 2026-07-30: на месте нормы стояли четыре точки «••••» и замок.
+	 * Точки не сообщали, ЧТО откроется, и карточка читалась как заглушка, а не
+	 * как готовый результат. Теперь на своих местах вся строка КБЖУ, числа
+	 * размыты — видно, что за почтой норма и три макронутриента.
+	 *
+	 * Размыто СВОЁ число, посчитанное по ответам: подписи и разрядность
+	 * настоящие, поэтому обещание совпадает с тем, что откроется.
+	 */
+	test("гейт показывает всю строку КБЖУ, а не точки", async ({ page }) => {
+		await page.goto("/quiz?l=slim");
+		await walkQuizToPaywall(page);
+
+		const cells = page.locator(".lockcell");
+		expect(await cells.count(), "норма и три макронутриента").toBe(4);
+		await expect(page.locator(".lockrow"), "точки вернулись вместо чисел").not.toContainText("••");
+
+		const data = await cells.evaluateAll((els) =>
+			els.map((el) => {
+				const n = el.querySelector(".n") as HTMLElement;
+				const c = el.querySelector(".c") as HTMLElement;
+				return {
+					num: (n.textContent ?? "").trim(),
+					blur: getComputedStyle(n).filter,
+					capLines: Math.round(c.getBoundingClientRect().height / parseFloat(getComputedStyle(c).lineHeight)),
+				};
+			}),
+		);
+		for (const d of data) {
+			expect(d.num, "в гейте должно стоять настоящее посчитанное число").toMatch(/^\d+$/);
+			expect(d.blur, "число обязано быть размыто до отправки почты").toContain("blur");
+			expect(d.capLines, "подпись под числом не должна переноситься").toBeLessThanOrEqual(1);
+		}
+
+		// и после почты те же числа открываются как есть
+		await submitEmail(page, "gate@example.com");
+		const kcal = (await page.locator(".kcal .big").textContent())?.trim();
+		expect(kcal, "открытая норма должна совпасть с тем, что было размыто").toBe(data[0].num);
+	});
+});

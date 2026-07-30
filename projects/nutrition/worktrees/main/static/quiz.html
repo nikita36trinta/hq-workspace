@@ -300,14 +300,29 @@
   .email .err{color:#DC2626;font-size:13px;margin-top:8px;display:none}
   .email .err.show{display:block}
 
-  /* email-gate: замок на числе */
+  /* email-gate.
+     Было: четыре точки «••••» и замок. Точки не сообщали, ЧТО откроется, и
+     карточка читалась как заглушка вместо готового результата.
+     Стало: вся строка КБЖУ на своих местах, числа размыты. Человек видит, что
+     за почтой не одна цифра, а норма и три макронутриента.
+
+     Размыто СВОЁ число, посчитанное по ответам, а не подставленное красивое:
+     подписи и разрядность настоящие, поэтому обещание совпадает с тем, что
+     откроется через секунду. */
   .dh2{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-  .lockrow{display:flex;align-items:center;gap:12px;margin-top:8px}
-  .lockn{font-size:40px;font-weight:800;letter-spacing:.06em;color:var(--muted);filter:blur(.5px)}
-  .lockn small{font-size:16px;letter-spacing:0;filter:none}
-  .lockic{width:38px;height:38px;border-radius:11px;background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--accent-d)}
-  .lockic svg{width:20px;height:20px}
-  .lockhint{color:var(--muted);font-size:14px;margin-top:12px}
+  .lockhead{display:flex;align-items:center;gap:9px}
+  .lockrow{display:flex;align-items:flex-end;gap:14px;margin-top:12px}
+  .lockcell{min-width:0}
+  /* Числа не растягиваем под ширину: blur размывает края, и на 390px четыре
+     блока и так встают вплотную. */
+  .lockcell .n{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.05;
+    color:var(--ink);filter:blur(6px);opacity:.6;user-select:none}
+  .lockcell.main .n{font-size:38px;color:var(--accent-d)}
+  .lockcell .c{font-size:11px;color:var(--muted);margin-top:5px;white-space:nowrap}
+  .lockic{width:26px;height:26px;border-radius:9px;background:var(--soft);display:flex;
+    align-items:center;justify-content:center;color:var(--accent-d);flex:0 0 auto}
+  .lockic svg{width:14px;height:14px}
+  .lockhint{color:var(--muted);font-size:14px;margin-top:16px}
 
   /* Связка между личным результатом и покупкой. Раньше карточка нормы просто
      обрывалась и следом шла коробка с ценой — переход читался как «а теперь
@@ -386,7 +401,11 @@
 
   /* Подсветка за контентом. Три пятна, а не десять: каждое — это большой
      размытый слой, и на телефоне за них платят батареей. */
-  .aura{position:fixed;inset:-20% -10%;z-index:-1;pointer-events:none;
+  /* Слой ровно по вьюпорту. Раньше был inset:-20% -10% — то есть шире экрана;
+     фиксированный слой в iOS Safari умеет тянуть страницу боком. Свечение
+     никуда не делось: пятна задаются позициями фона, а фон за свою коробку
+     не выходит по определению. */
+  .aura{position:fixed;inset:0;z-index:-1;pointer-events:none;
     background:
       radial-gradient(36% 26% at 14% 8%,  color-mix(in srgb, var(--accent) 34%, transparent), transparent 70%),
       radial-gradient(40% 30% at 92% 26%, color-mix(in srgb, var(--soft) 96%, transparent), transparent 72%),
@@ -460,7 +479,16 @@
      Именно clip, а не hidden: hidden делает элемент контейнером прокрутки и
      ломает position:sticky, а на sticky держится кнопка оплаты. Старым Safari
      clip неизвестен — там останется как было, хуже не станет. */
+  /* Украшения намеренно выезжают за карточку, поэтому вылет НЕ убираем —
+     обрезаем страницу. clip, а не hidden: hidden делает элемент контейнером
+     прокрутки и ломает position:sticky, на котором держится кнопка оплаты.
+     Safari младше 16 про clip не знает — только для него включаем hidden на
+     body: боковую прокрутку он там уберёт, а sticky остаётся на body, который
+     в этой ветке и становится скроллером. */
   html{overflow-x:clip}
+  @supports not (overflow-x: clip){
+    body{overflow-x:hidden}
+  }
 </style>
 </head>
 <body>
@@ -995,9 +1023,14 @@ function renderPlan(){
 
   const locked = `
     <div class="card">
-      <div class="dh2">Твоя дневная норма</div>
-      <div class="lockrow"><span class="lockn">••••<small> ккал</small></span><span class="lockic">${IC.lock}</span></div>
-      <p class="lockhint">Введи почту — и откроем точную норму калорий, БЖУ и первый день меню под твою цель.</p>
+      <div class="lockhead"><div class="dh2">Твоя дневная норма</div><span class="lockic">${IC.lock}</span></div>
+      <div class="lockrow">
+        <div class="lockcell main"><div class="n">${cal}</div><div class="c">ккал в день</div></div>
+        <div class="lockcell"><div class="n">${P}</div><div class="c">белки</div></div>
+        <div class="lockcell"><div class="n">${F}</div><div class="c">жиры</div></div>
+        <div class="lockcell"><div class="n">${C}</div><div class="c">углеводы</div></div>
+      </div>
+      <p class="lockhint">Норма уже посчитана под твои ответы. Почта — чтобы открыть её и первый день меню.</p>
       <div class="email"><div class="inp"><input type="email" id="mail" placeholder="твой@email.ru" autocomplete="email" inputmode="email"></div>
         <div class="err" id="err">Проверь адрес — кажется, есть опечатка</div></div>
     </div>
