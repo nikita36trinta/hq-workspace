@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.request
 from pathlib import Path
 
@@ -152,20 +153,49 @@ _ALLERGEN_WORDS = {
 }
 
 
-def _forbidden_words(quiz: dict) -> list[str]:
-    """Слова-маркеры, запрещённые диетой/аллергиями пользователя."""
+def _forbidden_words(quiz: dict, skip: tuple[str, ...] = ()) -> list[str]:
+    """Слова-маркеры, запрещённые диетой/аллергиями пользователя.
+
+    skip — коды, для которых словарь НЕ применяем. Нужен для каталога: там у
+    блюда есть точный флаг (meat), а словарь слишком груб — «котлет» рубит
+    «Картофельные котлеты», «стейк» рубит «Стейк из лосося». Для блюд, которые
+    придумала модель, флагов нет, и словарь остаётся единственной защитой."""
     diet = set(quiz.get("diet") or [])
     words: list[str] = []
     for code in diet:
+        if code in skip:
+            continue
         words += _ALLERGEN_WORDS.get(code, [])
     return words
+
+
+# Растительное «молоко» и «сыр» лактозы не содержат, а словарь ловит их по корню:
+# «Каша киноа на растительном молоке» вылетала у людей без лактозы — то есть
+# ровно то блюдо, которое для них и добавлено. Сначала вырезаем эти сочетания,
+# потом уже ищем запрещённые корни.
+_LACT_OK = re.compile(
+    r'(растительн\w*|кокосов\w*|миндальн\w*|сое\w*|соев\w*|овсян\w*|рисов\w*|гречнев\w*|'
+    r'кешью|фундучн\w*|конопля\w*|веган\w*)[\s-]+(молок\w*|сливк\w*|сыр\w*|йогурт\w*)'
+    r'|молок\w*[\s-]+(растительн\w*|кокосов\w*|миндальн\w*|сое\w*|соев\w*|овсян\w*|рисов\w*)'
+    r'|тофу', re.I)
+
+
+_LACT_WORDS = frozenset(_ALLERGEN_WORDS.get("nolact", []))
+
+
+def _lact_safe_text(text: str) -> str:
+    """Убрать из текста растительные аналоги молочного, чтобы словарь их не поймал."""
+    return _LACT_OK.sub(" ", text or "")
 
 
 def _violates(text: str, quiz: dict, excl: list[str] | None = None) -> bool:
     """Нарушает ли текст (название+ингредиенты блюда) ограничения/аллергии/исключения."""
     tl = (text or "").lower()
+    tl_lact = _lact_safe_text(tl)
     for w in _forbidden_words(quiz):
-        if w in tl:
+        # Молочные корни проверяем по очищенному тексту, остальные — по исходному.
+        hay = tl_lact if w in _LACT_WORDS else tl
+        if w in hay:
             return True
     for t in (excl if excl is not None else _excluded_terms(quiz)):
         if _term_hits(t, text):
@@ -176,21 +206,30 @@ def _violates(text: str, quiz: dict, excl: list[str] | None = None) -> bool:
 def _allowed_by_meal(quiz: dict) -> dict:
     """Каталог, отфильтрованный под ограничения + аллергии + исключения, по приёму пищи."""
     diet = set(quiz.get("diet") or [])
-    veg, nofish, nolact = "nomeat" in diet, "nofish" in diet, "nolact" in diet
+    nomeat, nofish, nolact = "nomeat" in diet, "nofish" in diet, "nolact" in diet
     excl = _excluded_terms(quiz)
-    fwords = _forbidden_words(quiz)
+    # В каталоге мясо определяет флаг, поэтому словарь по nomeat здесь не нужен —
+    # он только отнимал бы вегетарианские блюда со «спорными» названиями.
+    fwords = _forbidden_words(quiz, skip=("nomeat",))
     disliked = {str(t).strip().lower() for t in (quiz.get("disliked") or [])}
     groups: dict[str, list] = {"breakfast": [], "lunch": [], "dinner": [], "snack": []}
     for d in _catalog():
-        if veg and not d.get("veg"):
+        # «Без мяса» режет ИМЕННО мясо (флаг meat), а не «всё, что не помечено veg».
+        # Тег veg был непоследователен: «Омлет с овощами» veg=true, а «Вареные яйца»
+        # veg=false — и человек без мяса терял одиннадцать яичных блюд, включая
+        # почти все белковые завтраки. Рыба режется отдельным флагом nofish.
+        if nomeat and d.get("meat"):
             continue
         if nofish and d.get("fish"):
             continue
         if nolact and d.get("lact"):
             continue
         tl = d["title"].lower()
-        if any(w in tl for w in fwords):        # аллерген/запрещённый продукт (орехи, глютен, мясо…)
-            continue
+        # Молочные корни ищем по тексту, очищенному от растительных аналогов:
+        # иначе «на растительном молоке» вылетает у тех, без лактозы.
+        tl_lact = _lact_safe_text(tl)
+        if any(w in (tl_lact if w in _LACT_WORDS else tl) for w in fwords):
+            continue                            # аллерген/запрещённый продукт
         if any(_term_hits(t, tl) for t in excl):  # исключённый продукт (стем-матч)
             continue
         if tl in disliked:
@@ -235,7 +274,8 @@ def _prompt(quiz: dict, p: dict) -> tuple[str, str]:
     ) if catalog else ""
     catalog_txt = f"\nКАТАЛОГ БЛЮД (выбирай name только отсюда):\n{catalog}\n" if catalog else ""
     user = (
-        f"Составь план питания на 7 дней (Понедельник–Воскресенье).\n"
+        f"Составь план питания на 7 дней (День 1 – День 7; план стартует в день покупки,\n"
+        f"дни недели не используй).\n"
         f"Дневная норма: {p['cal']} ккал (белки {p['P']} г, жиры {p['F']} г, углеводы {p['C']} г).\n"
         f"Цель: {GOAL_RU.get(quiz.get('goal'), 'здоровое питание')}.\n"
         f"Активность: {ACT_RU.get(quiz.get('activity'), '—')}.\n"
@@ -257,7 +297,7 @@ def _prompt(quiz: dict, p: dict) -> tuple[str, str]:
         "- Порции указывать в граммах/штуках в ингредиентах.\n"
         f"{catalog_txt}\n"
         "Верни СТРОГО такой JSON:\n"
-        '{"days":[{"day":"Понедельник","meals":[{"slot":"Завтрак","name":"...","kcal":000,'
+        '{"days":[{"day":"День 1","meals":[{"slot":"Завтрак","name":"...","kcal":000,'
         '"p":00,"f":00,"c":00,"ingredients":["овсянка 60 г","молоко 200 мл"],"steps":["шаг 1","шаг 2"]}]}],'
         '"shopping":[{"cat":"Овощи и зелень","items":["брокколи 500 г"]}],'
         '"tips":["короткий практичный совет под цель и барьеры"]}'
@@ -324,7 +364,10 @@ def generate_plan(quiz: dict, timeout: int = 90, attempts: int = 2) -> dict:
     return {**base, "source": "bank", **_bank_shape(quiz)}
 
 
-_DAYS_RU = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
+# План стартует в день покупки, а не в понедельник, поэтому дни нумеруем.
+# Отображение всё равно считается от индекса (plan._day_label), но пусть и в
+# данных не остаётся дней недели, вводящих в заблуждение в письмах и выгрузках.
+_DAYS_RU = [f"День {i}" for i in range(1, 8)]
 
 
 def _bank_shape(quiz: dict) -> dict:

@@ -19,6 +19,16 @@ GOAL_TXT = {"lose": "снижения веса", "keep": "поддержания
             "gain": "набора массы", "health": "здорового питания"}
 DAYS = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 
+
+def _day_label(i: int) -> str:
+    """«День 1…7», а не «Понедельник».
+
+    План начинается в день покупки, а не в понедельник: купивший в четверг видел
+    «Понедельник» первым днём и не понимал, к какой дате это относится. Считаем
+    номер от индекса, а не от того, что вернула модель, — тогда подпись не
+    зависит от её фантазии и одинакова у ai- и банк-плана."""
+    return f"День {i + 1}"
+
 BANK = {
     "omni": [
         ("Овсянка с ягодами и орехами", "Курица с киноа и овощами", "Запечённая рыба и салат"),
@@ -306,14 +316,14 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
     water_goal = max(6, min(12, round(start_w * 30 / 250))) if start_w else 8
     manifest = f"/app.webmanifest?t={token}" if token else "/app.webmanifest"
     acct = _acct_html(sub, token)
-    tabs = "".join(f"<button class='tab{" on" if i==0 else ""}' data-d='{i}'>{d.get('day','')[:2]}</button>"
-                   for i, d in enumerate(days))
+    tabs = "".join(f"<button class='tab{" on" if i==0 else ""}' data-d='{i}'>{i + 1}</button>"
+                   for i, _ in enumerate(days))
     panels = ""
     for i, d in enumerate(days):
         meals = "".join(_meal_card(m, i, m.get("slot", "")) for m in (d.get("meals") or []))
         tot = sum(int(m.get("kcal") or 0) for m in (d.get("meals") or []))
         panels += (f"<div class='panel{" on" if i==0 else ""}' data-d='{i}'>"
-                   f"<div class='dtitle'>{d.get('day','')} <span>{tot} ккал</span></div>"
+                   f"<div class='dtitle'>{_day_label(i)} <span>{tot} ккал</span></div>"
                    f"<div class='calbar'><i class='calfill' data-d='{i}'></i></div>"
                    f"<div class='caltxt' data-d='{i}' data-tot='{tot}'>Съедено 0 из {tot} ккал</div>"
                    f"{meals}</div>")
@@ -831,9 +841,11 @@ window.addEventListener('appinstalled',()=>{{ib.hidden=true;}});
 
 def menu_email_html(pl: dict, plan_link: str = "") -> str:
     """Письмо после оплаты: краткое меню (без рецептов) + кнопка на полный план в вебе."""
-    days = "".join(_day_block({"day": d.get("day", ""), "meals": [
+    # Подписи дней — те же, что на экране плана: письмо и экран не должны
+    # расходиться в нумерации.
+    days = "".join(_day_block({"day": _day_label(i), "meals": [
         (m.get("slot", ""), m.get("name", ""), m.get("kcal", "")) for m in (d.get("meals") or [])]})
-        for d in (pl.get("days") or []))
+        for i, d in enumerate(pl.get("days") or []))
     cta = _cta(plan_link, "Открыть план с рецептами") if plan_link else ""
     return (f"<div style='{_CSS_WRAP}'>"
             + _head("Твой план на 7 дней", "Спасибо за оплату! Меню — ниже, рецепты и список покупок — в плане")

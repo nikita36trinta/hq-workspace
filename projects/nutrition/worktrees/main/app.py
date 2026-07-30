@@ -455,6 +455,28 @@ def _advance_charge(sub: dict, now: datetime) -> bool:
     return True
 
 
+def _order_by_payment(pid: str) -> dict:
+    """Найти заказ по payment_id ЮKassa.
+
+    Нужно для возвратов: в уведомлении о возврате нашей метаданной с order id нет,
+    там только payment_id. Идём по журналу с конца — последняя запись про этот
+    платёж самая свежая."""
+    if not pid:
+        return {}
+    try:
+        lines = ORDERS.read_text(encoding="utf-8").splitlines()
+    except Exception:  # noqa: BLE001
+        return {}
+    for line in reversed(lines):
+        try:
+            rec = json.loads(line)
+        except Exception:  # noqa: BLE001
+            continue  # битая строка не должна обрывать поиск
+        if rec.get("payment_id") == pid:
+            return rec
+    return {}
+
+
 def _find_order(oid: str) -> dict:
     """Найти запись СОЗДАНИЯ заказа (с quiz) по order id. Битая строка не должна ронять
     поиск последующих (конкурентные append из webhook+pay_create без лока) → per-line try."""
@@ -1063,17 +1085,22 @@ PREVIEW_PICKS = {
         "Йогурт с гранолой": "Йогурт, гранола, фрукты",
         "Сэндвич с курицей": "Хлеб, курица, овощи",
         "Овсяная каша с фруктами": "Овсянка, фрукты, мёд",
-        # Ниже — «без мяса + без лактозы». Белковых завтраков каталог для этой
-        # комбинации не содержит вовсе (проверено: только тосты, овсянка на
-        # воде и фруктовый салат), поэтому берём хотя бы сытные по жиру.
+        # Ниже — «без мяса + без лактозы», в том числе с «без глютена».
+        # Каталог для этой комбинации был почти пуст: оставались тосты, овсянка
+        # на воде и фруктовый салат, то есть завтрак без белка — для плана
+        # похудения это прямо плохо. Поэтому в каталог добавлены веганские
+        # белковые блюда, и здесь они идут ПЕРЕД углеводными: первый подошедший
+        # выигрывает, значит порядок и есть приоритет.
+        "Тофу-скрэмбл с овощами": "Тофу, помидоры, шпинат",
+        "Нут с овощами и зеленью": "Нут, огурцы, зелень",
+        "Каша киноа на растительном молоке": "Киноа, растительное молоко, ягоды",
+        "Чиа-пудинг на кокосовом молоке": "Семена чиа, кокосовое молоко, фрукты",
+        "Гречневая каша с семенами": "Гречка, тыквенные семечки, ягоды",
+        "Смузи-боул с семенами и ягодами": "Ягоды, банан, семена",
         "Тосты с авокадо": "Хлеб, авокадо, лимон",
         "Овсянка на воде": "Овсянка, корица, фрукты",
-        # Самый последний резерв — «без мяса + без лактозы + без глютена».
-        # Для этой комбинации в каталоге есть РОВНО ОДНО блюдо на завтрак, и это
-        # оно. Белка в нём нет, для плана похудения это плохой завтрак — но
-        # альтернатива хуже: провалиться в запасную ветку и показать блюдо без
-        # состава. Настоящее решение — дополнить каталог веганским белковым
-        # завтраком (тофу, киноа, растительное молоко), этого там нет вовсе.
+        # Самый последний резерв. Белка тут нет, но провалиться в запасную ветку
+        # и показать блюдо без состава — хуже.
         "Фруктовый салат": "Свежие фрукты и ягоды",
     },
     "lunch": {
@@ -1235,7 +1262,9 @@ def preview_day(req: PreviewReq) -> JSONResponse:
                         return False
                     if "fish" in excl_flags and d.get("fish"):
                         return False
-                    if "meat" in excl_flags and not d.get("veg") and not d.get("fish"):
+                    # По флагу meat, а не по «не veg»: иначе яичные завтраки
+                    # считались мясом и пропадали у тех, кто мясо не ест.
+                    if "meat" in excl_flags and d.get("meat"):
                         return False
                     return True
                 pool = [t for t in pool if _ok(t)]
@@ -1435,15 +1464,84 @@ def _yk_get_payment(pid: str) -> dict:
 
 @app.post("/api/pay/webhook")
 async def pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
-    """Уведомление ЮKassa (payment.succeeded). URL зарегистрировать в ЛК ЮKassa.
+    """Уведомления ЮKassa. URL зарегистрировать в ЛК на ТРИ события:
+    payment.succeeded, payment.canceled, refund.succeeded.
 
-    Тело уведомления НЕ доверенное — платёж перепроверяется через API по id + сверяется сумма."""
+    Тело уведомления НЕ доверенное — КАЖДОЕ событие перепроверяется через API по id.
+    Для возврата это обязательно: без проверки подделанное уведомление гасило бы
+    подписку живому плательщику."""
     try:
         payload = await request.json()
     except Exception:
         return JSONResponse({"ok": False}, status_code=400)
     obj = payload.get("object") or {}
-    if payload.get("event") == "payment.succeeded":
+    event = payload.get("event")
+
+    # ---- возврат ------------------------------------------------------------
+    # Возврат делается руками в ЛК ЮKassa, и раньше в наших данных он не менял
+    # НИЧЕГО: подписка оставалась active с привязанной картой, и через 30 дней
+    # cron списывал деньги у того, кому мы только что вернули. То есть наш
+    # собственный возврат превращался в спор по платежу.
+    if event == "refund.succeeded":
+        pid = obj.get("payment_id", "")
+        rid = obj.get("id", "")
+        # Проверяем по API: возврат виден в самом платеже как refunded_amount.
+        # Без этого поддельное уведомление гасило бы подписку живому плательщику.
+        verified = _yk_get_payment(pid)
+        try:
+            refunded = float((verified.get("refunded_amount") or {}).get("value") or 0)
+        except Exception:  # noqa: BLE001
+            refunded = 0.0
+        if refunded <= 0:
+            return JSONResponse({"ok": True, "verified": False, "reason": "no_refund"})
+        if _already_processed(f"refund:{rid}"):
+            return JSONResponse({"ok": True, "duplicate": True})
+        order = _order_by_payment(pid)
+        oid = order.get("order", "")
+        now = datetime.now(timezone.utc)
+        _write_order({"order": oid, "type": order.get("type", "?"), "payment_id": pid,
+                      "refund_id": rid, "status": "refunded",
+                      "amount": (obj.get("amount") or {}).get("value"),
+                      "email": order.get("email", ""), "landing": order.get("landing", "?"),
+                      "ts": now.isoformat(), "event": "refund.succeeded"})
+        _bump(f"refund_{order.get('landing', '?')}")
+        # Карту убираем и подписку гасим: списывать дальше с того, кому вернули, нельзя.
+        if oid and _load_sub(oid):
+            _sub_merge(oid, {"status": "canceled", "canceled_at": now.isoformat(),
+                             "cancel_reason": "refund"}, remove=("payment_method_id",))
+        print(f"[pay] возврат {rid} по платежу {pid} заказ={oid or '?'}", flush=True)
+        return JSONResponse({"ok": True})
+
+    # ---- платёж отклонён ----------------------------------------------------
+    # Без этой ветки у платёжной воронки нет знаменателя: отклонённые банком
+    # попытки были невидимы, и «мало оплат» нельзя было отличить от «оплаты не
+    # проходят».
+    if event == "payment.canceled":
+        pid = obj.get("id", "")
+        verified = _yk_get_payment(pid)
+        if verified.get("status") != "canceled":
+            return JSONResponse({"ok": True, "verified": False})
+        obj = verified            # дальше только проверенные данные
+        if _already_processed(f"canceled:{pid}"):
+            return JSONResponse({"ok": True, "duplicate": True})
+        meta = obj.get("metadata") or {}
+        slug = meta.get("landing", "?")
+        typ = meta.get("type", "once")
+        reason = ((obj.get("cancellation_details") or {}).get("reason") or "?")
+        _write_order({"order": meta.get("order", ""), "type": typ, "payment_id": pid,
+                      "status": "canceled", "reason": reason,
+                      "email": meta.get("email", ""), "landing": slug,
+                      "ts": datetime.now(timezone.utc).isoformat(), "event": "payment.canceled"})
+        _bump(f"{'sub_fail' if typ in ('subscription', 'sub_renew') else 'pay_fail'}_{slug}")
+        # Регулярное списание не прошло — подписку в past_due, чтобы cron повторил,
+        # а не считал её здоровой.
+        oid = meta.get("order", "")
+        if typ == "sub_renew" and oid and _load_sub(oid):
+            _sub_merge(oid, {"status": "past_due"}, remove=("pending_charge_id",))
+        print(f"[pay] платёж {pid} отклонён ({reason}) тариф={typ}", flush=True)
+        return JSONResponse({"ok": True})
+
+    if event == "payment.succeeded":
         verified = _yk_get_payment(obj.get("id", ""))
         if not (verified.get("status") == "succeeded" and verified.get("paid")):
             return JSONResponse({"ok": True, "verified": False})  # подделка/неоплачено — игнор
@@ -2008,6 +2106,11 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                 pl = plan_ai.generate_plan(sub.get("quiz") or {})
                 pl["quiz"] = sub.get("quiz") or {}
                 _save_plan(sub["plan_token"], pl, reset_progress=True)  # новый план → сброс «приготовил»
+                # Фото — ДО письма. Клиент опрашивает готовность 6 раз с шагом 5 секунд
+                # и сдаётся, дальше на экране остаётся svg-тарелка. При оплате прогрев
+                # есть, в недельной регенерации его просто забыли. Кэш общий по слагу,
+                # так что греются только новые блюда недели.
+                _pregen_dish_photos(pl)
                 link = f"{base}/plan/{sub['plan_token']}"
                 _send_email(sub["email"], "Новый план на неделю · NutriPlan",
                             plan.menu_email_html(pl, link), "plan_weekly")
@@ -2070,6 +2173,7 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
             if fresh.get("source") == "ai":  # апгрейд только на полноценный план
                 fresh["quiz"] = pl["quiz"]
                 _save_plan(f.stem, fresh)
+                _pregen_dish_photos(fresh)   # блюда сменились — иначе на экране плейсхолдеры
                 out["repaired"] += 1
         except Exception:  # noqa: BLE001
             pass
