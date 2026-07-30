@@ -1,4 +1,5 @@
 import { expect, test } from "./_fixtures";
+import { submitEmail, walkQuizToPaywall } from "./_helpers";
 
 /**
  * One spec per defect found by hand, so it can only be found once.
@@ -171,5 +172,78 @@ test.describe("regressions · возврат с оплаты", () => {
 		await page.goto("/pay/success?o=definitelynotanorder");
 		const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 		expect(bg, "фон должен быть на body, иначе по бокам белые поля").toBe("rgb(251, 248, 241)");
+	});
+});
+
+test.describe("regressions · пример дня на пейволле", () => {
+	/**
+	 * Found 2026-07-30 по скриншоту от владельца.
+	 *
+	 * Две разные вещи ломались одновременно.
+	 *
+	 * 1) Жирной строкой стоял ПРИЁМ ПИЩИ («Завтрак»), а название блюда не
+	 *    показывалось вообще. Человек читал «Завтрак · Яйца, помидоры, зелень»
+	 *    и не понимал, что ему предлагают омлет. Название блюда — это то, что
+	 *    мы продаём, оно обязано быть главным в строке.
+	 *
+	 * 2) Ответы квиза живут в localStorage сутки, поэтому экран показывал
+	 *    ограничения прошлого прохода. Отсюда ?reset=1 — начать с чистого листа.
+	 */
+	test("в строке дня крупным идёт название блюда, а не приём пищи", async ({ page }) => {
+		await page.goto("/quiz?l=slim");
+		await walkQuizToPaywall(page);
+		await submitEmail(page, "day-title@example.com");
+
+		const rows = page.locator("#dayBlock .meal");
+		expect(await rows.count(), "пример дня должен быть на экране").toBeGreaterThan(1);
+
+		const first = rows.first();
+		const title = (await first.locator(".mt b").textContent())?.trim() ?? "";
+		const sub = (await first.locator(".mt span").textContent())?.trim() ?? "";
+		const label = (await first.locator(".kc i").textContent())?.trim() ?? "";
+
+		expect(title, "жирным должно быть название блюда, а не «Завтрак»").not.toMatch(/^(Завтрак|Обед|Ужин)$/);
+		expect(title.length, "название блюда не может быть пустым").toBeGreaterThan(3);
+		expect(sub, "серой строкой идёт состав блюда").not.toMatch(/^(Завтрак|Обед|Ужин)/);
+		expect(sub.length, "состав блюда не может быть пустым").toBeGreaterThan(3);
+		// Приём пищи уехал в правую колонку — в левой на телефоне всего 156px,
+		// и «Завтрак · Яйца, помидоры, зелень» там ломалось пополам.
+		expect(label, "приём пищи должен остаться на экране, над калориями").toBe("Завтрак");
+
+		// Ни одна строка в примере дня не должна переноситься на второй раз —
+		// на этом экране правки уже дважды ломали вёрстку переносами.
+		const wraps = await rows.evaluateAll((els) =>
+			els.map((el) => {
+				const s = el.querySelector(".mt span") as HTMLElement | null;
+				if (!s) return 0;
+				return Math.round(s.getBoundingClientRect().height / parseFloat(getComputedStyle(s).lineHeight));
+			}),
+		);
+		expect(Math.max(...wraps), "состав блюда обязан уложиться в одну строку").toBeLessThanOrEqual(1);
+
+		// Без ограничений в еде показываем дефолт, который выбрал владелец.
+		const shown = await page.locator("#dayBlock").innerText();
+		expect(shown, "по умолчанию завтрак — омлет").toContain("Омлет");
+		expect(shown, "по умолчанию обед — рыба").toContain("Рыба");
+	});
+
+	test("?reset=1 стирает ответы прошлого прохода", async ({ page }) => {
+		await page.goto("/quiz?l=slim");
+		await page.evaluate(() => localStorage.setItem("np_quiz_v2", JSON.stringify({
+			answers: { goal: "lose", diet: ["nomeat", "nolact", "nogluten"] },
+			idx: 99, planRevealed: true, leadEmail: "old@example.com", t: Date.now(),
+		})));
+
+		// без сброса состояние подхватывается
+		await page.goto("/quiz?l=slim");
+		expect(await page.evaluate(() => localStorage.getItem("np_quiz_v2"))).not.toBeNull();
+
+		await page.goto("/quiz?l=slim&reset=1");
+		expect(
+			await page.evaluate(() => localStorage.getItem("np_quiz_v2")),
+			"?reset=1 обязан стереть сохранённые ответы",
+		).toBeNull();
+		// адрес чистится, иначе обновление страницы стирает уже настоящий проход
+		expect(await page.evaluate(() => location.search)).not.toContain("reset");
 	});
 });

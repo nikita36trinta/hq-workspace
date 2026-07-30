@@ -258,8 +258,14 @@
   .meal .mt{min-width:0}
   .meal .mt b{display:block;font-size:14.5px}
   .meal .mt span{display:block;font-size:12px;color:var(--muted);line-height:1.35;margin-top:2px}
-  /* Калории в макете тёмные: это значимое число, а не служебная подпись. */
-  .meal .kc{margin-left:auto;padding-left:8px;font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap}
+  /* Калории в макете тёмные: это значимое число, а не служебная подпись.
+     Приём пищи переехал СЮДА, над калориями: в колонке текста всего 156px при
+     390px экрана, и строка «Завтрак · Яйца, помидоры, зелень» там ломалась
+     пополам. Справа же места хватает — «ЗАВТРАК» уже 68px под «426 ккал». */
+  .meal .kc{margin-left:auto;padding-left:8px;font-size:13px;font-weight:700;color:var(--ink);
+    white-space:nowrap;text-align:right}
+  .meal .kc i{display:block;font-style:normal;font-size:10px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:2px}
   .locked{position:relative}
   .locked .veil{position:absolute;left:0;right:0;bottom:0;height:64%;border-radius:0 0 22px 22px;
     background:linear-gradient(180deg,transparent,var(--field) 78%);display:flex;align-items:flex-end;justify-content:center;
@@ -446,6 +452,15 @@
     -webkit-mask-image:radial-gradient(closest-side,#000 38%,transparent 76%);
     mask-image:radial-gradient(closest-side,#000 38%,transparent 76%)}
   @media (prefers-reduced-transparency: reduce){ .food{display:none} }
+  /* Украшения намеренно выходят за карточку — и на телефоне это выносило
+     страницу за вьюпорт: при 390px документ был 456px, мобильный браузер
+     отзумливал ВСЮ вёрстку, карточка сжималась до 350px, а колонка текста —
+     до 156px. Отсюда и переносы в названиях блюд.
+
+     Именно clip, а не hidden: hidden делает элемент контейнером прокрутки и
+     ломает position:sticky, а на sticky держится кнопка оплаты. Старым Safari
+     clip неизвестен — там останется как было, хуже не станет. */
+  html{overflow-x:clip}
 </style>
 </head>
 <body>
@@ -857,14 +872,21 @@ async function loadRealDay(){
     }
     const t = row.querySelector('.mt');
     if(t){
-      // Название и состав: «Греческий салат: огурцы, помидоры, фета…». Одного
-      // названия было мало — по нему не понять, что окажется в тарелке.
+      // Крупным — НАЗВАНИЕ блюда, а не «Завтрак». Раньше жирным стоял приём
+      // пищи, и человек видел «Завтрак · Яйца, помидоры, зелень», не понимая,
+      // что ему предлагают омлет. Название блюда — это и есть то, что продаём.
+      // Состав нужен рядом: по одному названию не понять, что в тарелке.
       const esc = v => String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-      const line = m.desc ? esc(m.desc) : esc(m.title);
-      t.innerHTML = '<b>' + esc(m.meal) + '</b><span>' + line + '</span>';
+      t.innerHTML = '<b>' + esc(m.title) + '</b><span>' + esc(m.desc || '') + '</span>';
     }
+    // Правая колонка: приём пищи мелким над калориями. Собираем разметкой, а не
+    // textContent — присваивание текстом стирало подпись «Завтрак» вместе с
+    // тегом, и приём пищи пропадал с экрана совсем.
     const kc = row.querySelector('.kc');
-    if(kc) kc.textContent = m.kcal + ' ккал';
+    if(kc){
+      const esc2 = v => String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+      kc.innerHTML = (m.meal ? '<i>' + esc2(m.meal) + '</i>' : '') + esc2(m.kcal) + ' ккал';
+    }
   });
 }
 
@@ -996,9 +1018,12 @@ function renderPlan(){
       </div>
       <div class="day locked" id="dayBlock">
         <div class="dh">Пример дня — первый из 7</div>
-        <div class="meal"><span class="mi">${IC.cup}</span><span class="mt"><b>Завтрак</b><span>Овсянка с ягодами и орехами</span></span><span class="kc">${m1} ккал</span></div>
-        <div class="meal"><span class="mi">${IC.plate}</span><span class="mt"><b>Обед</b><span>Курица с киноа и овощами</span></span><span class="kc">${m2} ккал</span></div>
-        <div class="meal"><span class="mi">${IC.bowl}</span><span class="mt"><b>Ужин</b><span>Запечённая рыба и салат</span></span><span class="kc">${m3} ккал</span></div>
+        <!-- Запасной день = ровно то, что сервер отдаёт без ограничений. Так
+             экран не дёргается при подмене на настоящий ответ, а при отвалившейся
+             сети человек видит не выдумку, а дефолтное меню каталога. -->
+        <div class="meal"><span class="mi">${IC.cup}</span><span class="mt"><b>Омлет с овощами</b><span>Яйца, помидоры, зелень</span></span><span class="kc"><i>Завтрак</i>${m1} ккал</span></div>
+        <div class="meal"><span class="mi">${IC.plate}</span><span class="mt"><b>Рыба запеченная с овощами</b><span>Белая рыба и овощи</span></span><span class="kc"><i>Обед</i>${m2} ккал</span></div>
+        <div class="meal"><span class="mi">${IC.bowl}</span><span class="mt"><b>Куриное филе с овощами</b><span>Куриное филе и брокколи</span></span><span class="kc"><i>Ужин</i>${m3} ккал</span></div>
         <div class="veil"><button class="go" id="toPw" type="button">Перейти к полному плану
           <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
       </div>
@@ -1110,8 +1135,21 @@ async function startPayment(){
   }
 }
 
+const QS=new URLSearchParams(location.search);
+// ?reset=1 — начать с чистого листа. Персист живёт сутки, поэтому во время
+// проверок экран показывает ответы прошлого прохода, а не то, что видит новый
+// человек. Ссылку убираем из адреса, чтобы обновление страницы не стирало
+// ответы уже настоящего прохождения.
+if(QS.get('reset')==='1'||QS.get('fresh')==='1'){
+  clearState();
+  try{ QS.delete('reset'); QS.delete('fresh');
+    const q=QS.toString();
+    history.replaceState(null,'',location.pathname+(q?'?'+q:'')+location.hash);
+  }catch(e){}
+}
+
 // ?resume=TOKEN из лид-письма → подтянуть ответы и открыть СРАЗУ пейволл (не 11 шагов заново)
-const RESUME=new URLSearchParams(location.search).get('resume');
+const RESUME=QS.get('resume');
 if(RESUME){
   fetch('/api/lead/resume/'+encodeURIComponent(RESUME)).then(r=>r.ok?r.json():null).then(d=>{
     if(d&&d.quiz){ Object.assign(answers,d.quiz); leadEmail=d.email||''; planRevealed=true;
