@@ -118,7 +118,10 @@ test.describe("экран плана · список покупок", () => {
 	test("позиции отмечаются, счётчик считает, отметки живут после перезагрузки", async ({ page }) => {
 		await page.goto("/plan/sample");
 		await dismissWelcome(page);
-		await page.waitForTimeout(600);
+		// Список переехал на свою вкладку: приложение больше не один свиток на
+		// восемь экранов. Открываем её, как это делает человек.
+		await page.locator('.bnav button[data-s="cart"]').click();
+		await page.waitForTimeout(500);
 
 		const shop = page.locator("#shop");
 		if (!(await shop.count())) test.skip(true, "в этом плане нет списка покупок");
@@ -141,7 +144,9 @@ test.describe("экран плана · список покупок", () => {
 		).toContain("line-through");
 
 		await page.reload();
-		await page.waitForTimeout(900);
+		await dismissWelcome(page);
+		await page.locator('.bnav button[data-s="cart"]').click();
+		await page.waitForTimeout(600);
 		expect(await page.locator("#shop input:checked").count(),
 			"отметки обязаны пережить перезагрузку — список нужен в магазине").toBe(3);
 

@@ -20,6 +20,34 @@ GOAL_TXT = {"lose": "снижения веса", "keep": "поддержания
 DAYS = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
 
 
+def _ic_home() -> str:
+    return ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+            'stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7v8a2 2 0 0 1-2 2h-3v-6H9v6H6a2 2 0 0 1-2-2Z"/></svg>')
+
+
+def _ic_week() -> str:
+    return ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+            'stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/>'
+            '<path d="M8 3v4M16 3v4M3 10h18"/></svg>')
+
+
+def _ic_cart() -> str:
+    return ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+            'stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.4'
+            'a2 2 0 0 0 2-1.5L20 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg>')
+
+
+def _ic_me() -> str:
+    return ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+            'stroke-linecap="round"><circle cx="12" cy="8" r="3.6"/>'
+            '<path d="M4.5 20c1.3-3.6 4-5.4 7.5-5.4S18.2 16.4 19.5 20"/></svg>')
+
+
+def _ic_back() -> str:
+    return ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" '
+            'stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>')
+
+
 def _day_label(i: int) -> str:
     """«День 1…7», а не «Понедельник».
 
@@ -380,6 +408,15 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
             week_over = _weekover(len(days), renew_link)
     tabs = "".join(f"<button class='tab{" on" if i==0 else ""}' data-d='{i}'>{i + 1}</button>"
                    for i, _ in enumerate(days))
+    # Строки недели: что в этот день, сколько ккал. Обзор без открытия дня.
+    week_rows = ""
+    for i, d in enumerate(days):
+        ms = d.get("meals") or []
+        names = " · ".join(_e(m.get("name", "")) for m in ms[:3])
+        tot = sum(int(m.get("kcal") or 0) for m in ms)
+        week_rows += (f"<button class='drow' data-d='{i}'>"
+                      f"<span class='dl'><b>{_day_label(i)}</b><span>{names}</span></span>"
+                      f"<span class='dk'>{tot} ккал</span></button>")
     panels = ""
     for i, d in enumerate(days):
         meals = "".join(_meal_card(m, i, m.get("slot", ""), j)
@@ -547,6 +584,67 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 .meal.on .done .dc{{background:var(--g);border-color:var(--g)}}
 .meal.on .done .dc::after{{content:"";position:absolute;left:4px;top:1px;width:6px;height:10px;border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}}
 .meal.on .done::after{{content:" ✓"}}
+/* ── экраны и нижняя навигация ────────────────────────────────────────────
+   Страница была одним свитком на 5292 px (восемь экранов) со всеми 35 блюдами
+   недели сразу и без навигации. Те же разделы разложены по четырём вкладкам;
+   разметка и обработчики не тронуты — переставлены только контейнеры. */
+.scr{{display:none}}
+.scr.on{{display:block}}
+body{{padding-bottom:104px}}
+.bnav{{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:40;
+  max-width:536px;margin:0 auto;display:flex;padding:7px 6px;border-radius:24px;
+  background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--line);
+  -webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);
+  box-shadow:0 18px 36px -22px rgba(30,50,25,.45)}}
+.bnav button{{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:none;
+  background:none;color:var(--muted);font:inherit;font-size:10.5px;font-weight:700;
+  padding:7px 0 5px;border-radius:17px;cursor:pointer}}
+.bnav button svg{{width:22px;height:22px;display:block}}
+.bnav button.on{{color:var(--gd);background:var(--soft)}}
+/* Две плитки в ряд: серия и вода — про одно и то же (привычки), и по одной на
+   строку они занимали пол-экрана. */
+.tiles{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}}
+.tiles .streakc,.tiles .water{{margin-top:0;padding:13px 14px}}
+/* В половину ширины прежнее содержимое не влезало: подпись серии ломалась на
+   четыре строки, «Вода сегодня» на две, стаканы в три ряда. Ужимаем именно то,
+   что можно ужать без потери смысла. */
+.tiles .streakc{{display:block}}
+.tiles .streakc .sm{{width:34px;height:34px;margin-bottom:8px}}
+.tiles .streakc .sbig{{font-size:26px}}
+.tiles .streakc .sbig small{{font-size:11.5px}}
+.tiles .streakc .ssub{{display:none}}          /* подсказку даёт онбординг */
+.tiles .water .wtop{{display:block;font-size:13px}}
+.tiles .water .wtop b{{display:block;font-size:11px;font-weight:800;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted)}}
+.tiles .water .wtop #wnum{{display:block;font-family:inherit;font-size:26px;font-weight:800;
+  color:var(--ink);margin-top:6px}}
+.tiles .water .wcups{{flex-wrap:nowrap;gap:3px;margin-top:9px}}
+.tiles .water .cup{{width:auto;flex:1;min-width:0;height:24px}}
+
+/* Неделя */
+.days{{display:flex;flex-direction:column;gap:9px;margin-top:16px}}
+.drow{{display:flex;align-items:center;gap:12px;width:100%;text-align:left;font:inherit;
+  background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px 15px;
+  cursor:pointer;color:inherit}}
+.drow .dl{{flex:1;min-width:0}}
+.drow .dl b{{display:block;font-size:15px;font-weight:700}}
+.drow .dl span{{display:block;font-size:12px;color:var(--muted);margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.drow .dk{{font-size:13px;font-weight:800;color:var(--muted);white-space:nowrap}}
+
+/* Просмотр дня */
+.dayview{{position:fixed;inset:0;z-index:60;background:var(--bg);overflow:auto;display:none}}
+.dayview.on{{display:block}}
+.dvtop{{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:12px;padding:12px 18px;
+  background:color-mix(in srgb,var(--bg) 88%,transparent);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}}
+.dvtop button{{width:38px;height:38px;border-radius:13px;border:1px solid var(--line);
+  background:var(--card);color:var(--ink);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex:0 0 auto}}
+.dvtop button svg{{width:19px;height:19px;display:block}}
+.dvtop b{{font-size:16px;font-weight:800}}
+.dvbody{{max-width:560px;margin:0 auto;padding:4px 18px 40px}}
+.dvnote{{font-size:12.5px;color:var(--muted);margin:2px 0 14px}}
 .calbar{{height:7px;background:var(--line);border-radius:99px;overflow:hidden;margin:0 0 6px}}
 .calfill{{display:block;height:100%;width:0;background:var(--g);border-radius:99px;transition:width .35s ease}}
 .calfill.over{{background:#E0912B}}
@@ -607,21 +705,42 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
   </div>
 </div>
 <div class="wrap">
-  <h1>{title}</h1><p class="lead">Персонально под твою цель, вкусы и ритм</p>
-  {week_over}
-  <div class="norm"><div class="big">{pl.get('cal','')}<small> ккал/день</small></div>
-    <div class="macros"><div><b>{pl.get('P','')}</b><span>белки, г</span></div>
-      <div><b>{pl.get('F','')}</b><span>жиры, г</span></div><div><b>{pl.get('C','')}</b><span>углеводы, г</span></div></div></div>
-  <div class="streakc">
-    <div class="sm"><video autoplay loop muted playsinline poster="/assets/avocado_celebrate_sm.png"><source src="/assets/avocado_celebrate_sm.mp4" type="video/mp4"></video></div>
-    <div class="st"><div class="sbig"><span id="prog">0</span><small>/{len(days)} дней выполнено</small></div>
-      <div class="ssub" id="streakmsg">Отмечай «Приготовил» — собери серию</div></div>
-  </div>
-  <div class="water"><div class="wtop"><b>Вода сегодня</b><span id="wnum">0 / {water_goal} ст.</span></div>
-    <div class="wcups" id="wcups"></div></div>
-  <div class="tabs">{tabs}</div>
-  {panels}
-  {_shopping(pl.get('shopping') or [], pl.get('days') or [])}
+  <!-- Экран «Сегодня»: день, а не весь свиток. Раньше страница была 5292 px —
+       восемь экранов подряд без всякой навигации, и вся неделя рисовалась разом.
+       Разделы те же самые, просто разложены по вкладкам. -->
+  <section class="scr on" id="sc-today">
+    <h1>{title}</h1><p class="lead">Персонально под твою цель, вкусы и ритм</p>
+    {week_over}
+    <div class="norm"><div class="big">{pl.get('cal','')}<small> ккал/день</small></div>
+      <div class="macros"><div><b>{pl.get('P','')}</b><span>белки, г</span></div>
+        <div><b>{pl.get('F','')}</b><span>жиры, г</span></div><div><b>{pl.get('C','')}</b><span>углеводы, г</span></div></div></div>
+    <div class="tiles">
+      <div class="streakc">
+        <div class="sm"><video autoplay loop muted playsinline poster="/assets/avocado_celebrate_sm.png"><source src="/assets/avocado_celebrate_sm.mp4" type="video/mp4"></video></div>
+        <div class="st"><div class="sbig"><span id="prog">0</span><small>/{len(days)} дней выполнено</small></div>
+          <div class="ssub" id="streakmsg">Отмечай «Приготовил» — собери серию</div></div>
+      </div>
+      <div class="water"><div class="wtop"><b>Вода сегодня</b><span id="wnum">0 / {water_goal} ст.</span></div>
+        <div class="wcups" id="wcups"></div></div>
+    </div>
+    <div class="tabs">{tabs}</div>
+    {panels}
+  </section>
+
+  <!-- Экран «Неделя»: обзор семи дней. Нажатие открывает день ТОЛЬКО ПОСМОТРЕТЬ —
+       отмечать и заменять можно на «Сегодня», иначе легко закрыть чужой день. -->
+  <section class="scr" id="sc-week">
+    <h1>Неделя</h1><p class="lead">Нажми на день, чтобы посмотреть меню</p>
+    <div class="days">{week_rows}</div>
+  </section>
+
+  <section class="scr" id="sc-cart">
+    <h1>Покупки</h1><p class="lead">Отмечай купленное — отметки сохраняются</p>
+    {_shopping(pl.get('shopping') or [], pl.get('days') or [])}
+  </section>
+
+  <section class="scr" id="sc-me">
+    <h1>Я</h1><p class="lead">Вес, вкусы и подписка</p>
   {_tips(pl.get('tips') or [])}
   <section class="sec" id="weightsec"><h2>Твой вес</h2>
     <div class="wcard">
@@ -650,7 +769,22 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
       беременности и особенностях здоровья проконсультируйтесь с врачом.</div>
     <div class="preq">Самозанятый Ульянин Никита Юрьевич · ИНН 772459697062 · <a href="mailto:support@mynutriplan.ru">support@mynutriplan.ru</a></div>
   </footer>
+  </section>
 </div>
+
+<!-- Просмотр дня недели. Отдельный экран, а не всплывашка: меню дня — это пять
+     карточек с фото, шторка съела бы половину. Действий нет намеренно. -->
+<section class="dayview" id="dayview" aria-hidden="true">
+  <div class="dvtop"><button id="dvback" aria-label="Назад">{_ic_back()}</button><b id="dvtitle"></b></div>
+  <div class="dvbody" id="dvbody"></div>
+</section>
+
+<nav class="bnav">
+  <button class="on" data-s="today">{_ic_home()}<span>Сегодня</span></button>
+  <button data-s="week">{_ic_week()}<span>Неделя</span></button>
+  <button data-s="cart">{_ic_cart()}<span>Покупки</span></button>
+  <button data-s="me">{_ic_me()}<span>Я</span></button>
+</nav>
 <script>
 function activateDay(i){{
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',+x.dataset.d===i));
@@ -941,6 +1075,50 @@ document.querySelectorAll('.dislike').forEach(b=>{{let armed=false;
     boxes.forEach(b=>b.checked=false); paint();
   }});
   paint();
+}})();
+
+// ── вкладки ──────────────────────────────────────────────────────────────
+// Разделы те же, что были в свитке; переключаем видимость контейнеров.
+document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',()=>{{
+  document.querySelectorAll('.bnav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.scr').forEach(s=>s.classList.toggle('on',s.id==='sc-'+b.dataset.s));
+  window.scrollTo(0,0);
+}}));
+
+// ── просмотр дня недели (только посмотреть) ───────────────────────────────
+// Карточки берём из уже отрисованных панелей и снимаем всё, чем можно
+// ДЕЙСТВОВАТЬ: отмечать и заменять — только на «Сегодня», иначе человек легко
+// закроет чужой день и собьёт себе прогресс.
+(function(){{
+  const view=document.getElementById('dayview'), body=document.getElementById('dvbody');
+  if(!view) return;
+  function open(i){{
+    const panel=document.querySelector('.panel[data-d="'+i+'"]');
+    if(!panel) return;
+    const clone=panel.cloneNode(true);
+    clone.querySelectorAll('.mact, details').forEach(n=>n.remove());
+    clone.querySelectorAll('.calbar, .caltxt').forEach(n=>n.remove());
+    clone.querySelectorAll('[id]').forEach(n=>n.removeAttribute('id'));   // без дублей id
+    clone.querySelectorAll('.meal').forEach(n=>{{n.classList.remove('on');n.removeAttribute('data-k');}});
+    const title=(clone.querySelector('.dtitle')||{{}}).textContent||('День '+(i+1));
+    const t=clone.querySelector('.dtitle'); if(t) t.remove();
+    document.getElementById('dvtitle').textContent=title.trim();
+    body.innerHTML='<div class="dvnote">Только просмотр. Отмечать и заменять блюда можно на вкладке «Сегодня».</div>';
+    body.appendChild(clone);
+    clone.classList.add('on');
+    view.classList.add('on'); view.setAttribute('aria-hidden','false');
+    view.scrollTop=0; document.body.style.overflow='hidden';
+    history.pushState({{dayview:1}},'');    // системное «назад» закрывает просмотр
+  }}
+  function close(back){{
+    view.classList.remove('on'); view.setAttribute('aria-hidden','true');
+    document.body.style.overflow='';
+    if(back && history.state && history.state.dayview) history.back();
+  }}
+  document.querySelectorAll('.drow').forEach(r=>r.addEventListener('click',()=>open(+r.dataset.d)));
+  document.getElementById('dvback').addEventListener('click',()=>close(true));
+  addEventListener('popstate',()=>{{ if(view.classList.contains('on')) close(false); }});
+  addEventListener('keydown',e=>{{ if(e.key==='Escape'&&view.classList.contains('on')) close(true); }});
 }})();
 
 // PWA: service worker + install prompt
