@@ -4,42 +4,59 @@ import { submitEmail, walkQuizToPaywall } from "./_helpers";
 /**
  * Ни одна страница не должна уезжать боком на телефоне.
  *
- * Found 2026-07-30: украшения на экране плана вынесены за карточку намеренно
- * (right:-86px), и документ при 390px становился 456px — палец таскал всю
- * страницу вбок. Вылет — часть замысла, поэтому убирать его нельзя; обрезаем
- * страницу через html{overflow-x:clip} (именно clip: hidden сделал бы элемент
- * контейнером прокрутки и сломал sticky-кнопку оплаты), плюс @supports-ветка
- * с body{overflow-x:hidden} для Safari младше 16, где clip не знают.
+ * Found 2026-07-30. Украшения на экране плана вынесены за карточку намеренно
+ * (right:-86px), и документ при 390px становился 456px.
  *
- * Проверяем именно ПОВЕДЕНИЕ — «страница не двигается боком», а не «ничего не
- * вылезает»: вылезать тут как раз должно.
+ * ЧЕМ ЭТО ЛОВИТЬ. Первая версия теста дёргала window.scrollTo(400) и смотрела
+ * scrollX — и ПРОХОДИЛА на сломанной странице. Мобильный браузер не прокручивает
+ * документ, а расширяет layout viewport под вылезший контент и отзумливает всю
+ * вёрстку: clientWidth оставался 390, а innerWidth становился 456. Прокрутки в
+ * терминах DOM нет, но пальцем страница таскается, и всё рисуется мельче.
+ *
+ * Поэтому проверяем именно это: layout viewport не должен быть шире экрана.
+ * Признак работает и там, где overflow-x:clip не поддержан, потому что смотрит
+ * на результат, а не на способ его добиться.
  */
-async function slidesSideways(page: any): Promise<number> {
-	return page.evaluate(() => {
-		const before = window.scrollX;
-		window.scrollTo(400, window.scrollY);
-		const moved = window.scrollX;
-		window.scrollTo(before, window.scrollY);
-		return moved;
-	});
+async function viewport(page: any) {
+	return page.evaluate(() => ({
+		client: document.documentElement.clientWidth,
+		inner: window.innerWidth,
+		scroll: document.documentElement.scrollWidth,
+	}));
 }
 
 const PAGES = ["/", "/quiz?l=slim", "/l/slim", "/showcase", "/privacy", "/consent", "/offer",
 	"/login", "/pay/success?o=nope"];
 
 for (const url of PAGES) {
-	test(`страница не уезжает боком: ${url}`, async ({ page }) => {
+	test(`страница не шире экрана: ${url}`, async ({ page }) => {
 		const r = await page.goto(url);
 		if (!r || r.status() >= 400) test.skip(true, `страница отдала ${r?.status()}`);
 		await page.waitForTimeout(900);
-		expect(await slidesSideways(page), `${url}: страница прокрутилась вбок`).toBe(0);
+		const v = await viewport(page);
+		expect(v.inner, `${url}: layout viewport ${v.inner} шире экрана ${v.client}`).toBeLessThanOrEqual(v.client);
+		expect(v.scroll, `${url}: содержимое ${v.scroll} шире экрана ${v.client}`).toBeLessThanOrEqual(v.client);
 	});
 }
 
-test("экран плана с украшениями не уезжает боком", async ({ page }) => {
+test("экран плана с украшениями не шире экрана", async ({ page }) => {
 	await page.goto("/quiz?l=slim&reset=1");
 	await walkQuizToPaywall(page);
 	await submitEmail(page, "bleed@example.com");
 	await page.waitForTimeout(1200);
-	expect(await slidesSideways(page), "украшения не должны тянуть страницу вбок").toBe(0);
+	const v = await viewport(page);
+	expect(v.inner, `украшения растянули viewport до ${v.inner} при экране ${v.client}`).toBeLessThanOrEqual(v.client);
+	expect(v.scroll, `содержимое ${v.scroll} шире экрана ${v.client}`).toBeLessThanOrEqual(v.client);
+});
+
+test("кнопка оплаты остаётся прилипшей — clip не сделал .shell скроллером", async ({ page }) => {
+	await page.goto("/quiz?l=slim&reset=1");
+	await walkQuizToPaywall(page);
+	const foot = page.locator(".foot");
+	expect(await foot.evaluate((e) => getComputedStyle(e).position)).toBe("sticky");
+	const before = await foot.evaluate((e) => e.getBoundingClientRect().bottom);
+	await page.mouse.wheel(0, 150);
+	await page.waitForTimeout(400);
+	const after = await foot.evaluate((e) => e.getBoundingClientRect().bottom);
+	expect(Math.abs(after - before), "подвал уехал вместе со страницей — sticky сломан").toBeLessThan(4);
 });
