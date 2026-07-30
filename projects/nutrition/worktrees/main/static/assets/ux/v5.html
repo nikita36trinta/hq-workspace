@@ -4,59 +4,66 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Вариант 5 · Тёмное стекло</title>
+<title>Вариант 5 · Светлое стекло</title>
 <link rel="stylesheet" href="/assets/ux/_base.css">
 <style>
   /* ═══ ВАРИАНТ 5 ═════════════════════════════════════════════════════════════
-     Сборка по заказу: подача из второго варианта (тёмная тема, маскот, крупная
-     типографика), материал — стекло с экрана оплаты, устройство — из первого
+     Сборка по заказу: подача из второго варианта (маскот ведёт день, крупная
+     типографика), материал — Liquid Glass с экрана оплаты, устройство из первого
      (вкладки внизу, bento-плитки).
 
-     Про стекло. Ощущение материала даёт не прозрачность сама по себе, а
-     СВЕТЯЩАЯСЯ КРОМКА сверху: без inset-подсветки выходит просто мутный
-     прямоугольник. На тёмном фоне кромка светлая и тонкая, а под контентом
-     лежит цветное свечение — размывать нечего, если за стеклом пусто.
+     ДВЕ ПРАВКИ ПОСЛЕ ПОКАЗА.
 
-     Отличие от пейволла: там стекло на светлом, здесь на тёмном, поэтому
-     подложка не «белая с прозрачностью», а осветлённая тёмная — иначе карточки
-     выглядят грязными пятнами.
+     1. СВЕТЛОЕ, а не тёмное. Тёмная тема выглядит дороже, но спорит с темой:
+        продукт про здоровое питание, а не про ночной клуб. Свет, воздух и
+        свежесть — это и есть обещание, поэтому стекло теперь белое на песочном,
+        как на экране оплаты, только с большим количеством воздуха.
+
+     2. ЗАКРУГЛЕНО ВСЁ. Прямые углы оставались там, где я их не заметил: строки
+        списка покупок были прямоугольниками внутри скруглённого контейнера,
+        стаканы воды — почти квадратами, шапка — полосой во всю ширину. Теперь
+        каждый модуль имеет свой радиус, а списки собраны из отдельных пилюль с
+        зазором, а не из строк, разделённых линиями.
+        Радиусы выведены в шкалу: 30 / 22 / 16 / 12 — чем крупнее блок, тем
+        больше радиус, иначе мелкие элементы выглядят надутыми.
      ═══════════════════════════════════════════════════════════════════════════ */
   :root{
-    --bg:#101710; --surf:#1C2619; --ink:#F2EFE4; --ink-2:#C3CCB9; --muted:#7C8A76;
-    --g:#46C773; --g-d:#2E9A52; --accent:#F58443; --wtr:#4CC7F5;
+    --bg:#F7F2E8; --surf:#FFFDF8; --ink:#1B2A17; --ink-2:#4C5C46; --muted:#8B9584;
+    --g:#1E9150; --g-d:#136B39; --g-soft:#DFF3E5; --accent:#E9682F; --wtr:#3FBEF0;
     /* стекло */
-    --glass:      color-mix(in srgb, var(--surf) 62%, transparent);
-    --glass-soft: color-mix(in srgb, var(--surf) 44%, transparent);
-    --glass-edge: color-mix(in srgb, #fff 14%, transparent);
-    --glass-line: color-mix(in srgb, #fff 9%, transparent);
-    --sh-2:0 20px 40px -26px rgba(0,0,0,.85);
-    --sh-3:0 34px 64px -30px rgba(0,0,0,.95);
+    --glass:      color-mix(in srgb, #fff 62%, transparent);
+    --glass-soft: color-mix(in srgb, #fff 46%, transparent);
+    --glass-edge: color-mix(in srgb, #fff 92%, transparent);
+    --glass-line: color-mix(in srgb, var(--ink) 9%, transparent);
+    --sh-2:0 18px 36px -26px rgba(30,50,25,.42);
+    --sh-3:0 30px 58px -30px rgba(30,50,25,.5);
+    /* шкала радиусов */
+    --rx:30px; --rl:22px; --rm:16px; --rs:12px;
   }
-  body{background:var(--bg);color:var(--ink);padding-bottom:104px}
-  .demoh{background:rgba(16,23,16,.8);border-color:var(--glass-line);color:var(--ink)}
-  .demoh a{color:var(--muted)}
+  body{background:var(--bg);color:var(--ink);padding-bottom:112px}
+  /* Шапка демо тоже скруглена: прямая полоса во всю ширину — единственный
+     прямой угол, который оставался на экране, и он тянул на себя внимание. */
+  .demoh{background:color-mix(in srgb,var(--bg) 84%,transparent);border:1px solid var(--glass-line);
+    border-radius:0 0 var(--rl) var(--rl);margin:0 8px;padding:9px 14px;top:0}
 
-  /* Свечение под контентом — четыре пятна, не больше: каждое это большой
-     размытый слой, и на телефоне за них платят батареей. */
   .aura{position:fixed;inset:0;z-index:-1;pointer-events:none;
     background:
-      radial-gradient(38% 26% at 12% 6%,  color-mix(in srgb,var(--g) 30%,transparent), transparent 70%),
-      radial-gradient(42% 28% at 94% 20%, color-mix(in srgb,var(--accent) 22%, transparent), transparent 72%),
-      radial-gradient(48% 30% at 6% 62%,  color-mix(in srgb,var(--g) 16%, transparent), transparent 74%),
-      radial-gradient(56% 34% at 82% 90%, color-mix(in srgb,var(--wtr) 14%, transparent), transparent 72%);
-    filter:blur(38px)}
+      radial-gradient(38% 26% at 12% 6%,  color-mix(in srgb,var(--g) 26%,transparent), transparent 70%),
+      radial-gradient(42% 28% at 94% 18%, color-mix(in srgb,var(--accent) 18%,transparent), transparent 72%),
+      radial-gradient(48% 30% at 4% 62%,  color-mix(in srgb,var(--g-soft) 92%,transparent), transparent 74%),
+      radial-gradient(56% 34% at 84% 92%, color-mix(in srgb,var(--wtr) 16%,transparent), transparent 72%);
+    filter:blur(40px)}
 
   .glass{
     background:var(--glass);
-    -webkit-backdrop-filter:blur(26px) saturate(165%);
-    backdrop-filter:blur(26px) saturate(165%);
+    -webkit-backdrop-filter:blur(24px) saturate(170%);
+    backdrop-filter:blur(24px) saturate(170%);
     border:1px solid var(--glass-line);
     box-shadow:
-      inset 0 1px 0 var(--glass-edge),        /* кромка, ловящая свет */
-      inset 0 -1px 0 rgba(0,0,0,.25),
+      inset 0 1px 0 var(--glass-edge),      /* кромка, ловящая свет */
+      inset 0 -1px 0 rgba(30,50,25,.05),
       var(--sh-2);
   }
-  /* Браузер без размытия не должен показывать «грязное стекло»: делаем плотным. */
   @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
     .glass{background:var(--surf)}
   }
@@ -65,118 +72,131 @@
     .glass{background:var(--surf);backdrop-filter:none;-webkit-backdrop-filter:none}
   }
 
-  /* ── маскот ведёт день ─────────────────────────────────────────────────── */
-  .say{display:flex;gap:11px;align-items:center;padding:18px 0 2px}
-  .say .av{width:42px;height:42px;border-radius:14px;flex:0 0 auto;overflow:hidden;background:var(--surf)}
-  .say .tx{font-size:14.5px;line-height:1.35;color:var(--ink-2)}
-  .say .tx b{color:var(--ink);font-weight:600}
+  /* ── маскот ─────────────────────────────────────────────────────────────── */
+  .say{display:flex;gap:12px;align-items:center;padding:16px 0 2px}
+  .say .av{width:46px;height:46px;border-radius:18px;flex:0 0 auto;overflow:hidden;
+    background:var(--g-soft);box-shadow:var(--sh-2)}
+  .say .tx{font-size:14.5px;line-height:1.38;color:var(--ink-2)}
+  .say .tx b{color:var(--ink);font-weight:700}
 
-  .hero{padding:14px 0 2px}
-  .hero .cap{color:var(--muted)}
+  .hero{padding:16px 0 2px}
   .hero h1{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;
     line-height:.98;margin-top:8px}
 
-  /* ── bento ─────────────────────────────────────────────────────────────── */
-  .bento{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:16px}
-  .t-cal{grid-column:1/-1;border-radius:var(--r-l);padding:19px 20px 17px;position:relative;overflow:hidden}
+  /* ── bento ──────────────────────────────────────────────────────────────── */
+  .bento{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+  .t-cal{grid-column:1/-1;border-radius:var(--rx);padding:20px 21px 18px}
   .t-cal .big{font-family:Unbounded;font-weight:800;font-size:54px;letter-spacing:-.055em;
-    line-height:.9;margin-top:9px;
-    background:linear-gradient(180deg,#fff,#CFE9D6);-webkit-background-clip:text;background-clip:text;
-    -webkit-text-fill-color:transparent}
+    line-height:.9;margin-top:9px;color:var(--g-d)}
   .t-cal .big i{font-style:normal;font-size:16px;font-weight:600;letter-spacing:-.01em;
-    -webkit-text-fill-color:var(--muted);margin-left:9px}
-  .t-cal .sub{font-size:13px;color:var(--muted);margin-top:7px}
-  .t-cal .track{display:flex;gap:4px;margin-top:15px}
-  .t-cal .track i{flex:1;height:5px;border-radius:99px;background:rgba(255,255,255,.1)}
-  .t-cal .track i.on{background:var(--g);box-shadow:0 0 12px -2px var(--g)}
-  .t-cal .mac{display:flex;gap:18px;margin-top:15px}
-  .t-cal .mac span{display:block;font-size:10px;font-weight:700;letter-spacing:.09em;
-    text-transform:uppercase;color:var(--muted)}
-  .t-cal .mac b{font-family:Unbounded;font-weight:700;font-size:15px;letter-spacing:-.03em;
-    display:block;margin-top:3px}
+    color:var(--muted);margin-left:9px}
+  .t-cal .sub{font-size:13px;color:var(--muted);margin-top:8px}
+  .t-cal .track{display:flex;gap:5px;margin-top:16px}
+  .t-cal .track i{flex:1;height:6px;border-radius:99px;background:color-mix(in srgb,var(--ink) 8%,transparent)}
+  .t-cal .track i.on{background:var(--g)}
+  /* Плитки БЖУ — те же, что на экране оплаты: рисованная иконка, число рядом,
+     подпись под ним. Переношу их сюда целиком, а не пересочиняю: экран оплаты и
+     приложение должны читаться как один продукт, а не как два разных. */
+  .macros{display:flex;gap:8px;margin-top:17px}
+  .macros > div{flex:1;min-width:0;background:color-mix(in srgb,#fff 62%,transparent);
+    border:1px solid var(--glass-line);border-radius:var(--rm);padding:11px 10px;
+    box-shadow:inset 0 1px 0 var(--glass-edge)}
+  .macros .mrow{display:flex;align-items:center;gap:8px}
+  .macros .mic{width:28px;height:28px;flex:0 0 auto}
+  .macros .mic img{width:100%;height:100%;display:block}
+  .macros .mtx{min-width:0}
+  .macros b{display:block;font-family:Unbounded;font-weight:700;font-size:17px;color:var(--ink);
+    letter-spacing:-.04em;line-height:1.05;white-space:nowrap}
+  .macros b i{font-style:normal;font-family:Onest;font-size:11px;font-weight:700;color:var(--muted);
+    margin-left:3px;letter-spacing:0}
+  .macros span{display:block;font-size:10.5px;color:var(--muted);margin-top:3px;white-space:nowrap}
 
-  .t-next{grid-column:1/-1;border-radius:var(--r-l);overflow:hidden;position:relative;padding:0}
-  .t-next .ph{position:relative}
-  .t-next .ph img{width:100%;height:196px;object-fit:cover;background:var(--surf)}
+  /* Фото вставлено В РАМКУ со своим радиусом, а не встык к краям карточки:
+     так у модуля закруглено и снаружи, и внутри. */
+  .t-next{grid-column:1/-1;border-radius:var(--rx);padding:11px}
+  .t-next .ph{position:relative;border-radius:var(--rl);overflow:hidden}
+  /* радиус ставим и самой картинке: полагаться только на обрезку родителем
+     нельзя — в Safari при трансформациях край иногда вылезает уголком */
+  .t-next .ph img{width:100%;height:188px;object-fit:cover;background:var(--g-soft);
+    border-radius:var(--rl)}
   .t-next .ph .g{position:absolute;inset:0;
-    background:linear-gradient(180deg,transparent 42%,rgba(12,20,11,.72) 88%)}
-  .t-next .now{position:absolute;left:13px;top:13px;background:var(--accent);color:#20120A;
-    border-radius:99px;padding:6px 12px;font-size:10.5px;font-weight:800;letter-spacing:.09em;
-    text-transform:uppercase;box-shadow:0 10px 22px -10px rgba(245,132,67,.9)}
-  .t-next .ph .nm{position:absolute;left:0;right:0;bottom:0;padding:0 16px 13px}
-  .t-next .ph h2{font-family:Unbounded;font-weight:700;font-size:20px;letter-spacing:-.035em;
+    background:linear-gradient(180deg,transparent 44%,rgba(18,32,14,.7) 92%)}
+  .t-next .now{position:absolute;left:12px;top:12px;background:var(--accent);color:#fff;
+    border-radius:99px;padding:6px 13px;font-size:10.5px;font-weight:800;letter-spacing:.09em;
+    text-transform:uppercase;box-shadow:0 10px 20px -10px rgba(233,104,47,.85)}
+  .t-next .nm{position:absolute;left:0;right:0;bottom:0;padding:0 15px 13px}
+  .t-next .nm h2{font-family:Unbounded;font-weight:700;font-size:20px;letter-spacing:-.035em;
     line-height:1.08;color:#fff}
-  .t-next .ph .kk{font-size:12.5px;color:rgba(255,255,255,.8);margin-top:5px}
-  .t-next .row{display:flex;gap:9px;padding:13px 14px 14px}
-  .t-next .go{flex:1;background:var(--g);color:#0C1A10;border-radius:15px;padding:14px;font-size:15px;
-    font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;
-    box-shadow:0 16px 30px -16px rgba(70,199,115,.8)}
+  .t-next .nm .kk{font-size:12.5px;color:rgba(255,255,255,.85);margin-top:5px}
+  .t-next .act{display:flex;gap:9px;padding:11px 3px 2px}
+  .t-next .go{flex:1;background:var(--g);color:#fff;border-radius:var(--rl);padding:15px;
+    font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;
+    box-shadow:0 16px 28px -16px var(--g)}
   .t-next .go i{width:18px;height:18px}
-  .t-next .alt{width:52px;border-radius:15px;background:rgba(255,255,255,.08);color:var(--ink-2);
+  .t-next .alt{width:54px;border-radius:var(--rl);background:var(--bg);color:var(--ink-2);
     display:flex;align-items:center;justify-content:center}
   .t-next .alt i{width:20px;height:20px}
 
-  .t-s{border-radius:var(--r-m);padding:14px 15px;display:flex;flex-direction:column;min-height:108px}
-  .t-s .cap{color:var(--muted)}
-  .t-s .n{font-family:Unbounded;font-weight:700;font-size:24px;letter-spacing:-.045em;margin-top:auto}
+  .t-s{border-radius:var(--rl);padding:15px 16px;display:flex;flex-direction:column;min-height:112px}
+  .t-s .n{font-family:Unbounded;font-weight:700;font-size:24px;letter-spacing:-.045em;margin-top:auto;
+    color:var(--ink)}
   .t-s .n small{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:4px}
-  .cups{display:flex;gap:3px;margin-top:9px}
-  .cups i{flex:1;height:22px;border-radius:4px 4px 6px 6px;background:rgba(255,255,255,.09)}
-  .cups i.f{background:var(--wtr);box-shadow:0 0 10px -3px var(--wtr)}
-  .flame{width:24px;height:24px;color:var(--accent);margin-top:6px}
+  .cups{display:flex;gap:4px;margin-top:10px}
+  .cups i{flex:1;height:22px;border-radius:7px 7px 9px 9px;
+    background:color-mix(in srgb,var(--ink) 7%,transparent)}
+  .cups i.f{background:var(--wtr)}
+  .flame{width:24px;height:24px;color:var(--accent);margin-top:7px}
 
-  .sech{display:flex;align-items:center;justify-content:space-between;margin:24px 2px 11px}
-  .sech .cap{color:var(--ink-2)}
-  .sech a{font-size:12.5px;font-weight:700;color:var(--g)}
+  .sech{display:flex;align-items:center;justify-content:space-between;margin:26px 4px 12px}
+  .sech a{font-size:12.5px;font-weight:700;color:var(--g-d)}
 
-  .row{display:flex;align-items:center;gap:12px;border-radius:var(--r-m);padding:10px 13px 10px 10px;
-    margin-bottom:9px}
-  .row img{width:50px;height:50px;border-radius:13px;object-fit:cover;flex:0 0 auto;background:var(--surf)}
+  /* строки — отдельные пилюли с зазором, а не список, разделённый линиями */
+  .row{display:flex;align-items:center;gap:12px;border-radius:var(--rl);padding:10px 14px 10px 10px;
+    margin-bottom:10px}
+  .row img{width:52px;height:52px;border-radius:var(--rm);object-fit:cover;flex:0 0 auto;
+    background:var(--g-soft)}
   .row .t{flex:1;min-width:0}
   .row .t b{display:block;font-size:14.5px;font-weight:600;line-height:1.25}
   .row .t span{font-size:11.5px;color:var(--muted);display:block;margin-top:2px}
-  .row .k{font-family:Unbounded;font-weight:700;font-size:13.5px;letter-spacing:-.03em;color:var(--ink-2)}
-  .row .tick{width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.08);flex:0 0 auto;
-    display:flex;align-items:center;justify-content:center;color:transparent}
-  .row .tick i{width:14px;height:14px}
-  .row.on{opacity:.45}
-  .row.on .tick{background:var(--g);color:#0C1A10}
+  .row .k{font-family:Unbounded;font-weight:700;font-size:13.5px;letter-spacing:-.035em;color:var(--ink-2)}
+  .row .tick{width:30px;height:30px;border-radius:11px;background:color-mix(in srgb,var(--ink) 6%,transparent);
+    flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:transparent}
+  .row .tick i{width:15px;height:15px}
+  .row.on{opacity:.5}
+  .row.on .tick{background:var(--g);color:#fff}
   .row.on .t b{text-decoration:line-through}
 
-  /* ── плавающая стеклянная навигация ────────────────────────────────────── */
-  .nav{position:fixed;left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:40;
-    border-radius:22px;display:flex;padding:7px 6px;max-width:402px;margin:0 auto}
+  /* ── навигация: плавающий стеклянный остров ─────────────────────────────── */
+  .nav{position:fixed;left:14px;right:14px;bottom:calc(13px + env(safe-area-inset-bottom));z-index:40;
+    border-radius:26px;display:flex;padding:8px 7px;max-width:402px;margin:0 auto}
   .nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted);
-    font-size:10px;font-weight:700;padding:7px 0 5px;border-radius:16px;position:relative}
+    font-size:10px;font-weight:700;padding:8px 0 6px;border-radius:19px;position:relative}
   .nav button i{width:22px;height:22px}
-  .nav button.on{color:var(--ink);background:rgba(255,255,255,.09)}
-  .nav button.on::after{content:'';position:absolute;top:3px;left:50%;transform:translateX(-50%);
-    width:16px;height:2px;border-radius:99px;background:var(--g);box-shadow:0 0 10px -1px var(--g)}
+  .nav button.on{color:var(--g-d);background:var(--g-soft)}
 
   .scr{display:none}.scr.on{display:block}
-  .list{border-radius:var(--r-m);overflow:hidden}
-  .si{display:flex;align-items:center;gap:11px;padding:12px 14px;font-size:14px;
-    border-bottom:1px solid var(--glass-line)}
-  .si:last-child{border-bottom:none}
-  .si .cb{width:22px;height:22px;border-radius:7px;border:1.5px solid rgba(255,255,255,.18);
-    flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:transparent}
-  .si .cb i{width:12px;height:12px}
-  .si.on .cb{background:var(--g);border-color:var(--g);color:#0C1A10}
-  .si.on span{color:var(--muted);text-decoration:line-through}
-  .gh{display:flex;align-items:center;gap:9px;margin:18px 2px 8px}
+
+  /* покупки: каждая позиция — своя пилюля */
+  .gh{display:flex;align-items:center;gap:9px;margin:20px 4px 10px}
   .gh b{font-size:12.5px;font-weight:700}
   .gh span{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:700}
+  .si{display:flex;align-items:center;gap:12px;padding:13px 15px;font-size:14.5px;
+    border-radius:var(--rm);margin-bottom:8px}
+  .si .cb{width:24px;height:24px;border-radius:9px;border:1.5px solid color-mix(in srgb,var(--ink) 14%,transparent);
+    flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:transparent}
+  .si .cb i{width:13px;height:13px}
+  .si.on .cb{background:var(--g);border-color:var(--g);color:#fff}
+  .si.on span{color:var(--muted);text-decoration:line-through}
 </style>
 </head>
 <body>
 <div class="aura" aria-hidden="true"></div>
-<div class="demoh"><a href="/assets/ux/index.html" id="x"></a><b>Вариант 5 · Тёмное стекло</b><span>UI из 2-го · UX из 1-го</span></div>
+<div class="demoh"><a href="/assets/ux/index.html" id="x"></a><b>Вариант 5 · Светлое стекло</b><span>UI из 2-го · UX из 1-го</span></div>
 
 <div class="wrap">
-  <!-- ── СЕГОДНЯ ─────────────────────────────────────────────────────────── -->
   <section class="scr on" id="s-home">
     <div class="say rise">
-      <span class="av"><img src="/assets/avocado_ask_sm.png" alt="" width="42" height="42"></span>
+      <span class="av"><img src="/assets/avocado_ask_sm.png" alt="" width="46" height="46"></span>
       <span class="tx">Завтрак закрыт, идём дальше. Сейчас лёгкий перекус — <b>105 ккал</b>.</span>
     </div>
 
@@ -184,14 +204,17 @@
 
     <div class="bento">
       <div class="t-cal glass rise">
-        <div class="cap" style="color:var(--muted)">Осталось на день</div>
+        <div class="cap">Осталось на день</div>
         <div class="big num">1300<i>ккал</i></div>
         <div class="sub">Съедено 280 из 1580 ккал</div>
         <div class="track" id="track"></div>
-        <div class="mac">
-          <div><span>белки</span><b class="num">10 / 118</b></div>
-          <div><span>жиры</span><b class="num">5 / 53</b></div>
-          <div><span>углеводы</span><b class="num">50 / 158</b></div>
+        <div class="macros">
+          <div><div class="mrow"><span class="mic"><img src="/assets/macro-prot.svg" alt="" loading="lazy"></span>
+            <span class="mtx"><b class="num">118<i>г</i></b><span>белки</span></span></div></div>
+          <div><div class="mrow"><span class="mic"><img src="/assets/macro-fat.svg" alt="" loading="lazy"></span>
+            <span class="mtx"><b class="num">53<i>г</i></b><span>жиры</span></span></div></div>
+          <div><div class="mrow"><span class="mic"><img src="/assets/macro-carb.svg" alt="" loading="lazy"></span>
+            <span class="mtx"><b class="num">158<i>г</i></b><span>углеводы</span></span></div></div>
         </div>
       </div>
 
@@ -202,7 +225,7 @@
           <div class="nm"><h2>Банан свежий</h2>
             <div class="kk">Перекус · 105 ккал · Б 1 · Ж 0 · У 27</div></div>
         </div>
-        <div class="row" style="margin:0;padding:13px 14px 14px;background:none;border:none;box-shadow:none">
+        <div class="act">
           <button class="go"><i id="i-ok"></i>Съел</button>
           <button class="alt" aria-label="Заменить"><i id="i-sw"></i></button>
         </div>
@@ -224,19 +247,16 @@
     <div id="rest"></div>
   </section>
 
-  <!-- ── НЕДЕЛЯ ──────────────────────────────────────────────────────────── -->
   <section class="scr" id="s-week">
     <div class="hero"><div class="cap">7 дней · 35 блюд</div><h1>Неделя</h1></div>
     <div id="week" style="margin-top:16px"></div>
   </section>
 
-  <!-- ── ПОКУПКИ ─────────────────────────────────────────────────────────── -->
   <section class="scr" id="s-cart">
     <div class="hero"><div class="cap">0 из 15 куплено</div><h1>Покупки</h1></div>
     <div id="shop" style="margin-top:6px"></div>
   </section>
 
-  <!-- ── Я ───────────────────────────────────────────────────────────────── -->
   <section class="scr" id="s-me">
     <div class="hero"><div class="cap">Профиль</div><h1>Я</h1></div>
     <div id="me" style="margin-top:16px"></div>
@@ -275,8 +295,7 @@
 
   put('shop', NP.shopping.map(c=>`
     <div class="gh"><b>${c.cat}</b><span>${c.items.length}</span></div>
-    <div class="list glass">${c.items.map(i=>`
-      <div class="si"><div class="cb">${IC.check}</div><span>${i}</span></div>`).join('')}</div>`).join(''));
+    ${c.items.map(i=>`<div class="si glass"><div class="cb">${IC.check}</div><span>${i}</span></div>`).join('')}`).join(''));
 
   put('me', [['Вес сегодня','Последний замер: 70 кг','Записать'],
              ['Серия','1 день подряд','Смотреть'],
