@@ -349,6 +349,23 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 .swap{{flex:0 0 auto;border:1.5px solid var(--line);background:var(--card);color:var(--muted);font-weight:700;
   font-size:14px;padding:11px 16px;border-radius:12px;cursor:pointer}}
 .swap:hover{{border-color:var(--g);color:var(--gd)}}.swap:disabled{{opacity:.5}}
+/* «Не нравится». У кнопки не было НИ ОДНОГО правила: инлайновый svg без
+   размеров сплющивал её в вертикальную чёрточку справа от «Заменить» — на
+   экране это читалось как случайный артефакт вёрстки, а не как кнопка.
+   Делаем квадратной под высоту соседей и задаём размер иконке. */
+.dislike{{flex:0 0 auto;width:44px;border:1.5px solid var(--line);background:var(--card);
+  color:var(--muted);border-radius:12px;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;padding:0;transition:.15s}}
+.dislike svg{{width:19px;height:19px;display:block}}
+.dislike:hover{{border-color:#DC2626;color:#DC2626}}
+.dislike:disabled{{opacity:.5}}
+/* Подтверждение вторым нажатием должно быть ВИДНО на телефоне. Раньше первый
+   тап менял только title — то есть подсказку, которая на тач-экране не
+   показывается вообще, — и человек не понимал, нажалось ли что-нибудь. */
+.dislike.armed{{border-color:#DC2626;color:#DC2626;background:#FEF2F2}}
+.mact .hintx{{flex:0 0 100%;color:#DC2626;font-size:12.5px;font-weight:600;margin-top:-2px;display:none}}
+.mact .hintx.show{{display:block}}
+.mact{{flex-wrap:wrap}}
 .done .dc{{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;position:relative}}
 .meal.on .done{{border-color:var(--g);background:var(--soft);color:var(--gd)}}
 .meal.on .done .dc{{background:var(--g);border-color:var(--g)}}
@@ -631,9 +648,17 @@ if(sp)sp.onclick=async()=>{{
   }}catch(e){{sp.disabled=false;sp.textContent='Сохранить и пересобрать план';if(pm)pm.classList.remove('s');alert('Не удалось пересобрать. Попробуй ещё раз или напиши support@mynutriplan.ru');}}
 }};
 // «Не нравится» — добавить блюдо в стоп-лист и пересобрать план (тяжёлая LLM-операция → подтверждение)
-document.querySelectorAll('.dislike').forEach(b=>{{let armed=false;b.addEventListener('click',async()=>{{
-  if(!armed){{armed=true;b.title='Нажми ещё раз — уберу это блюдо и пересоберу план';b.style.color='#DC2626';
-    setTimeout(()=>{{armed=false;b.style.color='';b.title='Не нравится — убрать из меню';}},4000);return;}}
+document.querySelectorAll('.dislike').forEach(b=>{{let armed=false;
+  // Подсказку рисуем строкой в самой строке действий: title на телефоне не
+  // виден, а без обратной связи первый тап выглядит как «ничего не произошло».
+  const hint=document.createElement('div');hint.className='hintx';
+  hint.textContent='Нажми ещё раз — уберу это блюдо и пересоберу план';
+  b.parentNode.appendChild(hint);
+  b.addEventListener('click',async()=>{{
+  if(!armed){{armed=true;b.classList.add('armed');hint.classList.add('show');
+    b.title='Нажми ещё раз — уберу это блюдо и пересоберу план';
+    setTimeout(()=>{{armed=false;b.classList.remove('armed');hint.classList.remove('show');
+      b.title='Не нравится — убрать из меню';}},4000);return;}}
   const name=b.dataset.name||''; document.querySelectorAll('.dislike').forEach(x=>x.disabled=true);
   try{{
     const r=await fetch('/api/plan/'+T+'/settings',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{dislike:name}})}});

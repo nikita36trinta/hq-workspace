@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Локальная площадка для правок. Исходники ПРИМОНТИРОВАНЫ, uvicorn с --reload,
+# поэтому правка файла видна по F5 — без docker cp и без перезапуска прода.
+#
+# Раньше я гонял каждую итерацию через scp на боевой сервер: 12 секунд на
+# перезапуск и, что важнее, каждое промежуточное состояние висело на живом
+# сайте. Здесь ни того, ни другого.
+#
+#   ./dev.sh          — поднять на http://localhost:8790
+#   ./dev.sh stop     — погасить
+set -euo pipefail
+cd "$(dirname "$0")"
+NAME=nutriplan-dev
+if [ "${1:-}" = "stop" ]; then docker rm -f "$NAME" >/dev/null 2>&1 || true; echo "погашено"; exit 0; fi
+docker rm -f "$NAME" >/dev/null 2>&1 || true
+docker build -q -t nutriplan-dev-img . >/dev/null
+mkdir -p .devdata
+docker run -d --name "$NAME" -p 8790:8790 \
+  -v "$PWD/app.py:/app/app.py:ro" \
+  -v "$PWD/plan.py:/app/plan.py:ro" \
+  -v "$PWD/plan_ai.py:/app/plan_ai.py:ro" \
+  -v "$PWD/dish_photos.py:/app/dish_photos.py:ro" \
+  -v "$PWD/dishes.json:/app/dishes.json:ro" \
+  -v "$PWD/static:/app/static:ro" \
+  -v "$PWD/.devdata:/app/data" \
+  -e DATA_DIR=/app/data \
+  nutriplan-dev-img \
+  uvicorn app:app --host 0.0.0.0 --port 8790 --reload \
+    --reload-dir /app --reload-include '*.py' >/dev/null
+for i in $(seq 1 40); do
+  if curl -fsS -o /dev/null http://localhost:8790/api/health 2>/dev/null; then
+    echo "http://localhost:8790 готов"; exit 0
+  fi
+  sleep 0.5
+done
+echo "не поднялся — docker logs $NAME" >&2; docker logs --tail 30 "$NAME" >&2; exit 1

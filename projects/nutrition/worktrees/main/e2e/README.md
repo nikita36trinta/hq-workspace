@@ -52,3 +52,24 @@ no counter is installed.
 Payments are out of scope by construction: without ЮKassa keys the app answers
 `503 payments not configured`, so the suite covers everything up to the paywall
 and can never spend money.
+
+## Правки — локально, деплой — один раз
+
+Не гоняй итерации через прод. Поднимай площадку рядом:
+
+```
+./dev.sh          # http://localhost:8790, исходники примонтированы, uvicorn --reload
+./dev.sh stop
+```
+
+Правка `.py` или `static/*` видна по F5: ни `docker cp`, ни перезапуска. Данные
+пишутся в `.devdata/` (в .gitignore), поэтому боевые лиды и счётчики не
+трогаются.
+
+Прогон против локальной площадки: `BASE_URL=http://localhost:8790 npx playwright test`.
+Без `BASE_URL` набор сам собирает образ и поднимает свой контейнер на 8791 —
+это и есть режим для CI.
+
+Прод трогаем ОДИН раз, когда правка готова и тесты зелёные. Раньше я деплоил
+каждую итерацию: 12 секунд на перезапуск, и каждое промежуточное состояние
+висело на живом сайте.
