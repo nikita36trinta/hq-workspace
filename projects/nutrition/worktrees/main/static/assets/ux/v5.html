@@ -169,9 +169,15 @@
   .wctl button:active{background:var(--g-soft);color:var(--g-d)}
   .wctl .n{margin:0 auto 0 0;font-family:Unbounded;font-weight:700;font-size:20px;letter-spacing:-.045em}
   .wctl .n small{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:4px}
-  /* Огонёк без подложки и без скругления: это рисунок с прозрачным фоном, а не
-     фотография — рамка вокруг него читалась бы как отдельный элемент. */
-  .mascot{margin-top:8px;width:26px;height:26px}
+  /* Серия — семь дней плана в ряд, как стаканы у воды: закрытые цветные,
+     остальные серые. Одинокий огонёк показывал только достижение и не показывал,
+     сколько ещё идти; ряд отвечает на оба вопроса сразу.
+     Огонёк — многоцветный рисунок, перекрасить его через currentColor нельзя,
+     поэтому незакрытые дни гасим фильтром. */
+  .streak{display:flex;gap:3px;margin-top:9px}
+  .streak img{width:100%;height:auto;display:block}
+  .streak span{flex:1;min-width:0;max-width:22px}
+  .streak span.off img{filter:grayscale(1) opacity(.28)}
 
   .sech{display:flex;align-items:center;justify-content:space-between;margin:26px 4px 12px}
   .sech a{font-size:12.5px;font-weight:700;color:var(--g-d)}
@@ -261,8 +267,8 @@
       </div>
       <div class="t-s glass rise">
         <div class="cap">Серия</div>
-        <img class="mascot" src="/assets/ux/streak-flame.svg" alt="" width="26" height="26">
-        <div class="n num">1<small>день</small></div>
+        <div class="streak" id="streak"></div>
+        <div class="n num" id="s-n"></div>
       </div>
     </div>
 
@@ -328,6 +334,13 @@
     put('w-n', `${water}<small>из ${NP.water.goal}</small>`);
   }
   drawWater();
+
+  // ── Серия: семь дней плана, закрытые цветные ─────────────────────────────
+  const STREAK=1;
+  put('streak', Array.from({length:NP.days},(_,i)=>
+    `<span class="${i<STREAK?'':'off'}"><img src="/assets/ux/streak-flame.svg" alt="" loading="lazy"></span>`).join(''));
+  put('s-n', `${STREAK}<small>из ${NP.days}</small>`);
+
   document.getElementById('w-minus').addEventListener('click',()=>{water--;drawWater();});
   document.getElementById('w-plus').addEventListener('click',()=>{water++;drawWater();});
   document.addEventListener('click',e=>{
