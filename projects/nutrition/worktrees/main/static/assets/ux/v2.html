@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Вариант 2 · Один следующий шаг</title>
+<link rel="stylesheet" href="/assets/ux/_base.css">
+<style>
+  /* ВАРИАНТ 2. «Один следующий шаг».
+     Ставка противоположная первому: никакой навигации вообще. Экран показывает
+     ровно ОДНО дело — то, что делать сейчас, — и ведёт по дню как по маршруту.
+     Всё прочее (неделя, покупки, вес) вызывается кнопкой и приходит шторкой.
+     Для человека, который не хочет «пользоваться приложением», а хочет знать,
+     что съесть. */
+  body{padding-bottom:96px}
+  .hd{display:flex;align-items:center;gap:10px;padding:16px 0 6px}
+  .hd .day{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .hd .bar{flex:1;height:5px;border-radius:99px;background:var(--line);overflow:hidden}
+  .hd .bar i{display:block;height:100%;width:18%;background:var(--g);border-radius:99px}
+  .hd .kk{font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap}
+
+  /* герой: то, что сейчас */
+  .hero{background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden;margin-top:10px;
+    box-shadow:0 24px 50px -34px rgba(20,50,31,.5)}
+  .hero .ph{position:relative}
+  .hero .ph img{width:100%;height:232px;object-fit:cover;background:var(--soft)}
+  .hero .ph .tag{position:absolute;left:14px;top:14px;background:rgba(255,255,255,.94);
+    border-radius:99px;padding:6px 12px;font-size:11.5px;font-weight:800;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--gd)}
+  .hero .ph .kcal{position:absolute;right:14px;bottom:14px;background:rgba(20,50,31,.78);color:#fff;
+    border-radius:99px;padding:6px 13px;font-size:13px;font-weight:800}
+  .hero .b{padding:16px 17px 18px}
+  .hero h2{font-size:23px;font-weight:800;letter-spacing:-.025em;line-height:1.15}
+  .hero .mm{color:var(--muted);font-size:13px;margin-top:6px}
+  .hero .ing{margin-top:14px;border-top:1px solid var(--line);padding-top:13px}
+  .hero .ing .h{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .hero .ing ul{list-style:none;margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+  .hero .ing li{background:var(--bg);border-radius:9px;padding:5px 9px;font-size:12.5px}
+  .hero .st{margin-top:14px;display:flex;flex-direction:column;gap:9px}
+  .hero .st li{display:flex;gap:10px;font-size:13.5px;line-height:1.4}
+  .hero .st b{width:20px;height:20px;border-radius:50%;background:var(--soft);color:var(--gd);
+    font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto;margin-top:1px}
+  .hero .st{list-style:none}
+
+  .after{display:flex;align-items:center;justify-content:space-between;
+    margin-top:16px;padding:0 4px;color:var(--muted);font-size:13px}
+  .after b{color:var(--ink);font-weight:700}
+
+  /* липкое действие — единственная кнопка на экране */
+  .act{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,transparent,var(--bg) 42%)}
+  .act .in{max-width:430px;margin:0 auto;display:flex;gap:9px}
+  .act .go{flex:1;background:var(--g);color:#fff;border-radius:16px;padding:16px;
+    font-size:15.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:9px;
+    box-shadow:0 16px 30px -16px var(--g)}
+  .act .go i{width:18px;height:18px}
+  .act .sec{width:52px;border:1.5px solid var(--line);background:var(--card);border-radius:16px;
+    color:var(--muted);display:flex;align-items:center;justify-content:center}
+  .act .sec i{width:21px;height:21px}
+
+  /* шторка */
+  .sheet{position:fixed;inset:0;z-index:40;display:none}
+  .sheet.on{display:block}
+  .sheet .bg{position:absolute;inset:0;background:rgba(20,40,20,.45)}
+  .sheet .pn{position:absolute;left:0;right:0;bottom:0;max-height:82vh;overflow:auto;
+    background:var(--card);border-radius:22px 22px 0 0;padding:8px 16px calc(20px + env(safe-area-inset-bottom))}
+  .sheet .grab{width:38px;height:4px;border-radius:99px;background:var(--line);margin:6px auto 12px}
+  .sheet h3{font-size:17px;font-weight:800;margin-bottom:10px}
+  .sheet .li{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .sheet .li:last-child{border-bottom:none}
+  .sheet .li b{font-size:14px;font-weight:700}
+  .sheet .li span{font-size:12px;color:var(--muted);display:block}
+  .sheet .li .k{margin-left:auto;font-size:12.5px;font-weight:800;color:var(--muted)}
+  .more{display:flex;gap:8px;margin-top:14px}
+  .more button{flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:11px 8px;font-size:12.5px;font-weight:700;display:flex;flex-direction:column;
+    align-items:center;gap:5px;color:var(--muted)}
+  .more button i{width:19px;height:19px}
+</style>
+</head>
+<body>
+<div class="demoh"><a href="/assets/ux/">✕</a><b>Вариант 2 · Один следующий шаг</b><span>без навигации</span></div>
+
+<div class="wrap">
+  <div class="hd">
+    <span class="day">День 1</span>
+    <span class="bar"><i></i></span>
+    <span class="kk tnum">280 / 1580</span>
+  </div>
+
+  <article class="hero">
+    <div class="ph">
+      <img src="/dish/banan-svezhiy" alt="">
+      <span class="tag">Сейчас · перекус</span>
+      <span class="kcal tnum">105 ккал</span>
+    </div>
+    <div class="b">
+      <h2>Банан свежий</h2>
+      <div class="mm">Б 1 · Ж 0 · У 27 · готовить не нужно</div>
+      <div class="ing">
+        <div class="h">Нужно</div>
+        <ul><li>банан 1 шт (100 г)</li></ul>
+      </div>
+      <ul class="st">
+        <li><b>1</b><span>Очистить банан и съесть.</span></li>
+      </ul>
+    </div>
+  </article>
+
+  <div class="after"><span>Дальше: <b>Обед в 14:00</b></span><span>Куриная грудка с рисом</span></div>
+
+  <div class="more">
+    <button data-sheet="day"><i id="m1"></i>День целиком</button>
+    <button data-sheet="cart"><i id="m2"></i>Покупки</button>
+    <button data-sheet="week"><i id="m3"></i>Неделя</button>
+  </div>
+</div>
+
+<div class="act"><div class="in">
+  <button class="go"><i id="ic-check"></i>Съел это</button>
+  <button class="sec" aria-label="Заменить"><i id="ic-swap"></i></button>
+</div></div>
+
+<div class="sheet" id="sheet">
+  <div class="bg"></div>
+  <div class="pn"><div class="grab"></div><h3 id="sh-t"></h3><div id="sh-b"></div></div>
+</div>
+
+<script src="/assets/ux/_shared.js"></script>
+<script>
+  const put = (id, s) => { const e = document.getElementById(id); if (e) e.innerHTML = s; };
+  put('ic-check', IC.check); put('ic-swap', IC.swap);
+  put('m1', IC.clock); put('m2', IC.cart); put('m3', IC.week);
+
+  const sheets = {
+    day: ['День 1 целиком', NP.meals.map((m) => `
+      <div class="li"><img class="mi" src="${dishUrl(m.slug)}" width="40" height="40" alt="">
+        <div><b>${m.name}</b><span>${m.slot} · ${m.time}</span></div>
+        <div class="k">${m.kcal} ккал</div></div>`).join('')],
+    cart: ['Список покупок', NP.shopping.map((c) => `
+      <div class="li"><div><b>${c.cat}</b><span>${c.items.slice(0,3).join(' · ')}…</span></div>
+        <div class="k">${c.items.length}</div></div>`).join('')],
+    week: ['Неделя', Array.from({length:7}, (_, i) => `
+      <div class="li"><div><b>День ${i+1}${i===0?' · сегодня':''}</b>
+        <span>${['Овсянка, курица, треска','Омлет, суп, индейка','Творог, паста, салат','Каша, рыба, овощи','Яйца, гречка, курица','Сырники, суп, рыба','Йогурт, плов, салат'][i]}</span></div>
+        <div class="k">${[1565,1580,1540,1600,1575,1590,1555][i]} ккал</div></div>`).join('')],
+  };
+  const sh = document.getElementById('sheet');
+  document.querySelectorAll('[data-sheet]').forEach((b) => b.addEventListener('click', () => {
+    const [t, body] = sheets[b.dataset.sheet];
+    document.getElementById('sh-t').textContent = t;
+    document.getElementById('sh-b').innerHTML = body;
+    sh.classList.add('on');
+  }));
+  sh.querySelector('.bg').addEventListener('click', () => sh.classList.remove('on'));
+</script>
+</body>
+</html>

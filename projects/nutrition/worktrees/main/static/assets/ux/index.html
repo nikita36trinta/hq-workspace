@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NutriPlan · четыре модели приложения</title>
+<link rel="stylesheet" href="/assets/ux/_base.css">
+<style>
+  .h{padding:26px 0 6px}
+  .h h1{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+  .h p{color:var(--muted);font-size:14px;margin-top:8px}
+  .now{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 15px;margin-top:16px}
+  .now .t{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .now ul{list-style:none;margin-top:9px;display:flex;flex-direction:column;gap:7px}
+  .now li{font-size:13.5px;display:flex;gap:9px;line-height:1.4}
+  .now li b{font-weight:800;font-variant-numeric:tabular-nums;flex:0 0 auto;color:var(--ink)}
+  .now li span{color:var(--muted)}
+  .cards{display:flex;flex-direction:column;gap:12px;margin:22px 0 40px}
+  .c{display:block;background:var(--card);border:1px solid var(--line);border-radius:18px;
+    padding:16px 17px;text-decoration:none;transition:.15s}
+  .c:hover{border-color:var(--g)}
+  .c .n{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--gd)}
+  .c h2{font-size:18px;font-weight:800;letter-spacing:-.015em;margin-top:4px}
+  .c p{font-size:13.5px;color:var(--muted);margin-top:6px;line-height:1.45}
+  .c .fr{display:flex;gap:14px;margin-top:11px;font-size:12.5px}
+  .c .fr div{flex:1}
+  .c .fr b{display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="h">
+    <h1>Четыре модели приложения</h1>
+    <p>Это не четыре оформления одного экрана, а четыре разных способа им пользоваться.
+       Данные во всех — настоящие: первый день боевого плана. Открывать с телефона
+       или в узком окне.</p>
+  </div>
+
+  <div class="now">
+    <div class="t">Что не так сейчас — замер боевого экрана</div>
+    <ul>
+      <li><b>5292 px</b><span>высота страницы: восемь экранов подряд, без навигации</span></li>
+      <li><b>165</b><span>кнопок на одной странице</span></li>
+      <li><b>35</b><span>блюд отрисованы разом — вся неделя, хотя нужен один день</span></li>
+      <li><b>3</b><span>кнопки у каждого блюда, и рецепт спрятан в раскрывашку</span></li>
+    </ul>
+  </div>
+
+  <div class="cards">
+    <a class="c" href="/assets/ux/v1.html">
+      <div class="n">Вариант 1</div>
+      <h2>«Сегодня» и нижняя навигация</h2>
+      <p>На входе — один день: кольцо калорий, следующий приём крупно, остальные строками.
+         Неделя, покупки и личное — отдельные вкладки внизу. Привычная модель приложения.</p>
+      <div class="fr">
+        <div><b>Сильное</b>Понятно всем, всё находится за один тап</div>
+        <div><b>Слабое</b>Самое обычное решение, ничем не запоминается</div>
+      </div>
+    </a>
+
+    <a class="c" href="/assets/ux/v2.html">
+      <div class="n">Вариант 2</div>
+      <h2>Один следующий шаг</h2>
+      <p>Навигации нет вовсе. Экран показывает ровно одно дело — что съесть сейчас — и ведёт
+         по дню как по маршруту. Неделя и покупки приходят шторкой по кнопке.</p>
+      <div class="fr">
+        <div><b>Сильное</b>Нечего решать: открыл и делаешь</div>
+        <div><b>Слабое</b>Плохо, если человек хочет посмотреть вперёд</div>
+      </div>
+    </a>
+
+    <a class="c" href="/assets/ux/v3.html">
+      <div class="n">Вариант 3</div>
+      <h2>Плотный чек-лист</h2>
+      <p>Весь день на одном экране без прокрутки, фото нет: еда, вода и вес — единый список
+         с галочками. Рецепт раскрывается на месте. Инструмент, а не витрина.</p>
+      <div class="fr">
+        <div><b>Сильное</b>Быстрее всех в реальном использовании</div>
+        <div><b>Слабое</b>Не продаёт: выглядит как таблица дел</div>
+      </div>
+    </a>
+
+    <a class="c" href="/assets/ux/v4.html">
+      <div class="n">Вариант 4</div>
+      <h2>Карточки, листаются вбок</h2>
+      <p>Каждый приём — отдельный экран целиком: большое фото, состав и шаги сразу, без
+         раскрывашек. Прокрутки вниз нет, только листание пальцем.</p>
+      <div class="fr">
+        <div><b>Сильное</b>Лучший момент готовки, еда выглядит едой</div>
+        <div><b>Слабое</b>Обзор дня требует пролистать всё</div>
+      </div>
+    </a>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,32 @@
+/* Общая база прототипов: те же токены, что в боевом приложении, чтобы сравнивать
+   МОДЕЛИ РАБОТЫ, а не палитры. Всё, что различается между вариантами, живёт в
+   самих файлах. */
+:root{
+  --g:#16A34A; --gd:#0E7A36; --soft:#E7F8EC; --ink:#20321F; --muted:#6B7566;
+  --bg:#FBF8F1; --card:#fff; --line:#EEE7D8; --wtr:#38BDF8; --wtr-soft:#E0F2FE;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{overflow-x:clip}
+body{background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+  line-height:1.45;-webkit-font-smoothing:antialiased;padding-bottom:0}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+img{display:block;max-width:100%}
+svg{width:100%;height:100%;display:block}
+a{color:inherit}
+
+.wrap{max-width:430px;margin:0 auto;padding:0 16px}
+
+/* заголовок прототипа — только в демо, в продукте его не будет */
+.demoh{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 92%,transparent);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);padding:9px 16px;display:flex;align-items:center;gap:10px}
+.demoh a{width:26px;height:26px;color:var(--muted);flex:0 0 auto}
+.demoh b{font-size:13px;font-weight:800;letter-spacing:.02em}
+.demoh span{font-size:12px;color:var(--muted);margin-left:auto}
+
+.mi{border-radius:12px;background:var(--soft);object-fit:cover;flex:0 0 auto}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.pill i{width:13px;height:13px;display:block;flex:0 0 auto}
+.tnum{font-variant-numeric:tabular-nums}

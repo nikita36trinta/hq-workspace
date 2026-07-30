@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Вариант 4 · Карточки-истории</title>
+<link rel="stylesheet" href="/assets/ux/_base.css">
+<style>
+  /* ВАРИАНТ 4. Карточки-истории, листаются вбок.
+     Ставка: пять приёмов дня — это пять экранов, а не список. Каждый занимает
+     целиком, с большим фото, составом и шагами СРАЗУ (без раскрывашки «Рецепт»),
+     и листается пальцем вбок. Прокрутки вниз нет вообще.
+     Сильная сторона — момент готовки: всё нужное перед глазами, руки заняты.
+     Слабая — обзор: чтобы увидеть весь день, надо пролистать. */
+  body{overflow:hidden}
+  .stage{position:fixed;inset:41px 0 0;display:flex;flex-direction:column}
+
+  .prog{display:flex;gap:4px;padding:10px 16px 8px}
+  .prog i{flex:1;height:3px;border-radius:99px;background:var(--line)}
+  .prog i.on{background:var(--g)}
+  .prog i.past{background:color-mix(in srgb,var(--g) 45%,var(--line))}
+
+  .track{flex:1;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;
+    scrollbar-width:none;-ms-overflow-style:none}
+  .track::-webkit-scrollbar{display:none}
+  .card{flex:0 0 100%;scroll-snap-align:center;overflow-y:auto;padding:0 16px 18px}
+  .card .inner{max-width:430px;margin:0 auto}
+
+  .ph{position:relative;border-radius:22px;overflow:hidden;background:var(--soft)}
+  .ph img{width:100%;height:250px;object-fit:cover}
+  .ph .meta{position:absolute;left:0;right:0;bottom:0;padding:32px 15px 14px;
+    background:linear-gradient(180deg,transparent,rgba(16,32,14,.82));color:#fff}
+  .ph .meta .s{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.85}
+  .ph .meta h2{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.18;margin-top:3px}
+  .ph .meta .k{font-size:13px;opacity:.9;margin-top:4px}
+
+  .cols{display:flex;gap:8px;margin-top:12px}
+  .cols div{flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:9px 6px;text-align:center}
+  .cols b{display:block;font-size:15px;font-weight:800}
+  .cols span{font-size:10.5px;color:var(--muted)}
+
+  .blk{margin-top:14px}
+  .blk .h{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:8px}
+  .ing{display:flex;flex-wrap:wrap;gap:6px;list-style:none}
+  .ing li{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 11px;font-size:13px}
+  .steps{list-style:none;display:flex;flex-direction:column;gap:10px}
+  .steps li{display:flex;gap:11px;font-size:14px;line-height:1.42}
+  .steps b{width:22px;height:22px;border-radius:50%;background:var(--soft);color:var(--gd);
+    font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto;margin-top:1px}
+
+  .foot{padding:10px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);
+    background:var(--card)}
+  .foot .in{max-width:430px;margin:0 auto;display:flex;align-items:center;gap:9px}
+  .foot .go{flex:1;background:var(--g);color:#fff;border-radius:14px;padding:14px;font-size:15px;
+    font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}
+  .foot .go i{width:17px;height:17px}
+  .foot .go.on{background:var(--soft);color:var(--gd)}
+  .foot .ic{width:48px;height:48px;border:1.5px solid var(--line);border-radius:14px;color:var(--muted);
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .foot .ic i{width:20px;height:20px}
+  .hint{text-align:center;color:var(--muted);font-size:11.5px;padding:6px 0 0}
+</style>
+</head>
+<body>
+<div class="demoh"><a href="/assets/ux/">✕</a><b>Вариант 4 · Карточки</b><span>листать вбок</span></div>
+
+<div class="stage">
+  <div class="prog" id="prog"></div>
+  <div class="track" id="track"></div>
+  <div class="foot">
+    <div class="in">
+      <button class="ic" aria-label="Заменить"><i id="f1"></i></button>
+      <button class="go" id="go"><i id="f2"></i><span>Приготовил</span></button>
+      <button class="ic" aria-label="Покупки"><i id="f3"></i></button>
+    </div>
+    <div class="hint" id="hint"></div>
+  </div>
+</div>
+
+<script src="/assets/ux/_shared.js"></script>
+<script>
+  const put = (id, s) => { const e = document.getElementById(id); if (e) e.innerHTML = s; };
+  put('f1', IC.swap); put('f2', IC.check); put('f3', IC.cart);
+
+  const track = document.getElementById('track');
+  track.innerHTML = NP.meals.map((m) => `
+    <section class="card"><div class="inner">
+      <div class="ph">
+        <img src="${dishUrl(m.slug)}" alt="">
+        <div class="meta"><div class="s">${m.slot} · ${m.time}</div><h2>${m.name}</h2>
+          <div class="k">${m.kcal} ккал</div></div>
+      </div>
+      <div class="cols">
+        <div><b>${m.p}</b><span>белки, г</span></div>
+        <div><b>${m.f}</b><span>жиры, г</span></div>
+        <div><b>${m.c}</b><span>углеводы, г</span></div>
+      </div>
+      <div class="blk"><div class="h">Нужно</div>
+        <ul class="ing">${m.ing.map((i) => `<li>${i}</li>`).join('')}</ul></div>
+      <div class="blk"><div class="h">Как готовить</div>
+        <ol class="steps">${m.steps.map((s, n) => `<li><b>${n + 1}</b><span>${s}</span></li>`).join('')}</ol></div>
+    </div></section>`).join('');
+
+  document.getElementById('prog').innerHTML = NP.meals.map(() => '<i></i>').join('');
+  const bars = [...document.querySelectorAll('#prog i')];
+  const go = document.getElementById('go');
+  const hint = document.getElementById('hint');
+
+  function paint() {
+    const i = Math.round(track.scrollLeft / track.clientWidth);
+    bars.forEach((b, n) => {
+      b.classList.toggle('on', n === i);
+      b.classList.toggle('past', n < i);
+    });
+    const m = NP.meals[i];
+    const done = m.done;
+    go.classList.toggle('on', done);
+    go.querySelector('span').textContent = done ? 'Отмечено' : 'Приготовил';
+    hint.textContent = i < NP.meals.length - 1
+      ? `Дальше: ${NP.meals[i + 1].slot} · ${NP.meals[i + 1].name}`
+      : 'Это последний приём на сегодня';
+  }
+  track.addEventListener('scroll', () => { clearTimeout(window._t); window._t = setTimeout(paint, 60); });
+  go.addEventListener('click', () => {
+    const i = Math.round(track.scrollLeft / track.clientWidth);
+    NP.meals[i].done = !NP.meals[i].done;
+    paint();
+  });
+  paint();
+</script>
+</body>
+</html>

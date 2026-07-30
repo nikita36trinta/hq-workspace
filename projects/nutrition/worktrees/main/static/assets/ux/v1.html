@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Вариант 1 · Сегодня + нижняя навигация</title>
+<link rel="stylesheet" href="/assets/ux/_base.css">
+<style>
+  /* ВАРИАНТ 1. «Сегодня» + нижняя навигация.
+     Ставка: приложение открывают, чтобы узнать, что есть СЕЙЧАС. Значит на входе
+     должен быть один день, а не вся неделя. Неделя, покупки и личное уезжают в
+     отдельные вкладки — так экран перестаёт быть восьмиэкранным свитком. */
+  body{padding-bottom:76px}
+  .top{padding:14px 0 4px}
+  .top h1{font-size:21px;font-weight:800;letter-spacing:-.02em}
+  .top p{color:var(--muted);font-size:13px;margin-top:2px}
+
+  /* кольцо калорий — главное число дня */
+  .ring{display:flex;align-items:center;gap:16px;background:var(--card);border:1px solid var(--line);
+    border-radius:20px;padding:16px;margin-top:12px}
+  .ring .r{width:84px;height:84px;flex:0 0 auto;position:relative}
+  .ring .r svg{transform:rotate(-90deg)}
+  .ring .r b{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;font-size:19px;font-weight:800;letter-spacing:-.02em}
+  .ring .r b span{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.04em}
+  .ring .rt{min-width:0}
+  .ring .rt .h{font-size:15px;font-weight:800}
+  .ring .rt .s{font-size:13px;color:var(--muted);margin-top:2px}
+  .mac{display:flex;gap:7px;margin-top:10px}
+  .mac div{flex:1;background:var(--bg);border-radius:10px;padding:6px 8px;text-align:center}
+  .mac b{display:block;font-size:13px;font-weight:800;line-height:1.2}
+  .mac b span{display:block;font-size:10px;font-weight:600;color:var(--muted);margin-top:1px}
+
+  .sech{display:flex;align-items:baseline;justify-content:space-between;margin:22px 2px 10px}
+  .sech h2{font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+  .sech a{font-size:12.5px;font-weight:700;color:var(--gd);text-decoration:none}
+
+  /* Следующий приём — крупной карточкой. Остальные компактно: в любой момент
+     важен ОДИН, и он не должен теряться в ряду одинаковых строк. */
+  .next{background:var(--card);border:1.5px solid var(--g);border-radius:20px;overflow:hidden}
+  .next img{width:100%;height:168px;object-fit:cover;background:var(--soft)}
+  .next .b{padding:14px 15px 15px}
+  .next .when{display:flex;align-items:center;gap:7px;color:var(--gd)}
+  .next .when i{width:14px;height:14px}
+  .next .when span{font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+  .next h3{font-size:19px;font-weight:800;letter-spacing:-.02em;margin-top:5px;line-height:1.2}
+  .next .m{color:var(--muted);font-size:12.5px;margin-top:4px}
+  .next .act{display:flex;gap:8px;margin-top:13px}
+  .next .go{flex:1;background:var(--g);color:#fff;border-radius:13px;padding:13px;
+    font-size:14.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}
+  .next .go i{width:17px;height:17px}
+  .next .alt{width:46px;border:1.5px solid var(--line);border-radius:13px;color:var(--muted);
+    display:flex;align-items:center;justify-content:center}
+  .next .alt i{width:19px;height:19px}
+
+  .rows{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .row{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:9px 11px}
+  .row img{width:42px;height:42px;border-radius:11px;object-fit:cover;background:var(--soft)}
+  .row .t{min-width:0;flex:1}
+  .row .t b{display:block;font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .t span{font-size:11.5px;color:var(--muted)}
+  .row .k{font-size:12.5px;font-weight:800;color:var(--muted);white-space:nowrap}
+  .row.on{opacity:.55}
+  .row.on .t b{text-decoration:line-through}
+  .row .tick{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;color:transparent}
+  .row.on .tick{background:var(--g);border-color:var(--g);color:#fff}
+  .row .tick i{width:13px;height:13px}
+
+  .wtr{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;padding:12px 14px;margin-top:10px}
+  .wtr .lbl{font-size:13.5px;font-weight:700}
+  .wtr .cups{display:flex;gap:4px;margin-left:auto}
+  .wtr .cup{width:15px;height:19px;border-radius:3px 3px 5px 5px;background:var(--line)}
+  .wtr .cup.f{background:var(--wtr)}
+
+  /* нижняя навигация — то, чего у приложения нет вовсе */
+  .nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:color-mix(in srgb,var(--card) 94%,transparent);
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line);
+    display:flex;padding:7px 6px calc(7px + env(safe-area-inset-bottom))}
+  .nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+    color:var(--muted);font-size:10.5px;font-weight:700;padding:5px 0}
+  .nav button i{width:22px;height:22px}
+  .nav button.on{color:var(--gd)}
+  .scr{display:none}.scr.on{display:block}
+</style>
+</head>
+<body>
+<div class="demoh"><a href="/assets/ux/">✕</a><b>Вариант 1 · «Сегодня»</b><span>нижняя навигация</span></div>
+
+<div class="wrap">
+  <!-- ── СЕГОДНЯ ────────────────────────────────────────────────────────── -->
+  <section class="scr on" id="s-home">
+    <div class="top"><h1>День 1 из 7</h1><p>Осталось 4 приёма · 1300 ккал</p></div>
+
+    <div class="ring">
+      <div class="r">
+        <svg viewBox="0 0 84 84">
+          <circle cx="42" cy="42" r="36" fill="none" stroke="var(--line)" stroke-width="8"/>
+          <circle cx="42" cy="42" r="36" fill="none" stroke="var(--g)" stroke-width="8"
+            stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="186"/>
+        </svg>
+        <b>280<span>из 1580</span></b>
+      </div>
+      <div class="rt">
+        <div class="h">Норма на день</div>
+        <div class="s">Осталось 1300 ккал</div>
+        <div class="mac">
+          <div><b>10<span>белки</span></b></div>
+          <div><b>5<span>жиры</span></b></div>
+          <div><b>50<span>углеводы</span></b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sech"><h2>Сейчас</h2><span class="pill"><i id="ic-clock"></i>11:00</span></div>
+    <article class="next">
+      <img src="/dish/banan-svezhiy" alt="">
+      <div class="b">
+        <div class="when"><i id="ic-clock2"></i><span>Перекус · 11:00</span></div>
+        <h3>Банан свежий</h3>
+        <div class="m">105 ккал · Б 1 · Ж 0 · У 27</div>
+        <div class="act">
+          <button class="go"><i id="ic-check"></i>Приготовил</button>
+          <button class="alt" aria-label="Заменить"><i id="ic-swap"></i></button>
+        </div>
+      </div>
+    </article>
+
+    <div class="sech"><h2>Дальше сегодня</h2></div>
+    <div class="rows" id="rest"></div>
+
+    <div class="wtr">
+      <span class="lbl">Вода</span>
+      <span class="cups" id="cups"></span>
+    </div>
+  </section>
+
+  <!-- ── НЕДЕЛЯ ─────────────────────────────────────────────────────────── -->
+  <section class="scr" id="s-week">
+    <div class="top"><h1>Неделя</h1><p>7 дней, 35 блюд</p></div>
+    <div class="rows" id="week"></div>
+  </section>
+
+  <!-- ── ПОКУПКИ ────────────────────────────────────────────────────────── -->
+  <section class="scr" id="s-cart">
+    <div class="top"><h1>Покупки</h1><p>0 из 15 куплено</p></div>
+    <div id="shop"></div>
+  </section>
+
+  <!-- ── Я ──────────────────────────────────────────────────────────────── -->
+  <section class="scr" id="s-me">
+    <div class="top"><h1>Я</h1><p>Вес, прогресс и подписка</p></div>
+    <div class="rows">
+      <div class="row"><div class="t"><b>Вес сегодня</b><span>Последний: 70 кг</span></div><div class="k">Записать</div></div>
+      <div class="row"><div class="t"><b>Серия</b><span>1 день подряд</span></div><div class="k">Смотреть</div></div>
+      <div class="row"><div class="t"><b>Подписка</b><span>499 ₽ · следующее списание 29 августа</span></div><div class="k">Управлять</div></div>
+    </div>
+  </section>
+</div>
+
+<nav class="nav">
+  <button class="on" data-s="home"><i id="n1"></i>Сегодня</button>
+  <button data-s="week"><i id="n2"></i>Неделя</button>
+  <button data-s="cart"><i id="n3"></i>Покупки</button>
+  <button data-s="me"><i id="n4"></i>Я</button>
+</nav>
+
+<script src="/assets/ux/_shared.js"></script>
+<script>
+  const put = (id, svg) => { const e = document.getElementById(id); if (e) e.innerHTML = svg; };
+  put('ic-clock', IC.clock); put('ic-clock2', IC.clock); put('ic-check', IC.check); put('ic-swap', IC.swap);
+  put('n1', IC.home); put('n2', IC.week); put('n3', IC.cart); put('n4', IC.me);
+
+  // «Дальше сегодня» — всё, кроме текущего приёма
+  document.getElementById('rest').innerHTML = NP.meals.filter((m, i) => i !== 1).map((m) => `
+    <div class="row${m.done ? ' on' : ''}">
+      <img src="${dishUrl(m.slug)}" alt="">
+      <div class="t"><b>${m.name}</b><span>${m.slot} · ${m.time}</span></div>
+      <div class="k">${m.kcal} ккал</div>
+      <div class="tick">${IC.check}</div>
+    </div>`).join('');
+
+  document.getElementById('cups').innerHTML =
+    Array.from({length: NP.water.goal}, (_, i) => `<span class="cup${i < NP.water.done ? ' f' : ''}"></span>`).join('');
+
+  document.getElementById('week').innerHTML = Array.from({length: 7}, (_, i) => `
+    <div class="row${i === 0 ? '' : ''}">
+      <div class="t"><b>День ${i + 1}${i === 0 ? ' · сегодня' : ''}</b>
+        <span>${['Овсянка, курица, треска','Омлет, суп, индейка','Творог, паста, салат','Каша, рыба, овощи','Яйца, гречка, курица','Сырники, суп, рыба','Йогурт, плов, салат'][i]}</span></div>
+      <div class="k">${[1565,1580,1540,1600,1575,1590,1555][i]} ккал</div>
+    </div>`).join('');
+
+  document.getElementById('shop').innerHTML = NP.shopping.map((c) => `
+    <div class="sech"><h2>${c.cat}</h2></div>
+    <div class="rows">${c.items.map((i) => `
+      <div class="row"><div class="tick">${IC.check}</div><div class="t"><b>${i}</b></div></div>`).join('')}</div>`).join('');
+
+  document.querySelectorAll('.nav button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.nav button').forEach((x) => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.scr').forEach((s) => s.classList.toggle('on', s.id === 's-' + b.dataset.s));
+    scrollTo(0, 0);
+  }));
+
+  document.querySelectorAll('.row .tick, .next .go').forEach((el) => el.addEventListener('click', (e) => {
+    const row = e.target.closest('.row');
+    if (row) row.classList.toggle('on');
+  }));
+</script>
+</body>
+</html>
