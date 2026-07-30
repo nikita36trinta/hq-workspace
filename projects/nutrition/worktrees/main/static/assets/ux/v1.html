@@ -4,160 +4,176 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Вариант 1 · Сегодня + нижняя навигация</title>
+<title>Вариант 1 · Табло дня</title>
 <link rel="stylesheet" href="/assets/ux/_base.css">
 <style>
-  /* ВАРИАНТ 1. «Сегодня» + нижняя навигация.
-     Ставка: приложение открывают, чтобы узнать, что есть СЕЙЧАС. Значит на входе
-     должен быть один день, а не вся неделя. Неделя, покупки и личное уезжают в
-     отдельные вкладки — так экран перестаёт быть восьмиэкранным свитком. */
-  body{padding-bottom:76px}
-  .top{padding:14px 0 4px}
-  .top h1{font-size:21px;font-weight:800;letter-spacing:-.02em}
-  .top p{color:var(--muted);font-size:13px;margin-top:2px}
+  /* ВАРИАНТ 1 · «ТАБЛО ДНЯ» — bento-сетка.
+     Референс: бенто-раскладки (тренд 2026) + приборные панели Lifesum.
+     Идея: день — это не список, а ПАНЕЛЬ. Разные по важности вещи занимают
+     разные по размеру плитки, поэтому взгляд сам находит главное. Норма — самая
+     крупная плитка с числом дисплейным шрифтом; следующий приём — широкая плитка
+     с фото; вода и серия — мелкие.
+     Так экран перестаёт быть колонкой одинаковых карточек. */
+  body{padding-bottom:88px}
+  .hero{padding:20px 0 4px}
+  .hero .cap{margin-bottom:7px}
+  .hero h1{font-family:Unbounded;font-weight:800;font-size:29px;letter-spacing:-.04em;line-height:1}
+  .hero p{color:var(--ink-2);font-size:14px;margin-top:8px}
 
-  /* кольцо калорий — главное число дня */
-  .ring{display:flex;align-items:center;gap:16px;background:var(--card);border:1px solid var(--line);
-    border-radius:20px;padding:16px;margin-top:12px}
-  .ring .r{width:84px;height:84px;flex:0 0 auto;position:relative}
-  .ring .r svg{transform:rotate(-90deg)}
-  .ring .r b{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
-    justify-content:center;font-size:19px;font-weight:800;letter-spacing:-.02em}
-  .ring .r b span{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.04em}
-  .ring .rt{min-width:0}
-  .ring .rt .h{font-size:15px;font-weight:800}
-  .ring .rt .s{font-size:13px;color:var(--muted);margin-top:2px}
-  .mac{display:flex;gap:7px;margin-top:10px}
-  .mac div{flex:1;background:var(--bg);border-radius:10px;padding:6px 8px;text-align:center}
-  .mac b{display:block;font-size:13px;font-weight:800;line-height:1.2}
-  .mac b span{display:block;font-size:10px;font-weight:600;color:var(--muted);margin-top:1px}
+  .bento{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:16px}
+  .b-cal{grid-column:1 / -1;background:var(--ink);color:#fff;border-radius:var(--r-l);
+    padding:20px 20px 18px;position:relative;overflow:hidden;box-shadow:var(--sh-2)}
+  .b-cal::after{content:'';position:absolute;right:-40px;top:-40px;width:180px;height:180px;
+    border-radius:50%;background:radial-gradient(circle at 30% 30%,rgba(30,142,74,.55),transparent 70%)}
+  .b-cal .cap{color:rgba(255,255,255,.55)}
+  .b-cal .big{font-family:Unbounded;font-weight:800;font-size:56px;letter-spacing:-.05em;
+    line-height:.9;margin-top:10px}
+  .b-cal .big i{font-style:normal;font-size:17px;font-weight:600;letter-spacing:-.01em;
+    opacity:.6;margin-left:8px}
+  .b-cal .left{font-size:13.5px;color:rgba(255,255,255,.7);margin-top:8px}
+  .b-cal .track{display:flex;gap:4px;margin-top:15px;position:relative;z-index:1}
+  .b-cal .track i{flex:1;height:5px;border-radius:99px;background:rgba(255,255,255,.16)}
+  .b-cal .track i.on{background:var(--g)}
+  .b-cal .mac{display:flex;gap:16px;margin-top:15px;position:relative;z-index:1}
+  .b-cal .mac div span{display:block;font-size:10.5px;color:rgba(255,255,255,.5);letter-spacing:.06em;
+    text-transform:uppercase;font-weight:700}
+  .b-cal .mac div b{font-size:17px;font-weight:700}
 
-  .sech{display:flex;align-items:baseline;justify-content:space-between;margin:22px 2px 10px}
-  .sech h2{font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
-  .sech a{font-size:12.5px;font-weight:700;color:var(--gd);text-decoration:none}
-
-  /* Следующий приём — крупной карточкой. Остальные компактно: в любой момент
-     важен ОДИН, и он не должен теряться в ряду одинаковых строк. */
-  .next{background:var(--card);border:1.5px solid var(--g);border-radius:20px;overflow:hidden}
-  .next img{width:100%;height:168px;object-fit:cover;background:var(--soft)}
-  .next .b{padding:14px 15px 15px}
-  .next .when{display:flex;align-items:center;gap:7px;color:var(--gd)}
-  .next .when i{width:14px;height:14px}
-  .next .when span{font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
-  .next h3{font-size:19px;font-weight:800;letter-spacing:-.02em;margin-top:5px;line-height:1.2}
-  .next .m{color:var(--muted);font-size:12.5px;margin-top:4px}
-  .next .act{display:flex;gap:8px;margin-top:13px}
-  .next .go{flex:1;background:var(--g);color:#fff;border-radius:13px;padding:13px;
-    font-size:14.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}
-  .next .go i{width:17px;height:17px}
-  .next .alt{width:46px;border:1.5px solid var(--line);border-radius:13px;color:var(--muted);
+  .b-next{grid-column:1 / -1;border-radius:var(--r-l);overflow:hidden;background:var(--card);
+    box-shadow:var(--sh-2);position:relative}
+  .b-next img{width:100%;height:200px;object-fit:cover}
+  .b-next .now{position:absolute;left:14px;top:14px;background:var(--accent);color:#fff;
+    border-radius:99px;padding:6px 13px;font-size:11px;font-weight:800;letter-spacing:.09em;
+    text-transform:uppercase;box-shadow:0 8px 18px -8px rgba(232,98,42,.9)}
+  .b-next .in{padding:15px 17px 17px}
+  .b-next h2{font-family:Unbounded;font-weight:700;font-size:20px;letter-spacing:-.03em;line-height:1.1}
+  .b-next .sub{color:var(--muted);font-size:13px;margin-top:6px}
+  .b-next .row{display:flex;gap:9px;margin-top:14px}
+  .b-next .go{flex:1;background:var(--g);color:#fff;border-radius:15px;padding:15px;
+    font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;
+    box-shadow:0 14px 26px -14px var(--g)}
+  .b-next .go i{width:18px;height:18px}
+  .b-next .alt{width:52px;border-radius:15px;background:var(--bg-2);color:var(--ink-2);
     display:flex;align-items:center;justify-content:center}
-  .next .alt i{width:19px;height:19px}
+  .b-next .alt i{width:20px;height:20px}
 
-  .rows{display:flex;flex-direction:column;gap:8px;margin-top:10px}
-  .row{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);
-    border-radius:14px;padding:9px 11px}
-  .row img{width:42px;height:42px;border-radius:11px;object-fit:cover;background:var(--soft)}
-  .row .t{min-width:0;flex:1}
-  .row .t b{display:block;font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .row .t span{font-size:11.5px;color:var(--muted)}
-  .row .k{font-size:12.5px;font-weight:800;color:var(--muted);white-space:nowrap}
-  .row.on{opacity:.55}
-  .row.on .t b{text-decoration:line-through}
-  .row .tick{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;
+  .b-s{background:var(--card);border-radius:var(--r-m);padding:15px 16px;box-shadow:var(--sh-1);
+    display:flex;flex-direction:column;justify-content:space-between;min-height:112px}
+  .b-s .n{font-family:Unbounded;font-weight:700;font-size:25px;letter-spacing:-.04em;margin-top:auto}
+  .b-s .n small{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:3px}
+  .cups{display:flex;gap:3px;margin-top:9px}
+  .cups i{flex:1;height:24px;border-radius:4px 4px 6px 6px;background:var(--bg-2)}
+  .cups i.f{background:var(--wtr)}
+  .flame{width:26px;height:26px;color:var(--accent)}
+
+  .sech{display:flex;align-items:center;justify-content:space-between;margin:26px 2px 12px}
+  .sech .cap{color:var(--ink-2)}
+  .sech a{font-size:12.5px;font-weight:700;color:var(--g-d)}
+
+  .row{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:var(--r-m);
+    padding:10px 13px 10px 10px;box-shadow:var(--sh-1);margin-bottom:9px}
+  .row img{width:52px;height:52px;border-radius:13px;object-fit:cover;flex:0 0 auto;background:var(--bg-2)}
+  .row .t{flex:1;min-width:0}
+  .row .t b{display:block;font-size:14.5px;font-weight:600;line-height:1.25}
+  .row .t span{font-size:11.5px;color:var(--muted);display:block;margin-top:2px}
+  .row .k{font-family:Unbounded;font-weight:700;font-size:14px;letter-spacing:-.03em;color:var(--ink-2)}
+  .row .tick{width:28px;height:28px;border-radius:9px;background:var(--bg-2);flex:0 0 auto;
     display:flex;align-items:center;justify-content:center;color:transparent}
-  .row.on .tick{background:var(--g);border-color:var(--g);color:#fff}
-  .row .tick i{width:13px;height:13px}
+  .row .tick i{width:14px;height:14px}
+  .row.on{opacity:.5}
+  .row.on .tick{background:var(--g);color:#fff}
+  .row.on .t b{text-decoration:line-through}
 
-  .wtr{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);
-    border-radius:16px;padding:12px 14px;margin-top:10px}
-  .wtr .lbl{font-size:13.5px;font-weight:700}
-  .wtr .cups{display:flex;gap:4px;margin-left:auto}
-  .wtr .cup{width:15px;height:19px;border-radius:3px 3px 5px 5px;background:var(--line)}
-  .wtr .cup.f{background:var(--wtr)}
-
-  /* нижняя навигация — то, чего у приложения нет вовсе */
-  .nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:color-mix(in srgb,var(--card) 94%,transparent);
-    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line);
-    display:flex;padding:7px 6px calc(7px + env(safe-area-inset-bottom))}
-  .nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-    color:var(--muted);font-size:10.5px;font-weight:700;padding:5px 0}
-  .nav button i{width:22px;height:22px}
-  .nav button.on{color:var(--gd)}
+  .nav{position:fixed;left:0;right:0;bottom:0;z-index:40;
+    background:color-mix(in srgb,var(--card) 92%,transparent);
+    -webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);
+    border-top:1px solid var(--line);display:flex;padding:8px 8px calc(9px + env(safe-area-inset-bottom))}
+  .nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted);
+    font-size:10px;font-weight:700;letter-spacing:.02em;padding:4px 0}
+  .nav button i{width:23px;height:23px}
+  .nav button.on{color:var(--g-d)}
   .scr{display:none}.scr.on{display:block}
+  .shop-c{margin-bottom:10px}
+  .shop-c .h{display:flex;align-items:center;gap:8px;margin:18px 2px 8px}
+  .shop-c .h b{font-size:12.5px;font-weight:700}
+  .shop-c .h span{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:700}
+  .si{display:flex;align-items:center;gap:11px;padding:11px 13px;background:var(--card);
+    border-bottom:1px solid var(--line);font-size:14px}
+  .shop-c .list{border-radius:var(--r-m);overflow:hidden;box-shadow:var(--sh-1)}
+  .si:last-child{border-bottom:none}
+  .si .cb{width:22px;height:22px;border-radius:7px;border:2px solid var(--line);flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;color:transparent}
+  .si .cb i{width:12px;height:12px}
+  .si.on .cb{background:var(--g);border-color:var(--g);color:#fff}
+  .si.on span{color:var(--muted);text-decoration:line-through}
 </style>
 </head>
 <body>
-<div class="demoh"><a href="/assets/ux/">✕</a><b>Вариант 1 · «Сегодня»</b><span>нижняя навигация</span></div>
+<div class="demoh"><a href="/assets/ux/index.html" id="x"></a><b>Вариант 1 · Табло дня</b><span>bento + нижняя навигация</span></div>
 
 <div class="wrap">
-  <!-- ── СЕГОДНЯ ────────────────────────────────────────────────────────── -->
   <section class="scr on" id="s-home">
-    <div class="top"><h1>День 1 из 7</h1><p>Осталось 4 приёма · 1300 ккал</p></div>
+    <div class="hero rise">
+      <div class="cap">День 1 из 7</div>
+      <h1>Сегодня</h1>
+      <p>Съедено 280 из 1580 ккал · впереди 4 приёма</p>
+    </div>
 
-    <div class="ring">
-      <div class="r">
-        <svg viewBox="0 0 84 84">
-          <circle cx="42" cy="42" r="36" fill="none" stroke="var(--line)" stroke-width="8"/>
-          <circle cx="42" cy="42" r="36" fill="none" stroke="var(--g)" stroke-width="8"
-            stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="186"/>
-        </svg>
-        <b>280<span>из 1580</span></b>
-      </div>
-      <div class="rt">
-        <div class="h">Норма на день</div>
-        <div class="s">Осталось 1300 ккал</div>
+    <div class="bento">
+      <div class="b-cal rise">
+        <div class="cap">Осталось на день</div>
+        <div class="big num">1300<i>ккал</i></div>
+        <div class="left">Из нормы 1580 ккал</div>
+        <div class="track" id="track"></div>
         <div class="mac">
-          <div><b>10<span>белки</span></b></div>
-          <div><b>5<span>жиры</span></b></div>
-          <div><b>50<span>углеводы</span></b></div>
+          <div><span>белки</span><b class="num">10 / 118</b></div>
+          <div><span>жиры</span><b class="num">5 / 53</b></div>
+          <div><span>углеводы</span><b class="num">50 / 158</b></div>
         </div>
+      </div>
+
+      <article class="b-next rise">
+        <span class="now">Сейчас · 11:00</span>
+        <img src="/dish/banan-svezhiy" alt="">
+        <div class="in">
+          <h2>Банан свежий</h2>
+          <div class="sub">Перекус · 105 ккал · Б 1 · Ж 0 · У 27</div>
+          <div class="row2 row" style="display:flex;box-shadow:none;background:none;padding:0;margin:14px 0 0;gap:9px">
+            <button class="go"><i id="i-ok"></i>Съел</button>
+            <button class="alt" aria-label="Заменить"><i id="i-sw"></i></button>
+          </div>
+        </div>
+      </article>
+
+      <div class="b-s rise">
+        <div class="cap">Вода</div>
+        <div class="n num">5<small>из 9</small></div>
+        <div class="cups" id="cups"></div>
+      </div>
+      <div class="b-s rise">
+        <div class="cap">Серия</div>
+        <div class="flame" id="i-fl" style="margin-top:8px"></div>
+        <div class="n num">1<small>день</small></div>
       </div>
     </div>
 
-    <div class="sech"><h2>Сейчас</h2><span class="pill"><i id="ic-clock"></i>11:00</span></div>
-    <article class="next">
-      <img src="/dish/banan-svezhiy" alt="">
-      <div class="b">
-        <div class="when"><i id="ic-clock2"></i><span>Перекус · 11:00</span></div>
-        <h3>Банан свежий</h3>
-        <div class="m">105 ккал · Б 1 · Ж 0 · У 27</div>
-        <div class="act">
-          <button class="go"><i id="ic-check"></i>Приготовил</button>
-          <button class="alt" aria-label="Заменить"><i id="ic-swap"></i></button>
-        </div>
-      </div>
-    </article>
-
-    <div class="sech"><h2>Дальше сегодня</h2></div>
-    <div class="rows" id="rest"></div>
-
-    <div class="wtr">
-      <span class="lbl">Вода</span>
-      <span class="cups" id="cups"></span>
-    </div>
+    <div class="sech"><span class="cap">Дальше сегодня</span><a>Весь день</a></div>
+    <div id="rest"></div>
   </section>
 
-  <!-- ── НЕДЕЛЯ ─────────────────────────────────────────────────────────── -->
   <section class="scr" id="s-week">
-    <div class="top"><h1>Неделя</h1><p>7 дней, 35 блюд</p></div>
-    <div class="rows" id="week"></div>
+    <div class="hero"><div class="cap">7 дней · 35 блюд</div><h1>Неделя</h1></div>
+    <div id="week" style="margin-top:16px"></div>
   </section>
 
-  <!-- ── ПОКУПКИ ────────────────────────────────────────────────────────── -->
   <section class="scr" id="s-cart">
-    <div class="top"><h1>Покупки</h1><p>0 из 15 куплено</p></div>
+    <div class="hero"><div class="cap">0 из 15 куплено</div><h1>Покупки</h1></div>
     <div id="shop"></div>
   </section>
 
-  <!-- ── Я ──────────────────────────────────────────────────────────────── -->
   <section class="scr" id="s-me">
-    <div class="top"><h1>Я</h1><p>Вес, прогресс и подписка</p></div>
-    <div class="rows">
-      <div class="row"><div class="t"><b>Вес сегодня</b><span>Последний: 70 кг</span></div><div class="k">Записать</div></div>
-      <div class="row"><div class="t"><b>Серия</b><span>1 день подряд</span></div><div class="k">Смотреть</div></div>
-      <div class="row"><div class="t"><b>Подписка</b><span>499 ₽ · следующее списание 29 августа</span></div><div class="k">Управлять</div></div>
-    </div>
+    <div class="hero"><div class="cap">Профиль</div><h1>Я</h1></div>
+    <div id="me" style="margin-top:16px"></div>
   </section>
 </div>
 
@@ -170,44 +186,46 @@
 
 <script src="/assets/ux/_shared.js"></script>
 <script>
-  const put = (id, svg) => { const e = document.getElementById(id); if (e) e.innerHTML = svg; };
-  put('ic-clock', IC.clock); put('ic-clock2', IC.clock); put('ic-check', IC.check); put('ic-swap', IC.swap);
-  put('n1', IC.home); put('n2', IC.week); put('n3', IC.cart); put('n4', IC.me);
+  const put=(id,s)=>{const e=document.getElementById(id);if(e)e.innerHTML=s;};
+  put('x',IC.close);put('i-ok',IC.check);put('i-sw',IC.swap);put('i-fl',IC.fire);
+  put('n1',IC.home);put('n2',IC.week);put('n3',IC.cart);put('n4',IC.me);
 
-  // «Дальше сегодня» — всё, кроме текущего приёма
-  document.getElementById('rest').innerHTML = NP.meals.filter((m, i) => i !== 1).map((m) => `
-    <div class="row${m.done ? ' on' : ''}">
+  put('track', NP.meals.map((m,i)=>`<i class="${i===0?'on':''}"></i>`).join(''));
+  put('cups', Array.from({length:NP.water.goal},(_,i)=>`<i class="${i<NP.water.done?'f':''}"></i>`).join(''));
+
+  put('rest', NP.meals.filter((_,i)=>i!==1).map(m=>`
+    <div class="row${m.done?' on':''}">
       <img src="${dishUrl(m.slug)}" alt="">
       <div class="t"><b>${m.name}</b><span>${m.slot} · ${m.time}</span></div>
-      <div class="k">${m.kcal} ккал</div>
+      <div class="k num">${m.kcal}</div>
       <div class="tick">${IC.check}</div>
-    </div>`).join('');
+    </div>`).join(''));
 
-  document.getElementById('cups').innerHTML =
-    Array.from({length: NP.water.goal}, (_, i) => `<span class="cup${i < NP.water.done ? ' f' : ''}"></span>`).join('');
+  put('week', WEEK.map((d,i)=>`
+    <div class="row">
+      <div class="t"><b>День ${i+1}${i===0?' · сегодня':''}</b><span>${d.dishes}</span></div>
+      <div class="k num">${d.kcal}</div>
+    </div>`).join(''));
 
-  document.getElementById('week').innerHTML = Array.from({length: 7}, (_, i) => `
-    <div class="row${i === 0 ? '' : ''}">
-      <div class="t"><b>День ${i + 1}${i === 0 ? ' · сегодня' : ''}</b>
-        <span>${['Овсянка, курица, треска','Омлет, суп, индейка','Творог, паста, салат','Каша, рыба, овощи','Яйца, гречка, курица','Сырники, суп, рыба','Йогурт, плов, салат'][i]}</span></div>
-      <div class="k">${[1565,1580,1540,1600,1575,1590,1555][i]} ккал</div>
-    </div>`).join('');
+  put('shop', NP.shopping.map(c=>`
+    <div class="shop-c"><div class="h"><b>${c.cat}</b><span>${c.items.length}</span></div>
+      <div class="list">${c.items.map(i=>`
+        <div class="si"><div class="cb">${IC.check}</div><span>${i}</span></div>`).join('')}</div></div>`).join(''));
 
-  document.getElementById('shop').innerHTML = NP.shopping.map((c) => `
-    <div class="sech"><h2>${c.cat}</h2></div>
-    <div class="rows">${c.items.map((i) => `
-      <div class="row"><div class="tick">${IC.check}</div><div class="t"><b>${i}</b></div></div>`).join('')}</div>`).join('');
+  put('me', [['Вес сегодня','Последний замер: 70 кг','Записать'],
+             ['Серия','1 день подряд','Смотреть'],
+             ['Подписка','499 ₽ · следующее списание 29 августа','Управлять']]
+    .map(([a,b,c])=>`<div class="row"><div class="t"><b>${a}</b><span>${b}</span></div><div class="k" style="font-family:Onest;font-size:12.5px">${c}</div></div>`).join(''));
 
-  document.querySelectorAll('.nav button').forEach((b) => b.addEventListener('click', () => {
-    document.querySelectorAll('.nav button').forEach((x) => x.classList.toggle('on', x === b));
-    document.querySelectorAll('.scr').forEach((s) => s.classList.toggle('on', s.id === 's-' + b.dataset.s));
-    scrollTo(0, 0);
+  document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('on',x===b));
+    document.querySelectorAll('.scr').forEach(s=>s.classList.toggle('on',s.id==='s-'+b.dataset.s));
+    scrollTo(0,0);
   }));
-
-  document.querySelectorAll('.row .tick, .next .go').forEach((el) => el.addEventListener('click', (e) => {
-    const row = e.target.closest('.row');
-    if (row) row.classList.toggle('on');
-  }));
+  document.addEventListener('click',e=>{
+    const t=e.target.closest('.row .tick'); if(t) t.closest('.row').classList.toggle('on');
+    const c=e.target.closest('.si'); if(c) c.classList.toggle('on');
+  });
 </script>
 </body>
 </html>

@@ -4,130 +4,165 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Вариант 4 · Карточки-истории</title>
+<title>Вариант 4 · Кухня</title>
 <link rel="stylesheet" href="/assets/ux/_base.css">
 <style>
-  /* ВАРИАНТ 4. Карточки-истории, листаются вбок.
-     Ставка: пять приёмов дня — это пять экранов, а не список. Каждый занимает
-     целиком, с большим фото, составом и шагами СРАЗУ (без раскрывашки «Рецепт»),
-     и листается пальцем вбок. Прокрутки вниз нет вообще.
-     Сильная сторона — момент готовки: всё нужное перед глазами, руки заняты.
-     Слабая — обзор: чтобы увидеть весь день, надо пролистать. */
-  body{overflow:hidden}
+  /* ВАРИАНТ 4 · «КУХНЯ» — экран на всю высоту, листается вбок.
+     Референс: фото-ориентированные интерфейсы доставки (Deliveroo: единый стиль
+     съёмки, крупные снимки, минимум текста поверх) + сторис-навигация.
+     Идея: приём пищи — не строка в списке, а отдельный экран. Фото во весь
+     верх, шаги крупным шрифтом, чтобы читать от плиты с расстояния вытянутой
+     руки. Прокрутки вниз нет, только листание — руки заняты, палец один.
+     Отличие от прежней версии: снимок стал главным, а не декоративным, и
+     появился «режим готовки» — шаги по одному, крупно. */
+  html,body{height:100%;overflow:hidden}
   .stage{position:fixed;inset:41px 0 0;display:flex;flex-direction:column}
 
-  .prog{display:flex;gap:4px;padding:10px 16px 8px}
-  .prog i{flex:1;height:3px;border-radius:99px;background:var(--line)}
-  .prog i.on{background:var(--g)}
-  .prog i.past{background:color-mix(in srgb,var(--g) 45%,var(--line))}
+  .prog{display:flex;gap:5px;padding:11px 18px 9px}
+  .prog i{flex:1;height:3px;border-radius:99px;background:var(--line);overflow:hidden}
+  .prog i.past{background:var(--g)}
+  .prog i.on::after{content:'';display:block;height:100%;width:45%;background:var(--accent);border-radius:99px}
 
-  .track{flex:1;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;
-    scrollbar-width:none;-ms-overflow-style:none}
+  .track{flex:1;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
   .track::-webkit-scrollbar{display:none}
-  .card{flex:0 0 100%;scroll-snap-align:center;overflow-y:auto;padding:0 16px 18px}
-  .card .inner{max-width:430px;margin:0 auto}
+  .card{flex:0 0 100%;scroll-snap-align:center;overflow-y:auto;scrollbar-width:none}
+  .card::-webkit-scrollbar{display:none}
+  .in{max-width:430px;margin:0 auto;padding:0 18px 22px}
 
-  .ph{position:relative;border-radius:22px;overflow:hidden;background:var(--soft)}
-  .ph img{width:100%;height:250px;object-fit:cover}
-  .ph .meta{position:absolute;left:0;right:0;bottom:0;padding:32px 15px 14px;
-    background:linear-gradient(180deg,transparent,rgba(16,32,14,.82));color:#fff}
-  .ph .meta .s{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.85}
-  .ph .meta h2{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.18;margin-top:3px}
-  .ph .meta .k{font-size:13px;opacity:.9;margin-top:4px}
+  .shot{position:relative;border-radius:26px;overflow:hidden;box-shadow:var(--sh-3)}
+  .shot img{width:100%;height:268px;object-fit:cover;background:var(--bg-2)}
+  .shot .g{position:absolute;inset:0;background:linear-gradient(180deg,rgba(16,26,14,.02) 40%,rgba(16,26,14,.78))}
+  .shot .txt{position:absolute;left:0;right:0;bottom:0;padding:0 17px 16px;color:#fff}
+  .shot .cap{color:rgba(255,255,255,.72)}
+  .shot h2{font-family:Unbounded;font-weight:800;font-size:25px;letter-spacing:-.045em;
+    line-height:1.02;margin-top:7px}
+  .shot .kk{font-size:13px;color:rgba(255,255,255,.85);margin-top:8px}
 
-  .cols{display:flex;gap:8px;margin-top:12px}
-  .cols div{flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;
-    padding:9px 6px;text-align:center}
-  .cols b{display:block;font-size:15px;font-weight:800}
-  .cols span{font-size:10.5px;color:var(--muted)}
+  .macs{display:flex;gap:9px;margin-top:13px}
+  .macs div{flex:1;background:var(--card);border-radius:15px;padding:11px 8px;text-align:center;
+    box-shadow:var(--sh-1)}
+  .macs b{font-family:Unbounded;font-weight:700;font-size:18px;letter-spacing:-.04em;display:block}
+  .macs span{font-size:10.5px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;
+    font-weight:700;margin-top:3px;display:block}
 
-  .blk{margin-top:14px}
-  .blk .h{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
-    color:var(--muted);margin-bottom:8px}
-  .ing{display:flex;flex-wrap:wrap;gap:6px;list-style:none}
-  .ing li{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 11px;font-size:13px}
-  .steps{list-style:none;display:flex;flex-direction:column;gap:10px}
-  .steps li{display:flex;gap:11px;font-size:14px;line-height:1.42}
-  .steps b{width:22px;height:22px;border-radius:50%;background:var(--soft);color:var(--gd);
-    font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto;margin-top:1px}
+  .blk{margin-top:20px}
+  .blk .cap{margin-bottom:10px}
+  .ings{display:flex;flex-wrap:wrap;gap:7px}
+  .ings span{background:var(--card);border-radius:12px;padding:9px 13px;font-size:13.5px;
+    box-shadow:var(--sh-1)}
+  .stp li{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);font-size:15px;
+    line-height:1.45}
+  .stp li:last-child{border-bottom:none}
+  .stp b{width:25px;height:25px;border-radius:9px;background:var(--g-soft);color:var(--g-d);
+    font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
 
-  .foot{padding:10px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);
-    background:var(--card)}
-  .foot .in{max-width:430px;margin:0 auto;display:flex;align-items:center;gap:9px}
-  .foot .go{flex:1;background:var(--g);color:#fff;border-radius:14px;padding:14px;font-size:15px;
-    font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}
-  .foot .go i{width:17px;height:17px}
-  .foot .go.on{background:var(--soft);color:var(--gd)}
-  .foot .ic{width:48px;height:48px;border:1.5px solid var(--line);border-radius:14px;color:var(--muted);
+  .foot{padding:11px 18px calc(13px + env(safe-area-inset-bottom));border-top:1px solid var(--line);
+    background:color-mix(in srgb,var(--card) 92%,transparent);
+    -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+  .foot .in2{max-width:430px;margin:0 auto;display:flex;align-items:center;gap:10px}
+  .foot .go{flex:1;background:var(--ink);color:#fff;border-radius:16px;padding:15px;font-size:15px;
+    font-weight:700;display:flex;align-items:center;justify-content:center;gap:9px}
+  .foot .go.on{background:var(--g-soft);color:var(--g-d)}
+  .foot .go i{width:18px;height:18px}
+  .foot .ic{width:52px;height:52px;border-radius:16px;background:var(--bg-2);color:var(--ink-2);
     display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-  .foot .ic i{width:20px;height:20px}
-  .hint{text-align:center;color:var(--muted);font-size:11.5px;padding:6px 0 0}
+  .foot .ic i{width:21px;height:21px}
+  .foot .hint{max-width:430px;margin:8px auto 0;text-align:center;font-size:11.5px;color:var(--muted)}
+
+  /* режим готовки: шаг по одному, крупно — читать от плиты */
+  .cook{position:fixed;inset:0;z-index:60;background:var(--ink);color:#fff;display:none;
+    flex-direction:column;padding:calc(20px + env(safe-area-inset-top)) 22px calc(20px + env(safe-area-inset-bottom))}
+  .cook.on{display:flex}
+  .cook .top{display:flex;align-items:center;gap:12px}
+  .cook .top .cap{color:rgba(255,255,255,.5)}
+  .cook .top button{margin-left:auto;width:34px;height:34px;color:rgba(255,255,255,.7)}
+  .cook .body{flex:1;display:flex;flex-direction:column;justify-content:center}
+  .cook .n{font-family:Unbounded;font-weight:800;font-size:15px;color:var(--g);letter-spacing:.04em}
+  .cook p{font-size:27px;line-height:1.28;letter-spacing:-.02em;margin-top:16px}
+  .cook .nav{display:flex;gap:10px}
+  .cook .nav button{flex:1;border-radius:16px;padding:16px;font-size:15px;font-weight:700;
+    background:rgba(255,255,255,.1);color:#fff}
+  .cook .nav button.pri{background:var(--g);color:#0D1A11}
 </style>
 </head>
 <body>
-<div class="demoh"><a href="/assets/ux/">✕</a><b>Вариант 4 · Карточки</b><span>листать вбок</span></div>
+<div class="demoh"><a href="/assets/ux/index.html" id="x"></a><b>Вариант 4 · Кухня</b><span>листать вбок · режим готовки</span></div>
 
 <div class="stage">
   <div class="prog" id="prog"></div>
   <div class="track" id="track"></div>
   <div class="foot">
-    <div class="in">
+    <div class="in2">
       <button class="ic" aria-label="Заменить"><i id="f1"></i></button>
       <button class="go" id="go"><i id="f2"></i><span>Приготовил</span></button>
-      <button class="ic" aria-label="Покупки"><i id="f3"></i></button>
+      <button class="ic" id="cookbtn" aria-label="Режим готовки"><i id="f3"></i></button>
     </div>
     <div class="hint" id="hint"></div>
   </div>
 </div>
 
+<div class="cook" id="cook">
+  <div class="top"><span class="cap" id="ck-name"></span><button id="ck-x"></button></div>
+  <div class="body"><div class="n" id="ck-n"></div><p id="ck-p"></p></div>
+  <div class="nav"><button id="ck-prev">Назад</button><button class="pri" id="ck-next">Дальше</button></div>
+</div>
+
 <script src="/assets/ux/_shared.js"></script>
 <script>
-  const put = (id, s) => { const e = document.getElementById(id); if (e) e.innerHTML = s; };
-  put('f1', IC.swap); put('f2', IC.check); put('f3', IC.cart);
+  const put=(id,s)=>{const e=document.getElementById(id);if(e)e.innerHTML=s;};
+  put('x',IC.close);put('f1',IC.swap);put('f2',IC.check);put('f3',IC.book);put('ck-x',IC.close);
 
-  const track = document.getElementById('track');
-  track.innerHTML = NP.meals.map((m) => `
-    <section class="card"><div class="inner">
-      <div class="ph">
-        <img src="${dishUrl(m.slug)}" alt="">
-        <div class="meta"><div class="s">${m.slot} · ${m.time}</div><h2>${m.name}</h2>
-          <div class="k">${m.kcal} ккал</div></div>
+  const track=document.getElementById('track');
+  track.innerHTML=NP.meals.map(m=>`
+    <section class="card"><div class="in">
+      <div class="shot">
+        <img src="${dishUrl(m.slug)}" alt=""><div class="g"></div>
+        <div class="txt"><div class="cap">${m.slot} · ${m.time}</div><h2>${m.name}</h2>
+          <div class="kk">${m.kcal} ккал</div></div>
       </div>
-      <div class="cols">
-        <div><b>${m.p}</b><span>белки, г</span></div>
-        <div><b>${m.f}</b><span>жиры, г</span></div>
-        <div><b>${m.c}</b><span>углеводы, г</span></div>
+      <div class="macs">
+        <div><b class="num">${m.p}</b><span>белки</span></div>
+        <div><b class="num">${m.f}</b><span>жиры</span></div>
+        <div><b class="num">${m.c}</b><span>углеводы</span></div>
       </div>
-      <div class="blk"><div class="h">Нужно</div>
-        <ul class="ing">${m.ing.map((i) => `<li>${i}</li>`).join('')}</ul></div>
-      <div class="blk"><div class="h">Как готовить</div>
-        <ol class="steps">${m.steps.map((s, n) => `<li><b>${n + 1}</b><span>${s}</span></li>`).join('')}</ol></div>
+      <div class="blk"><div class="cap">Что нужно</div>
+        <div class="ings">${m.ing.map(i=>`<span>${i}</span>`).join('')}</div></div>
+      <div class="blk"><div class="cap">Как готовить</div>
+        <ul class="stp">${m.steps.map((s,n)=>`<li><b>${n+1}</b><span>${s}</span></li>`).join('')}</ul></div>
     </div></section>`).join('');
 
-  document.getElementById('prog').innerHTML = NP.meals.map(() => '<i></i>').join('');
-  const bars = [...document.querySelectorAll('#prog i')];
-  const go = document.getElementById('go');
-  const hint = document.getElementById('hint');
+  put('prog', NP.meals.map(()=>'<i></i>').join(''));
+  const bars=[...document.querySelectorAll('#prog i')], go=document.getElementById('go'),
+        hint=document.getElementById('hint');
+  const cur=()=>Math.round(track.scrollLeft/track.clientWidth);
 
-  function paint() {
-    const i = Math.round(track.scrollLeft / track.clientWidth);
-    bars.forEach((b, n) => {
-      b.classList.toggle('on', n === i);
-      b.classList.toggle('past', n < i);
-    });
-    const m = NP.meals[i];
-    const done = m.done;
-    go.classList.toggle('on', done);
-    go.querySelector('span').textContent = done ? 'Отмечено' : 'Приготовил';
-    hint.textContent = i < NP.meals.length - 1
-      ? `Дальше: ${NP.meals[i + 1].slot} · ${NP.meals[i + 1].name}`
-      : 'Это последний приём на сегодня';
+  function paint(){
+    const i=cur();
+    bars.forEach((b,n)=>{b.classList.toggle('on',n===i);b.classList.toggle('past',n<i||NP.meals[n].done);});
+    const m=NP.meals[i];
+    go.classList.toggle('on',m.done);
+    go.querySelector('span').textContent=m.done?'Отмечено':'Приготовил';
+    hint.textContent=i<NP.meals.length-1
+      ? `Дальше: ${NP.meals[i+1].slot} · ${NP.meals[i+1].name}`
+      : 'Последний приём на сегодня';
   }
-  track.addEventListener('scroll', () => { clearTimeout(window._t); window._t = setTimeout(paint, 60); });
-  go.addEventListener('click', () => {
-    const i = Math.round(track.scrollLeft / track.clientWidth);
-    NP.meals[i].done = !NP.meals[i].done;
-    paint();
+  track.addEventListener('scroll',()=>{clearTimeout(window._t);window._t=setTimeout(paint,60);});
+  go.addEventListener('click',()=>{const m=NP.meals[cur()];m.done=!m.done;paint();});
+
+  // режим готовки
+  const ck=document.getElementById('cook'); let step=0, meal=null;
+  function ckPaint(){
+    put('ck-name',meal.name);
+    document.getElementById('ck-n').textContent=`Шаг ${step+1} из ${meal.steps.length}`;
+    document.getElementById('ck-p').textContent=meal.steps[step];
+    document.getElementById('ck-next').textContent=step===meal.steps.length-1?'Готово':'Дальше';
+    document.getElementById('ck-prev').style.visibility=step?'visible':'hidden';
+  }
+  document.getElementById('cookbtn').addEventListener('click',()=>{meal=NP.meals[cur()];step=0;ckPaint();ck.classList.add('on');});
+  document.getElementById('ck-x').addEventListener('click',()=>ck.classList.remove('on'));
+  document.getElementById('ck-prev').addEventListener('click',()=>{if(step){step--;ckPaint();}});
+  document.getElementById('ck-next').addEventListener('click',()=>{
+    if(step<meal.steps.length-1){step++;ckPaint();}else{meal.done=true;ck.classList.remove('on');paint();}
   });
   paint();
 </script>

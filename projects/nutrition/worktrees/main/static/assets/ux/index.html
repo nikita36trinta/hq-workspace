@@ -7,91 +7,128 @@
 <title>NutriPlan · четыре модели приложения</title>
 <link rel="stylesheet" href="/assets/ux/_base.css">
 <style>
-  .h{padding:26px 0 6px}
-  .h h1{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
-  .h p{color:var(--muted);font-size:14px;margin-top:8px}
-  .now{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 15px;margin-top:16px}
-  .now .t{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-  .now ul{list-style:none;margin-top:9px;display:flex;flex-direction:column;gap:7px}
-  .now li{font-size:13.5px;display:flex;gap:9px;line-height:1.4}
-  .now li b{font-weight:800;font-variant-numeric:tabular-nums;flex:0 0 auto;color:var(--ink)}
-  .now li span{color:var(--muted)}
-  .cards{display:flex;flex-direction:column;gap:12px;margin:22px 0 40px}
-  .c{display:block;background:var(--card);border:1px solid var(--line);border-radius:18px;
-    padding:16px 17px;text-decoration:none;transition:.15s}
-  .c:hover{border-color:var(--g)}
-  .c .n{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--gd)}
-  .c h2{font-size:18px;font-weight:800;letter-spacing:-.015em;margin-top:4px}
-  .c p{font-size:13.5px;color:var(--muted);margin-top:6px;line-height:1.45}
-  .c .fr{display:flex;gap:14px;margin-top:11px;font-size:12.5px}
-  .c .fr div{flex:1}
-  .c .fr b{display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
-    color:var(--muted);margin-bottom:2px}
+  .h{padding:30px 0 4px}
+  .h h1{font-family:Unbounded;font-weight:800;font-size:31px;letter-spacing:-.05em;line-height:.98}
+  .h p{color:var(--ink-2);font-size:14.5px;margin-top:12px;line-height:1.5}
+  .now{background:var(--ink);color:#fff;border-radius:var(--r-l);padding:18px 19px;margin-top:20px;
+    box-shadow:var(--sh-2)}
+  .now .cap{color:rgba(255,255,255,.5)}
+  .now ul{margin-top:12px;display:flex;flex-direction:column;gap:10px}
+  .now li{display:flex;gap:12px;align-items:baseline;font-size:13.5px;line-height:1.35;
+    color:rgba(255,255,255,.75)}
+  .now li b{font-family:Unbounded;font-weight:700;font-size:17px;letter-spacing:-.04em;color:#fff;
+    flex:0 0 auto;min-width:72px}
+  .cards{display:flex;flex-direction:column;gap:13px;margin:24px 0 44px}
+  .c{display:block;background:var(--card);border-radius:var(--r-l);padding:18px 19px;
+    box-shadow:var(--sh-1);transition:.16s}
+  .c:hover{box-shadow:var(--sh-2);transform:translateY(-2px)}
+  .c .n{display:flex;align-items:center;gap:8px}
+  .c .n .cap{color:var(--g-d)}
+  .c .n .sw{margin-left:auto;display:flex;gap:4px}
+  .c .n .sw i{width:14px;height:14px;border-radius:4px;display:block}
+  .c h2{font-family:Unbounded;font-weight:700;font-size:19px;letter-spacing:-.035em;margin-top:9px;
+    line-height:1.12}
+  .c p{font-size:13.5px;color:var(--ink-2);margin-top:8px;line-height:1.5}
+  .c .fr{display:flex;gap:16px;margin-top:13px;padding-top:13px;border-top:1px solid var(--line)}
+  .c .fr div{flex:1;font-size:12.5px;line-height:1.35;color:var(--ink-2)}
+  .c .fr b{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    margin-bottom:4px}
+  .c .fr .p b{color:var(--g-d)}
+  .c .fr .m b{color:var(--accent)}
+  .refs{margin:0 0 46px}
+  .refs .cap{margin-bottom:10px}
+  .refs p{font-size:13px;color:var(--ink-2);line-height:1.55}
+  .refs a{color:var(--g-d);text-decoration:underline;text-underline-offset:2px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="h">
     <h1>Четыре модели приложения</h1>
-    <p>Это не четыре оформления одного экрана, а четыре разных способа им пользоваться.
-       Данные во всех — настоящие: первый день боевого плана. Открывать с телефона
-       или в узком окне.</p>
+    <p>Не четыре оформления одного экрана, а четыре разных способа им пользоваться.
+       Данные везде настоящие — первый день боевого плана с фото из общего кэша.
+       Открывать с телефона или в узком окне.</p>
   </div>
 
   <div class="now">
-    <div class="t">Что не так сейчас — замер боевого экрана</div>
+    <div class="cap">Что не так сейчас — замер боевого экрана</div>
     <ul>
-      <li><b>5292 px</b><span>высота страницы: восемь экранов подряд, без навигации</span></li>
+      <li><b>5292 px</b><span>высота: восемь экранов подряд, навигации нет вовсе</span></li>
       <li><b>165</b><span>кнопок на одной странице</span></li>
       <li><b>35</b><span>блюд отрисованы разом — вся неделя, хотя нужен один день</span></li>
-      <li><b>3</b><span>кнопки у каждого блюда, и рецепт спрятан в раскрывашку</span></li>
+      <li><b>0</b><span>своих шрифтов: системный текст одного размера всюду</span></li>
     </ul>
   </div>
 
   <div class="cards">
     <a class="c" href="/assets/ux/v1.html">
-      <div class="n">Вариант 1</div>
-      <h2>«Сегодня» и нижняя навигация</h2>
-      <p>На входе — один день: кольцо калорий, следующий приём крупно, остальные строками.
-         Неделя, покупки и личное — отдельные вкладки внизу. Привычная модель приложения.</p>
+      <div class="n"><span class="cap">Вариант 1</span>
+        <span class="sw"><i style="background:#F6F1E7"></i><i style="background:#1C2A18"></i><i style="background:#1E8E4A"></i><i style="background:#E8622A"></i></span></div>
+      <h2>Табло дня</h2>
+      <p>День как приборная панель: bento-сетка из плиток разного размера. Норма — самая
+         крупная, тёмная, с числом в 56 пунктов. Следующий приём — широкая плитка с фото.
+         Вода и серия — мелкие. Взгляд сам находит главное, потому что важное крупнее.</p>
       <div class="fr">
-        <div><b>Сильное</b>Понятно всем, всё находится за один тап</div>
-        <div><b>Слабое</b>Самое обычное решение, ничем не запоминается</div>
+        <div class="p"><b>Сильное</b>Всё видно сразу, привычная навигация внизу</div>
+        <div class="m"><b>Слабое</b>Плиток много — легко скатиться в приборную панель ради панели</div>
       </div>
     </a>
 
     <a class="c" href="/assets/ux/v2.html">
-      <div class="n">Вариант 2</div>
-      <h2>Один следующий шаг</h2>
-      <p>Навигации нет вовсе. Экран показывает ровно одно дело — что съесть сейчас — и ведёт
-         по дню как по маршруту. Неделя и покупки приходят шторкой по кнопке.</p>
+      <div class="n"><span class="cap">Вариант 2</span>
+        <span class="sw"><i style="background:#131A11"></i><i style="background:#1B2418"></i><i style="background:#3FBF6A"></i><i style="background:#F0803F"></i></span></div>
+      <h2>Авокадо ведёт</h2>
+      <p>Приложение как разговор. Экран — реплика маскота и один ответ, никаких вкладок.
+         Маскот у нас уже нарисован и снят на видео, но лежит без дела в интро квиза —
+         это готовый отличительный признак, которым мы не пользуемся. Тёмная тема: еда
+         на тёмном выглядит дороже.</p>
       <div class="fr">
-        <div><b>Сильное</b>Нечего решать: открыл и делаешь</div>
-        <div><b>Слабое</b>Плохо, если человек хочет посмотреть вперёд</div>
+        <div class="p"><b>Сильное</b>Единственный вариант с характером — его запомнят</div>
+        <div class="m"><b>Слабое</b>Голос маскота придётся писать и поддерживать</div>
       </div>
     </a>
 
     <a class="c" href="/assets/ux/v3.html">
-      <div class="n">Вариант 3</div>
-      <h2>Плотный чек-лист</h2>
-      <p>Весь день на одном экране без прокрутки, фото нет: еда, вода и вес — единый список
-         с галочками. Рецепт раскрывается на месте. Инструмент, а не витрина.</p>
+      <div class="n"><span class="cap">Вариант 3</span>
+        <span class="sw"><i style="background:#F6F1E7"></i><i style="background:#FFFDF9"></i><i style="background:#1C2A18"></i><i style="background:#E8622A"></i></span></div>
+      <h2>Дневная лента</h2>
+      <p>День как разворот журнала. Слева ось времени, приёмы нанизаны на неё: прошедшее
+         сжато в тихую строку, текущее раскрыто карточкой с фото и составом, будущее
+         свёрнуто. Самый спокойный и самый «дорогой» на вид.</p>
       <div class="fr">
-        <div><b>Сильное</b>Быстрее всех в реальном использовании</div>
-        <div><b>Слабое</b>Не продаёт: выглядит как таблица дел</div>
+        <div class="p"><b>Сильное</b>Видно и время, и порядок — где ты в дне</div>
+        <div class="m"><b>Слабое</b>Ось времени врёт, если человек ест не по расписанию</div>
       </div>
     </a>
 
     <a class="c" href="/assets/ux/v4.html">
-      <div class="n">Вариант 4</div>
-      <h2>Карточки, листаются вбок</h2>
-      <p>Каждый приём — отдельный экран целиком: большое фото, состав и шаги сразу, без
-         раскрывашек. Прокрутки вниз нет, только листание пальцем.</p>
+      <div class="n"><span class="cap">Вариант 4</span>
+        <span class="sw"><i style="background:#F6F1E7"></i><i style="background:#FFFDF9"></i><i style="background:#1C2A18"></i><i style="background:#1E8E4A"></i></span></div>
+      <h2>Кухня</h2>
+      <p>Приём пищи — отдельный экран, листается вбок. Фото во весь верх, состав и шаги
+         сразу. Плюс режим готовки: шаг по одному во весь экран, чтобы читать от плиты
+         с расстояния вытянутой руки.</p>
       <div class="fr">
-        <div><b>Сильное</b>Лучший момент готовки, еда выглядит едой</div>
-        <div><b>Слабое</b>Обзор дня требует пролистать всё</div>
+        <div class="p"><b>Сильное</b>Выигрывает ровно в момент готовки</div>
+        <div class="m"><b>Слабое</b>Чтобы увидеть день целиком, надо пролистать всё</div>
       </div>
     </a>
+  </div>
+
+  <div class="refs">
+    <div class="cap">Откуда взяты приёмы</div>
+    <p>Приложения в нашей нише: <b>Lifesum</b> — самая аккуратная типографика в категории;
+       <b>Yazio</b> — «только суть, без соцлент и лишнего»; <b>Simple</b> — подаёт всё как
+       разговор с коуч-персонажем, а не таблицей чисел; <b>Deliveroo</b> — единый стиль
+       съёмки и крупные снимки как основа интерфейса.<br><br>
+       Тренды 2026, которые я взял: крупная типографика как несущий элемент, bento-сетки
+       вместо колонки одинаковых карточек, яркое на тёмном вместо цветного на белом.<br><br>
+       Библиотеки для дальнейшего копания:
+       <a href="https://mobbin.com">Mobbin</a> (реальные экраны и потоки),
+       <a href="https://uxarchive.com">UXArchive</a>,
+       <a href="https://pageflows.com">Page Flows</a>,
+       <a href="https://muz.li">Muzli</a>,
+       <a href="https://www.behance.net">Behance</a>.</p>
   </div>
 </div>
 </body>

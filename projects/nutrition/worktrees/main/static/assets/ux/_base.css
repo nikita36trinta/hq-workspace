@@ -1,32 +1,90 @@
-/* Общая база прототипов: те же токены, что в боевом приложении, чтобы сравнивать
-   МОДЕЛИ РАБОТЫ, а не палитры. Всё, что различается между вариантами, живёт в
-   самих файлах. */
+/* ═══ База прототипов ═══════════════════════════════════════════════════════
+   Первая версия была структурно правильной и визуально никакой: системный шрифт,
+   белые карточки, всё одного размера. Отсюда «убого» — характера нет.
+
+   Что взято из референсов (Lifesum, Yazio, Simple, Deliveroo; тренды 2026):
+   · КРУПНАЯ ТИПОГРАФИКА как несущий элемент, а не подпись к карточке. Числа —
+     дисплейным шрифтом, размером в 2–3 раза больше текста.
+   · СВОИ ШРИФТЫ С КИРИЛЛИЦЕЙ. Системный -apple-system — главная причина, по
+     которой интерфейс выглядит «сделанным на коленке». Onest — текст, Unbounded
+     — дисплей; оба самохостятся, подмножества cyrillic+latin, 128 КБ на всё.
+   · ЕДА КРУПНО. У нас фото 512–1024 px, а показывали их маркой 64 px.
+   · ГЛУБИНА вместо плоских рамок: мягкие тени по цвету фона, а не серые.
+   · Палитра осмысленная: тёплый песочный «стол», зелёный только там, где
+     действие или достижение, и один контрастный тёмный для акцентов.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@font-face{font-family:Onest;font-style:normal;font-weight:400 800;font-display:swap;
+  src:url(/assets/ux/fonts/onest-cyrillic.woff2) format('woff2');
+  unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:Onest;font-style:normal;font-weight:400 800;font-display:swap;
+  src:url(/assets/ux/fonts/onest-latin.woff2) format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+2000-206F,U+2070-209F,U+20AC,U+2122,U+2212}
+@font-face{font-family:Unbounded;font-style:normal;font-weight:600 900;font-display:swap;
+  src:url(/assets/ux/fonts/unbounded-cyrillic.woff2) format('woff2');
+  unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:Unbounded;font-style:normal;font-weight:600 900;font-display:swap;
+  src:url(/assets/ux/fonts/unbounded-latin.woff2) format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+2000-206F,U+20AC,U+2122,U+2212}
+
 :root{
-  --g:#16A34A; --gd:#0E7A36; --soft:#E7F8EC; --ink:#20321F; --muted:#6B7566;
-  --bg:#FBF8F1; --card:#fff; --line:#EEE7D8; --wtr:#38BDF8; --wtr-soft:#E0F2FE;
+  /* «Стол»: тёплый песочный, а не белый. Белый фон под фотографиями еды делает
+     их плоскими, песочный — тёплыми. */
+  --bg:#F6F1E7;
+  --bg-2:#EFE8DA;
+  --card:#FFFDF9;
+  --ink:#1C2A18;          /* глубокий зелёно-чёрный, а не чистый чёрный */
+  --ink-2:#4A5A44;
+  --muted:#8A9384;
+  --line:#E6DECD;
+  --g:#1E8E4A;            /* действие и достижение — только этим */
+  --g-d:#146336;
+  --g-soft:#DFF2E4;
+  --accent:#E8622A;       /* тёплый акцент для «сейчас» и предупреждений */
+  --wtr:#38BDF8;
+  --sh-1:0 2px 6px -2px rgba(40,58,32,.10);
+  --sh-2:0 14px 28px -18px rgba(40,58,32,.40);
+  --sh-3:0 30px 60px -30px rgba(40,58,32,.55);
+  --r-s:12px; --r-m:18px; --r-l:26px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{overflow-x:clip}
-body{background:var(--bg);color:var(--ink);
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
-  line-height:1.45;-webkit-font-smoothing:antialiased;padding-bottom:0}
+html{overflow-x:clip;-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:Onest,-apple-system,BlinkMacSystemFont,sans-serif;
+  line-height:1.4;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 0}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 img{display:block;max-width:100%}
 svg{width:100%;height:100%;display:block}
-a{color:inherit}
+a{color:inherit;text-decoration:none}
+ul,ol{list-style:none}
 
-.wrap{max-width:430px;margin:0 auto;padding:0 16px}
+/* ── типографическая шкала ─────────────────────────────────────────────────
+   Дисплей — только для чисел и коротких заголовков: Unbounded на длинном
+   тексте читается тяжело. */
+.d1{font-family:Unbounded;font-weight:800;font-size:44px;line-height:.95;letter-spacing:-.045em}
+.d2{font-family:Unbounded;font-weight:700;font-size:26px;line-height:1.05;letter-spacing:-.035em}
+.d3{font-family:Unbounded;font-weight:700;font-size:19px;line-height:1.15;letter-spacing:-.02em}
+.t1{font-size:20px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.t2{font-size:15.5px;font-weight:600;line-height:1.3}
+.b1{font-size:14.5px;line-height:1.45}
+.b2{font-size:13px;line-height:1.4;color:var(--ink-2)}
+.cap{font-size:11px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
 
-/* заголовок прототипа — только в демо, в продукте его не будет */
-.demoh{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 92%,transparent);
-  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-  border-bottom:1px solid var(--line);padding:9px 16px;display:flex;align-items:center;gap:10px}
-.demoh a{width:26px;height:26px;color:var(--muted);flex:0 0 auto}
-.demoh b{font-size:13px;font-weight:800;letter-spacing:.02em}
-.demoh span{font-size:12px;color:var(--muted);margin-left:auto}
+.wrap{max-width:430px;margin:0 auto;padding:0 18px}
+.card{background:var(--card);border-radius:var(--r-m);box-shadow:var(--sh-1)}
 
-.mi{border-radius:12px;background:var(--soft);object-fit:cover;flex:0 0 auto}
-.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;
-  letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-.pill i{width:13px;height:13px;display:block;flex:0 0 auto}
-.tnum{font-variant-numeric:tabular-nums}
+/* шапка демо — в продукте её не будет */
+.demoh{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  -webkit-backdrop-filter:blur(14px) saturate(150%);backdrop-filter:blur(14px) saturate(150%);
+  border-bottom:1px solid var(--line);padding:9px 18px;display:flex;align-items:center;gap:11px}
+.demoh a{width:22px;height:22px;color:var(--muted);flex:0 0 auto}
+.demoh b{font-family:Unbounded;font-weight:700;font-size:12px;letter-spacing:-.01em}
+.demoh span{font-size:11px;color:var(--muted);margin-left:auto;text-align:right}
+
+@media (prefers-reduced-motion:no-preference){
+  .rise{animation:rise .5s cubic-bezier(.2,.7,.3,1) both}
+  .rise:nth-child(2){animation-delay:.05s}
+  .rise:nth-child(3){animation-delay:.1s}
+  .rise:nth-child(4){animation-delay:.15s}
+  @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+}

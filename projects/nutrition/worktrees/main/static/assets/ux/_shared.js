@@ -57,5 +57,20 @@ window.IC = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
 };
 
+window.IC.close = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+window.IC.plus = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+window.IC.book = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5Z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5"/></svg>';
+
+/* Неделя — те же данные во всех прототипах, чтобы сравнение было честным. */
+window.WEEK = [
+  { kcal: 1565, dishes: "Овсянка · Куриная грудка · Треска" },
+  { kcal: 1580, dishes: "Омлет · Овощной суп · Индейка" },
+  { kcal: 1540, dishes: "Творог · Паста с курицей · Салат" },
+  { kcal: 1600, dishes: "Каша · Рыба на пару · Овощи" },
+  { kcal: 1575, dishes: "Яйца · Гречка с курицей · Кефир" },
+  { kcal: 1590, dishes: "Сырники · Суп · Рыбное филе" },
+  { kcal: 1555, dishes: "Йогурт · Плов · Овощной салат" },
+];
+
 window.eaten = () => NP.meals.filter((m) => m.done).reduce((s, m) => s + m.kcal, 0);
 window.dishUrl = (slug) => "/dish/" + slug;

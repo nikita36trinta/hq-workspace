@@ -4,156 +4,162 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Вариант 2 · Один следующий шаг</title>
+<title>Вариант 2 · Авокадо ведёт</title>
 <link rel="stylesheet" href="/assets/ux/_base.css">
 <style>
-  /* ВАРИАНТ 2. «Один следующий шаг».
-     Ставка противоположная первому: никакой навигации вообще. Экран показывает
-     ровно ОДНО дело — то, что делать сейчас, — и ведёт по дню как по маршруту.
-     Всё прочее (неделя, покупки, вес) вызывается кнопкой и приходит шторкой.
-     Для человека, который не хочет «пользоваться приложением», а хочет знать,
-     что съесть. */
-  body{padding-bottom:96px}
-  .hd{display:flex;align-items:center;gap:10px;padding:16px 0 6px}
-  .hd .day{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-  .hd .bar{flex:1;height:5px;border-radius:99px;background:var(--line);overflow:hidden}
-  .hd .bar i{display:block;height:100%;width:18%;background:var(--g);border-radius:99px}
-  .hd .kk{font-size:12px;font-weight:800;color:var(--muted);white-space:nowrap}
+  /* ВАРИАНТ 2 · «АВОКАДО ВЕДЁТ» — приложение как разговор.
+     Референс: Simple подаёт голодание не таблицей чисел, а разговором с
+     коуч-персонажем «Avo». У НАС УЖЕ ЕСТЬ маскот-авокадо — он нарисован, снят на
+     видео и лежит без дела в интро квиза. Это готовый и никем не используемый
+     отличительный признак.
+     Идея: экран — реплика от маскота и один ответ. Никаких вкладок: приложение
+     ведёт по дню, как человек за руку.
+     Тёмная подача взята намеренно: по референсам 2026 яркое на тёмном вытеснило
+     цветное на белом, и еда на тёмном выглядит дороже. */
+  :root{--bg:#131A11;--card:#1B2418;--ink:#F3F0E6;--ink-2:#BFC8B6;--muted:#7E8B77;
+        --line:#2A3626;--g:#3FBF6A;--g-d:#2E9A52;--g-soft:#1F3A28;--accent:#F0803F}
+  body{padding-bottom:112px;background:
+    radial-gradient(70% 40% at 15% 0%,rgba(63,191,106,.13),transparent 65%),var(--bg)}
+  .demoh{background:rgba(19,26,17,.85);border-color:var(--line)}
 
-  /* герой: то, что сейчас */
-  .hero{background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden;margin-top:10px;
-    box-shadow:0 24px 50px -34px rgba(20,50,31,.5)}
-  .hero .ph{position:relative}
-  .hero .ph img{width:100%;height:232px;object-fit:cover;background:var(--soft)}
-  .hero .ph .tag{position:absolute;left:14px;top:14px;background:rgba(255,255,255,.94);
-    border-radius:99px;padding:6px 12px;font-size:11.5px;font-weight:800;letter-spacing:.05em;
-    text-transform:uppercase;color:var(--gd)}
-  .hero .ph .kcal{position:absolute;right:14px;bottom:14px;background:rgba(20,50,31,.78);color:#fff;
-    border-radius:99px;padding:6px 13px;font-size:13px;font-weight:800}
-  .hero .b{padding:16px 17px 18px}
-  .hero h2{font-size:23px;font-weight:800;letter-spacing:-.025em;line-height:1.15}
-  .hero .mm{color:var(--muted);font-size:13px;margin-top:6px}
-  .hero .ing{margin-top:14px;border-top:1px solid var(--line);padding-top:13px}
-  .hero .ing .h{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-  .hero .ing ul{list-style:none;margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
-  .hero .ing li{background:var(--bg);border-radius:9px;padding:5px 9px;font-size:12.5px}
-  .hero .st{margin-top:14px;display:flex;flex-direction:column;gap:9px}
-  .hero .st li{display:flex;gap:10px;font-size:13.5px;line-height:1.4}
-  .hero .st b{width:20px;height:20px;border-radius:50%;background:var(--soft);color:var(--gd);
-    font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto;margin-top:1px}
-  .hero .st{list-style:none}
+  .say{display:flex;gap:12px;align-items:flex-start;padding:22px 0 4px}
+  .say .av{width:52px;height:52px;border-radius:16px;flex:0 0 auto;overflow:hidden;
+    background:var(--card);box-shadow:var(--sh-2)}
+  .say .bub{background:var(--card);border-radius:20px 20px 20px 6px;padding:14px 16px;
+    box-shadow:var(--sh-2);position:relative}
+  .say .bub p{font-size:16px;line-height:1.4}
+  .say .bub b{font-weight:700;color:var(--g)}
+  .say .bub .cap{margin-bottom:6px;color:var(--muted)}
 
-  .after{display:flex;align-items:center;justify-content:space-between;
-    margin-top:16px;padding:0 4px;color:var(--muted);font-size:13px}
-  .after b{color:var(--ink);font-weight:700}
+  .plate{margin-top:20px;border-radius:28px;overflow:hidden;position:relative;box-shadow:var(--sh-3)}
+  .plate img{width:100%;height:290px;object-fit:cover}
+  .plate .grad{position:absolute;inset:0;background:linear-gradient(180deg,
+    rgba(10,16,9,.05) 30%,rgba(10,16,9,.55) 62%,rgba(10,16,9,.92))}
+  .plate .info{position:absolute;left:0;right:0;bottom:0;padding:0 18px 18px}
+  .plate .tag{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#1A1206;
+    border-radius:99px;padding:5px 11px;font-size:10.5px;font-weight:800;letter-spacing:.09em;
+    text-transform:uppercase}
+  .plate h1{font-family:Unbounded;font-weight:800;font-size:27px;letter-spacing:-.045em;
+    line-height:1.02;margin-top:11px;color:#fff}
+  .plate .kk{display:flex;gap:14px;margin-top:11px;color:rgba(255,255,255,.82);font-size:13px}
+  .plate .kk b{font-family:Unbounded;font-weight:700;font-size:15px;letter-spacing:-.03em;color:#fff}
 
-  /* липкое действие — единственная кнопка на экране */
-  .act{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:12px 16px calc(12px + env(safe-area-inset-bottom));
-    background:linear-gradient(180deg,transparent,var(--bg) 42%)}
-  .act .in{max-width:430px;margin:0 auto;display:flex;gap:9px}
-  .act .go{flex:1;background:var(--g);color:#fff;border-radius:16px;padding:16px;
-    font-size:15.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:9px;
-    box-shadow:0 16px 30px -16px var(--g)}
-  .act .go i{width:18px;height:18px}
-  .act .sec{width:52px;border:1.5px solid var(--line);background:var(--card);border-radius:16px;
-    color:var(--muted);display:flex;align-items:center;justify-content:center}
+  .steps{margin-top:18px}
+  .steps .cap{margin-bottom:11px}
+  .steps li{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14.5px;
+    line-height:1.45;color:var(--ink-2)}
+  .steps li:last-child{border-bottom:none}
+  .steps li b{width:23px;height:23px;border-radius:8px;background:var(--g-soft);color:var(--g);
+    font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .ing{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+  .ing span{background:var(--card);border-radius:11px;padding:8px 12px;font-size:13px;color:var(--ink-2)}
+
+  .act{position:fixed;left:0;right:0;bottom:0;z-index:40;padding:14px 18px calc(14px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,transparent,var(--bg) 38%)}
+  .act .in{max-width:430px;margin:0 auto;display:flex;gap:10px}
+  .act .go{flex:1;background:var(--g);color:#0D1A11;border-radius:18px;padding:17px;font-size:16px;
+    font-weight:800;display:flex;align-items:center;justify-content:center;gap:9px;
+    box-shadow:0 18px 34px -16px rgba(63,191,106,.75)}
+  .act .go i{width:19px;height:19px}
+  .act .sec{width:56px;border-radius:18px;background:var(--card);color:var(--ink-2);
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-1)}
   .act .sec i{width:21px;height:21px}
+  .act .hint{max-width:430px;margin:9px auto 0;text-align:center;font-size:12px;color:var(--muted)}
 
-  /* шторка */
-  .sheet{position:fixed;inset:0;z-index:40;display:none}
+  .quick{display:flex;gap:8px;margin-top:20px}
+  .quick button{flex:1;background:var(--card);border-radius:16px;padding:13px 8px;font-size:12px;
+    font-weight:600;color:var(--ink-2);display:flex;flex-direction:column;align-items:center;gap:7px;
+    box-shadow:var(--sh-1)}
+  .quick button i{width:20px;height:20px;color:var(--muted)}
+
+  .sheet{position:fixed;inset:0;z-index:60;display:none}
   .sheet.on{display:block}
-  .sheet .bg{position:absolute;inset:0;background:rgba(20,40,20,.45)}
-  .sheet .pn{position:absolute;left:0;right:0;bottom:0;max-height:82vh;overflow:auto;
-    background:var(--card);border-radius:22px 22px 0 0;padding:8px 16px calc(20px + env(safe-area-inset-bottom))}
-  .sheet .grab{width:38px;height:4px;border-radius:99px;background:var(--line);margin:6px auto 12px}
-  .sheet h3{font-size:17px;font-weight:800;margin-bottom:10px}
-  .sheet .li{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line)}
-  .sheet .li:last-child{border-bottom:none}
-  .sheet .li b{font-size:14px;font-weight:700}
-  .sheet .li span{font-size:12px;color:var(--muted);display:block}
-  .sheet .li .k{margin-left:auto;font-size:12.5px;font-weight:800;color:var(--muted)}
-  .more{display:flex;gap:8px;margin-top:14px}
-  .more button{flex:1;background:var(--card);border:1px solid var(--line);border-radius:14px;
-    padding:11px 8px;font-size:12.5px;font-weight:700;display:flex;flex-direction:column;
-    align-items:center;gap:5px;color:var(--muted)}
-  .more button i{width:19px;height:19px}
+  .sheet .bg{position:absolute;inset:0;background:rgba(6,10,5,.62)}
+  .sheet .pn{position:absolute;left:0;right:0;bottom:0;max-height:84vh;overflow:auto;background:var(--card);
+    border-radius:26px 26px 0 0;padding:8px 18px calc(22px + env(safe-area-inset-bottom))}
+  .sheet .grab{width:40px;height:4px;border-radius:99px;background:var(--line);margin:6px auto 14px}
+  .sheet h3{font-family:Unbounded;font-weight:700;font-size:18px;letter-spacing:-.03em;margin-bottom:12px}
+  .li{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .li:last-child{border-bottom:none}
+  .li img{width:44px;height:44px;border-radius:12px;object-fit:cover;background:var(--bg)}
+  .li b{font-size:14.5px;font-weight:600}
+  .li span{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+  .li .k{margin-left:auto;font-family:Unbounded;font-weight:700;font-size:13.5px;color:var(--ink-2)}
 </style>
 </head>
 <body>
-<div class="demoh"><a href="/assets/ux/">✕</a><b>Вариант 2 · Один следующий шаг</b><span>без навигации</span></div>
+<div class="demoh"><a href="/assets/ux/index.html" id="x"></a><b>Вариант 2 · Авокадо ведёт</b><span>тёмная тема, без вкладок</span></div>
 
 <div class="wrap">
-  <div class="hd">
-    <span class="day">День 1</span>
-    <span class="bar"><i></i></span>
-    <span class="kk tnum">280 / 1580</span>
+  <div class="say rise">
+    <span class="av"><img src="/assets/avocado_ask_sm.png" alt="" width="52" height="52"></span>
+    <div class="bub">
+      <div class="cap">11:00 · день 1</div>
+      <p>Завтрак закрыт, идём дальше. Сейчас лёгкий перекус — <b>105 ккал</b>, готовить ничего не нужно.</p>
+    </div>
   </div>
 
-  <article class="hero">
-    <div class="ph">
-      <img src="/dish/banan-svezhiy" alt="">
-      <span class="tag">Сейчас · перекус</span>
-      <span class="kcal tnum">105 ккал</span>
-    </div>
-    <div class="b">
-      <h2>Банан свежий</h2>
-      <div class="mm">Б 1 · Ж 0 · У 27 · готовить не нужно</div>
-      <div class="ing">
-        <div class="h">Нужно</div>
-        <ul><li>банан 1 шт (100 г)</li></ul>
-      </div>
-      <ul class="st">
-        <li><b>1</b><span>Очистить банан и съесть.</span></li>
-      </ul>
+  <article class="plate rise">
+    <img src="/dish/banan-svezhiy" alt="">
+    <div class="grad"></div>
+    <div class="info">
+      <span class="tag">Перекус · сейчас</span>
+      <h1>Банан свежий</h1>
+      <div class="kk"><span><b>105</b> ккал</span><span><b>1</b> Б</span><span><b>0</b> Ж</span><span><b>27</b> У</span></div>
     </div>
   </article>
 
-  <div class="after"><span>Дальше: <b>Обед в 14:00</b></span><span>Куриная грудка с рисом</span></div>
+  <div class="steps rise">
+    <div class="cap">Что нужно</div>
+    <div class="ing"><span>банан 1 шт (100 г)</span></div>
+    <div class="cap" style="margin-top:18px">Как есть</div>
+    <ul><li><b>1</b><span>Очистить банан и съесть.</span></li></ul>
+  </div>
 
-  <div class="more">
-    <button data-sheet="day"><i id="m1"></i>День целиком</button>
-    <button data-sheet="cart"><i id="m2"></i>Покупки</button>
-    <button data-sheet="week"><i id="m3"></i>Неделя</button>
+  <div class="quick rise">
+    <button data-sheet="day"><i id="q1"></i>День целиком</button>
+    <button data-sheet="cart"><i id="q2"></i>Покупки</button>
+    <button data-sheet="week"><i id="q3"></i>Неделя</button>
   </div>
 </div>
 
-<div class="act"><div class="in">
-  <button class="go"><i id="ic-check"></i>Съел это</button>
-  <button class="sec" aria-label="Заменить"><i id="ic-swap"></i></button>
-</div></div>
-
-<div class="sheet" id="sheet">
-  <div class="bg"></div>
-  <div class="pn"><div class="grab"></div><h3 id="sh-t"></h3><div id="sh-b"></div></div>
+<div class="act">
+  <div class="in">
+    <button class="go"><i id="a1"></i>Съел это</button>
+    <button class="sec" aria-label="Заменить"><i id="a2"></i></button>
+  </div>
+  <div class="hint">Дальше: обед в 14:00 · Куриная грудка с рисом</div>
 </div>
+
+<div class="sheet" id="sheet"><div class="bg"></div>
+  <div class="pn"><div class="grab"></div><h3 id="sh-t"></h3><div id="sh-b"></div></div></div>
 
 <script src="/assets/ux/_shared.js"></script>
 <script>
-  const put = (id, s) => { const e = document.getElementById(id); if (e) e.innerHTML = s; };
-  put('ic-check', IC.check); put('ic-swap', IC.swap);
-  put('m1', IC.clock); put('m2', IC.cart); put('m3', IC.week);
+  const put=(id,s)=>{const e=document.getElementById(id);if(e)e.innerHTML=s;};
+  put('x',IC.close);put('a1',IC.check);put('a2',IC.swap);
+  put('q1',IC.clock);put('q2',IC.cart);put('q3',IC.week);
 
-  const sheets = {
-    day: ['День 1 целиком', NP.meals.map((m) => `
-      <div class="li"><img class="mi" src="${dishUrl(m.slug)}" width="40" height="40" alt="">
+  const sheets={
+    day:['День 1 целиком',NP.meals.map(m=>`
+      <div class="li"><img src="${dishUrl(m.slug)}" alt="">
         <div><b>${m.name}</b><span>${m.slot} · ${m.time}</span></div>
-        <div class="k">${m.kcal} ккал</div></div>`).join('')],
-    cart: ['Список покупок', NP.shopping.map((c) => `
+        <div class="k num">${m.kcal}</div></div>`).join('')],
+    cart:['Список покупок',NP.shopping.map(c=>`
       <div class="li"><div><b>${c.cat}</b><span>${c.items.slice(0,3).join(' · ')}…</span></div>
-        <div class="k">${c.items.length}</div></div>`).join('')],
-    week: ['Неделя', Array.from({length:7}, (_, i) => `
-      <div class="li"><div><b>День ${i+1}${i===0?' · сегодня':''}</b>
-        <span>${['Овсянка, курица, треска','Омлет, суп, индейка','Творог, паста, салат','Каша, рыба, овощи','Яйца, гречка, курица','Сырники, суп, рыба','Йогурт, плов, салат'][i]}</span></div>
-        <div class="k">${[1565,1580,1540,1600,1575,1590,1555][i]} ккал</div></div>`).join('')],
+        <div class="k num">${c.items.length}</div></div>`).join('')],
+    week:['Неделя',WEEK.map((d,i)=>`
+      <div class="li"><div><b>День ${i+1}${i===0?' · сегодня':''}</b><span>${d.dishes}</span></div>
+        <div class="k num">${d.kcal}</div></div>`).join('')],
   };
-  const sh = document.getElementById('sheet');
-  document.querySelectorAll('[data-sheet]').forEach((b) => b.addEventListener('click', () => {
-    const [t, body] = sheets[b.dataset.sheet];
-    document.getElementById('sh-t').textContent = t;
-    document.getElementById('sh-b').innerHTML = body;
+  const sh=document.getElementById('sheet');
+  document.querySelectorAll('[data-sheet]').forEach(b=>b.addEventListener('click',()=>{
+    const [t,body]=sheets[b.dataset.sheet];
+    document.getElementById('sh-t').textContent=t;
+    document.getElementById('sh-b').innerHTML=body;
     sh.classList.add('on');
   }));
-  sh.querySelector('.bg').addEventListener('click', () => sh.classList.remove('on'));
+  sh.querySelector('.bg').addEventListener('click',()=>sh.classList.remove('on'));
 </script>
 </body>
 </html>

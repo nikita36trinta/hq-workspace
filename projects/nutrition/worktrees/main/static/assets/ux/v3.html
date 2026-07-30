@@ -4,136 +4,145 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Вариант 3 · Плотный чек-лист</title>
+<title>Вариант 3 · Дневная лента</title>
 <link rel="stylesheet" href="/assets/ux/_base.css">
 <style>
-  /* ВАРИАНТ 3. Плотный чек-лист.
-     Ставка: приложением пользуются на бегу — на кухне, в магазине, стоя. Значит
-     ценность не в красоте, а в скорости: весь день виден без прокрутки, любое
-     действие — одно касание, фото в списке не нужны (они занимают место, а блюдо
-     человек и так знает по названию).
-     Это осознанный отказ от витрины в пользу инструмента. */
-  body{padding-bottom:24px}
-  .hd{position:sticky;top:41px;z-index:10;background:var(--bg);padding:12px 0 8px}
-  .days{display:flex;gap:5px}
-  .days button{flex:1;height:38px;border-radius:11px;background:var(--card);border:1px solid var(--line);
-    font-size:13px;font-weight:800;color:var(--muted);display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:2px;line-height:1}
-  .days button i{width:5px;height:5px;border-radius:50%;background:var(--line);display:block}
-  .days button.done i{background:var(--g)}
-  .days button.on{background:var(--ink);border-color:var(--ink);color:#fff}
-  .days button.on i{background:rgba(255,255,255,.5)}
+  /* ВАРИАНТ 3 · «ДНЕВНАЯ ЛЕНТА» — редакционная подача.
+     Референс: издательские раскладки и крупная типографика (тренд 2026), плюс
+     подход Yazio — «только суть, без лишнего», но не ценой характера.
+     Идея: день как разворот журнала. Время идёт слева вертикальной осью, приёмы
+     нанизаны на неё; прошедшее приглушено, текущее раскрыто крупно, будущее
+     свёрнуто в строку. Никаких вкладок и никаких кнопок у каждого блюда — одно
+     касание по карточке отмечает, долгое открывает рецепт.
+     Это самый «дорогой» на вид вариант и самый спокойный. */
+  body{padding-bottom:96px}
+  .head{padding:22px 0 6px;display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+  .head h1{font-family:Unbounded;font-weight:800;font-size:32px;letter-spacing:-.05em;line-height:.95}
+  .head .sub{color:var(--muted);font-size:13px;margin-top:8px}
+  .head .dial{text-align:right;flex:0 0 auto}
+  .head .dial b{font-family:Unbounded;font-weight:800;font-size:23px;letter-spacing:-.04em;display:block}
+  .head .dial span{font-size:11px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;font-weight:700}
 
-  .sum{display:flex;align-items:center;gap:10px;margin-top:10px;padding:0 2px}
-  .sum .bar{flex:1;height:8px;border-radius:99px;background:var(--line);overflow:hidden}
-  .sum .bar i{display:block;height:100%;width:18%;background:var(--g)}
-  .sum .n{font-size:12.5px;font-weight:800;color:var(--muted);white-space:nowrap}
+  .bar{height:6px;border-radius:99px;background:var(--bg-2);overflow:hidden;margin-top:14px}
+  .bar i{display:block;height:100%;width:18%;background:linear-gradient(90deg,var(--g),#54C97E);border-radius:99px}
 
-  .grp{margin-top:16px}
-  .grp .gh{display:flex;align-items:center;gap:8px;padding:0 2px 7px}
-  .grp .gh h2{font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
-  .grp .gh span{margin-left:auto;font-size:11.5px;font-weight:800;color:var(--muted)}
-  .list{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-  .it{display:flex;align-items:center;gap:11px;padding:11px 13px;border-bottom:1px solid var(--line);
-    min-height:52px}
-  .it:last-child{border-bottom:none}
-  .cb{width:23px;height:23px;border-radius:7px;border:2px solid var(--line);flex:0 0 auto;
-    display:flex;align-items:center;justify-content:center;color:transparent;transition:.12s}
-  .cb i{width:13px;height:13px}
-  .it.on .cb{background:var(--g);border-color:var(--g);color:#fff}
-  .it .tx{flex:1;min-width:0}
-  .it .tx b{display:block;font-size:14.5px;font-weight:700;line-height:1.25}
-  .it .tx span{font-size:11.5px;color:var(--muted)}
-  .it.on .tx b{color:var(--muted);text-decoration:line-through}
-  .it .rt{font-size:12.5px;font-weight:800;color:var(--muted);white-space:nowrap;
-    display:flex;align-items:center;gap:9px}
-  .it .rec{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);color:var(--muted);
-    display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-  .it .rec i{width:14px;height:14px}
-  .it .rec.open{background:var(--soft);border-color:var(--soft);color:var(--gd)}
-  .rcp{display:none;padding:0 13px 13px 47px;font-size:13px;line-height:1.5;color:var(--muted);
-    border-bottom:1px solid var(--line);background:var(--card)}
-  .rcp.on{display:block}
-  .rcp b{color:var(--ink);display:block;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
-    margin:2px 0 5px}
-  .rcp ol{margin:0 0 0 16px}
+  /* временнáя ось */
+  /* Колонка слева: время — точка — карточка. Сначала я посадил время и точку в
+     одну зону, и на 390px они наехали друг на друга. Разводим по координатам:
+     подпись занимает -70…-36, точка центрируется на линии в -26. */
+  .tl{margin-top:26px;position:relative;padding-left:70px}
+  .tl::before{content:'';position:absolute;left:44px;top:8px;bottom:12px;width:2px;background:var(--line)}
+  .ev{position:relative;margin-bottom:14px}
+  .ev .tm{position:absolute;left:-70px;top:1px;width:34px;text-align:right;font-size:11.5px;
+    font-weight:700;color:var(--muted);letter-spacing:-.01em}
+  .ev::before{content:'';position:absolute;left:-31.5px;top:6px;width:11px;height:11px;border-radius:50%;
+    background:var(--bg);border:2.5px solid var(--line);z-index:1}
+  .ev.done::before{background:var(--g);border-color:var(--g)}
+  .ev.now::before{background:var(--accent);border-color:var(--accent);
+    box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 20%,transparent)}
 
-  /* вода и вес — теми же строками, а не отдельными карточками */
-  .wcups{display:flex;gap:4px;margin-left:auto}
-  .wcups span{width:13px;height:17px;border-radius:3px 3px 4px 4px;background:var(--line)}
-  .wcups span.f{background:var(--wtr)}
-  .bot{display:flex;gap:8px;margin-top:14px}
-  .bot button{flex:1;background:var(--card);border:1px solid var(--line);border-radius:13px;
-    padding:12px;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px}
-  .bot button i{width:17px;height:17px;color:var(--muted)}
+  /* прошедшее — тихой строкой */
+  .ev.done .c{background:none;box-shadow:none;padding:6px 0;display:flex;align-items:center;gap:10px}
+  .ev.done .c img{width:34px;height:34px;border-radius:10px;object-fit:cover;opacity:.55}
+  .ev.done .c h3{font-size:14.5px;font-weight:600;color:var(--muted);text-decoration:line-through}
+  .ev.done .c .k{margin-left:auto;font-size:12.5px;color:var(--muted);font-weight:700}
+  .ev.done .c .rest{display:none}
+
+  /* текущее — раскрыто */
+  .c{background:var(--card);border-radius:var(--r-l);box-shadow:var(--sh-2);overflow:hidden}
+  .ev.now .c{box-shadow:var(--sh-3)}
+  .c img{width:100%;height:176px;object-fit:cover;background:var(--bg-2)}
+  .c .in{padding:14px 16px 16px}
+  .c .cap{margin-bottom:6px}
+  .ev.now .c .cap{color:var(--accent)}
+  .c h3{font-family:Unbounded;font-weight:700;font-size:19px;letter-spacing:-.035em;line-height:1.1}
+  .c .m{color:var(--muted);font-size:12.5px;margin-top:7px}
+  .c .ing{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .c .ing span{background:var(--bg-2);border-radius:9px;padding:6px 10px;font-size:12.5px;color:var(--ink-2)}
+  .c .go{width:100%;margin-top:14px;background:var(--ink);color:#fff;border-radius:14px;padding:14px;
+    font-size:14.5px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px}
+  .c .go i{width:17px;height:17px}
+
+  /* будущее — свёрнуто в строку */
+  .ev.soon .c{background:none;box-shadow:none;padding:8px 0;display:flex;align-items:center;gap:11px;
+    border-bottom:1px solid var(--line);border-radius:0}
+  .ev.soon .c img{width:44px;height:44px;border-radius:12px;object-fit:cover}
+  .ev.soon .c h3{font-family:Onest;font-size:14.5px;font-weight:600;letter-spacing:0}
+  .ev.soon .c .k{margin-left:auto;font-size:12.5px;font-weight:700;color:var(--muted)}
+  .ev.soon .c .rest,.ev.soon .c .m,.ev.soon .c .cap{display:none}
+
+  .foot-w{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:var(--r-m);
+    padding:14px 16px;box-shadow:var(--sh-1);margin-top:22px}
+  .foot-w b{font-size:14px;font-weight:600}
+  .foot-w .cups{display:flex;gap:4px;margin-left:auto}
+  .foot-w .cups i{width:14px;height:19px;border-radius:3px 3px 5px 5px;background:var(--bg-2);display:block}
+  .foot-w .cups i.f{background:var(--wtr)}
+
+  .days{position:fixed;left:0;right:0;bottom:0;z-index:40;padding:10px 18px calc(11px + env(safe-area-inset-bottom));
+    background:color-mix(in srgb,var(--bg) 90%,transparent);
+    -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-top:1px solid var(--line)}
+  .days .in{max-width:430px;margin:0 auto;display:flex;gap:6px}
+  .days button{flex:1;height:42px;border-radius:13px;background:var(--card);box-shadow:var(--sh-1);
+    font-family:Unbounded;font-weight:700;font-size:13px;letter-spacing:-.03em;color:var(--muted)}
+  .days button.on{background:var(--ink);color:#fff}
 </style>
 </head>
 <body>
-<div class="demoh"><a href="/assets/ux/">✕</a><b>Вариант 3 · Чек-лист</b><span>плотный, без фото</span></div>
+<div class="demoh"><a href="/assets/ux/index.html" id="x"></a><b>Вариант 3 · Дневная лента</b><span>ось времени, редакционная подача</span></div>
 
 <div class="wrap">
-  <div class="hd">
-    <div class="days" id="days"></div>
-    <div class="sum"><span class="bar"><i></i></span><span class="n tnum">280 / 1580 ккал</span></div>
+  <div class="head rise">
+    <div><h1>День 1</h1><div class="sub">Понедельник · осталось 4 приёма</div></div>
+    <div class="dial"><b class="num">280</b><span>из 1580</span></div>
   </div>
+  <div class="bar rise"><i></i></div>
 
-  <div class="grp">
-    <div class="gh"><h2>Еда</h2><span id="mdone">1 из 5</span></div>
-    <div class="list" id="meals"></div>
-  </div>
+  <div class="tl" id="tl"></div>
 
-  <div class="grp">
-    <div class="gh"><h2>Привычки</h2></div>
-    <div class="list">
-      <div class="it"><div class="cb"></div><div class="tx"><b>Вода</b><span>5 из 9 стаканов</span></div>
-        <span class="wcups" id="cups"></span></div>
-      <div class="it"><div class="cb"></div><div class="tx"><b>Вес</b><span>сегодня не записан</span></div>
-        <div class="rt">70 кг</div></div>
-    </div>
-  </div>
-
-  <div class="bot">
-    <button><i id="b1"></i>Список покупок</button>
-    <button><i id="b2"></i>Подписка</button>
+  <div class="foot-w">
+    <b>Вода</b><span style="color:var(--muted);font-size:12.5px">5 из 9</span>
+    <span class="cups" id="cups"></span>
   </div>
 </div>
 
+<div class="days"><div class="in" id="days"></div></div>
+
 <script src="/assets/ux/_shared.js"></script>
 <script>
-  const put = (id, s) => { const e = document.getElementById(id); if (e) e.innerHTML = s; };
-  put('b1', IC.cart); put('b2', IC.me);
+  const put=(id,s)=>{const e=document.getElementById(id);if(e)e.innerHTML=s;};
+  put('x',IC.close);
 
-  document.getElementById('days').innerHTML = Array.from({length: 7}, (_, i) =>
-    `<button class="${i === 0 ? 'on' : ''}${i === 0 ? '' : ''}">${i + 1}<i></i></button>`).join('');
+  const NOW = 1;   // индекс текущего приёма
+  put('tl', NP.meals.map((m,i)=>{
+    const state = i < NOW ? 'done' : i === NOW ? 'now' : 'soon';
+    return `<div class="ev ${state}">
+      <div class="tm">${m.time}</div>
+      <div class="c">
+        <img src="${dishUrl(m.slug)}" alt="">
+        <div class="in">
+          <div class="cap">${i===NOW?'Сейчас · ':''}${m.slot}</div>
+          <h3>${m.name}</h3>
+          <div class="m">${m.kcal} ккал · Б ${m.p} · Ж ${m.f} · У ${m.c}</div>
+          <div class="rest">
+            <div class="ing">${m.ing.map(x=>`<span>${x}</span>`).join('')}</div>
+            <button class="go">${IC.check}Приготовил</button>
+          </div>
+        </div>
+        <div class="k num">${m.kcal}</div>
+      </div></div>`;
+  }).join(''));
 
-  document.getElementById('meals').innerHTML = NP.meals.map((m, i) => `
-    <div class="it${m.done ? ' on' : ''}" data-i="${i}">
-      <div class="cb">${IC.check}</div>
-      <div class="tx"><b>${m.name}</b><span>${m.slot} · ${m.time} · Б${m.p} Ж${m.f} У${m.c}</span></div>
-      <div class="rt"><span class="tnum">${m.kcal}</span>
-        <button class="rec" data-r="${i}" aria-label="Рецепт">${IC.clock}</button></div>
-    </div>
-    <div class="rcp" id="r${i}">
-      <b>Нужно</b>${m.ing.join(' · ')}
-      <b>Как готовить</b><ol>${m.steps.map((s) => `<li>${s}</li>`).join('')}</ol>
-    </div>`).join('');
+  // в свёрнутых состояниях .in не нужен целиком — прячем лишнее классами выше,
+  // но заголовок и ккал должны остаться на виду
+  document.querySelectorAll('.ev.done .c, .ev.soon .c').forEach(c=>{
+    const h=c.querySelector('h3'), k=c.querySelector('.k'), img=c.querySelector('img'), inn=c.querySelector('.in');
+    c.innerHTML=''; c.append(img,h,k);
+  });
 
-  document.getElementById('cups').innerHTML =
-    Array.from({length: NP.water.goal}, (_, i) => `<span class="${i < NP.water.done ? 'f' : ''}"></span>`).join('');
-
-  document.querySelectorAll('.it .cb').forEach((cb) => cb.addEventListener('click', () => {
-    cb.closest('.it').classList.toggle('on');
-    const n = document.querySelectorAll('#meals .it.on').length;
-    document.getElementById('mdone').textContent = `${n} из ${NP.meals.length}`;
-  }));
-  document.querySelectorAll('.rec').forEach((b) => b.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const r = document.getElementById('r' + b.dataset.r);
-    r.classList.toggle('on'); b.classList.toggle('open');
-  }));
-  document.querySelectorAll('#days button').forEach((b) => b.addEventListener('click', () => {
-    document.querySelectorAll('#days button').forEach((x) => x.classList.toggle('on', x === b));
-  }));
+  put('cups', Array.from({length:NP.water.goal},(_,i)=>`<i class="${i<NP.water.done?'f':''}"></i>`).join(''));
+  put('days', Array.from({length:7},(_,i)=>`<button class="${i===0?'on':''}">${i+1}</button>`).join(''));
+  document.querySelectorAll('#days button').forEach(b=>b.addEventListener('click',()=>
+    document.querySelectorAll('#days button').forEach(x=>x.classList.toggle('on',x===b))));
 </script>
 </body>
 </html>
