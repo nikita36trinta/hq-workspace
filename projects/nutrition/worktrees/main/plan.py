@@ -174,8 +174,12 @@ def _meal_card(m: dict, day: int = 0, slot: str = "") -> str:
                    + "</details>")
     name = m.get("name", "")
     slug = dish_photos.slugify(name)
-    img = (f"<img class='mimg' loading='lazy' data-slug='{_e(slug)}' alt='' "
-           f"src='/dish/{quote(slug)}?t={quote(name)}'>")
+    # Фото — кнопка: в списке оно 56px, а в кэше лежит 512px, и разглядеть блюдо
+    # в такой марке невозможно. Тап открывает его на весь экран.
+    img = (f"<button class='mimg' data-zoom='{_e(slug)}' data-name='{_e(name)}' "
+           f"aria-label='Посмотреть фото: {_e(name)}'>"
+           f"<img loading='lazy' data-slug='{_e(slug)}' alt='' "
+           f"src='/dish/{quote(slug)}?t={quote(name)}'></button>")
     return (f"<div class='meal' data-k='{key}' data-kc='{kcnum}'><div class='mrow'>{img}"
             f"<div class='minfo'><span class='slot'>{_e(m.get('slot',''))}</span>"
             f"<div class='mname'>{_e(name)}</div>{macros}</div>"
@@ -188,14 +192,59 @@ def _meal_card(m: dict, day: int = 0, slot: str = "") -> str:
             f"<path d='M17 2h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2'/></svg></button></div></div>")
 
 
-def _shopping(sh: list) -> str:
+def _shopping(sh: list, days: list | None = None) -> str:
+    """Список покупок, по которому можно ходить по магазину.
+
+    Было: статичная стена из 41 строки без единого элемента управления. С ней
+    нельзя делать то, ради чего список нужен, — отмечать купленное; человек в
+    магазине держит место в голове и сбивается.
+
+    Стало: каждая позиция — переключатель, отметки живут локально по токену
+    плана, сверху видно «куплено N из M».
+    """
+    if not sh:
+        sh = _shopping_from_days(days or [])
     if not sh:
         return ""
-    cats = ""
-    for c in sh:
-        items = "".join(f"<li>{_e(i)}</li>" for i in (c.get("items") or []))
+    cats, total = "", 0
+    for ci, c in enumerate(sh):
+        items = ""
+        for ii, i in enumerate(c.get("items") or []):
+            total += 1
+            items += (f"<li><label class='si'><input type='checkbox' data-si='{ci}-{ii}'>"
+                      f"<span class='sb'></span><span class='st'>{_e(i)}</span></label></li>")
+        if not items:
+            continue
         cats += f"<div class='cat'><div class='ct'>{_e(c.get('cat',''))}</div><ul>{items}</ul></div>"
-    return f"<section class='sec'><h2>Список покупок</h2><div class='shop'>{cats}</div></section>"
+    if not cats:
+        return ""
+    return (f"<section class='sec'><div class='shead'><h2>Список покупок</h2>"
+            f"<button class='sclear' id='sclear' type='button'>Снять отметки</button></div>"
+            f"<div class='sprog'><span id='sdone'>0</span> из {total} — куплено</div>"
+            f"<div class='shop' id='shop' data-total='{total}'>{cats}</div></section>")
+
+
+def _shopping_from_days(days: list) -> list:
+    """Собрать список из ингредиентов блюд, если готового списка в плане нет.
+
+    Список покупок обещан прямо на экране оплаты. Но приходит он только от LLM,
+    и на банк-фолбэке (когда LLM не ответила) поле пустое — раздел ПРОПАДАЛ
+    молча, и человек не получал того, за что заплатил. Здесь хотя бы сводим
+    ингредиенты, если они есть.
+    """
+    seen: dict[str, str] = {}          # ключ в нижнем регистре → как показывать
+    for d in days or []:
+        for m in d.get("meals") or []:
+            for i in m.get("ingredients") or []:
+                k = str(i).strip()
+                if k:
+                    seen.setdefault(k.lower(), k)
+    items = list(seen.values())
+    if not items:
+        return []
+    # Без категорий: раскладывать продукты по отделам магазина мы здесь не умеем,
+    # а выдумывать неверные категории хуже, чем один честный список.
+    return [{"cat": "Всё на неделю", "items": sorted(items, key=str.lower)}]
 
 
 def _tips(tips: list) -> str:
@@ -278,7 +327,10 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
 <meta name="apple-mobile-web-app-title" content="NutriPlan">
 <link rel="apple-touch-icon" href="/assets/icon-192.png">
 <style>
-:root{{--g:#16A34A;--gd:#0E7A36;--soft:#E7F8EC;--ink:#20321F;--muted:#6B7566;--bg:#FBF8F1;--line:#EEE7D8;--card:#fff}}
+/* --wtr — вода. Отдельный токен, а не разовый цвет в правиле: вода отмечается
+   в двух местах (стаканы и полоса прогресса дня), и они обязаны совпадать. */
+:root{{--g:#16A34A;--gd:#0E7A36;--soft:#E7F8EC;--ink:#20321F;--muted:#6B7566;--bg:#FBF8F1;--line:#EEE7D8;--card:#fff;
+  --wtr:#2563EB;--wtr-soft:#DBEAFE}}
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}}
 .wrap{{max-width:560px;margin:0 auto;padding:0 18px 60px}}
@@ -305,7 +357,26 @@ h1{{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:22px 0 4px}}
 .dtitle span{{color:var(--gd)}}
 .meal{{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px;margin-bottom:11px}}
 .mrow{{display:flex;justify-content:space-between;gap:12px;align-items:center}}
-.mimg{{width:64px;height:64px;flex:0 0 auto;border-radius:13px;object-fit:cover;background:var(--soft);display:block}}
+.mimg{{width:64px;height:64px;flex:0 0 auto;border-radius:13px;background:var(--soft);display:block;
+  padding:0;border:none;overflow:hidden;cursor:zoom-in;position:relative}}
+.mimg img{{width:100%;height:100%;object-fit:cover;display:block}}
+/* Подсказка, что фото открывается: без неё картинка выглядит просто картинкой.
+   Лупа мелкая и в углу, чтобы не спорить с самой едой. */
+.mimg::after{{content:"";position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;
+  background:rgba(255,255,255,.9) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23405038' stroke-width='2.4' stroke-linecap='round'><circle cx='10.5' cy='10.5' r='6.5'/><path d='M15.5 15.5 21 21'/></svg>") center/11px 11px no-repeat;
+  box-shadow:0 1px 3px rgba(0,0,0,.25)}}
+
+/* Фото на весь экран. Открывается тапом по марке в списке. */
+.lb{{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;
+  background:rgba(20,28,18,.82);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  padding:20px;cursor:zoom-out}}
+.lb.on{{display:flex}}
+.lb figure{{max-width:min(520px,100%);width:100%;margin:0}}
+.lb img{{width:100%;height:auto;display:block;border-radius:18px;background:var(--soft);
+  box-shadow:0 30px 60px -20px rgba(0,0,0,.6)}}
+.lb figcaption{{color:#fff;font-weight:700;font-size:15px;text-align:center;margin-top:12px}}
+.lb .x{{position:absolute;top:12px;right:12px;width:40px;height:40px;border-radius:50%;border:none;
+  background:rgba(255,255,255,.16);color:#fff;font-size:22px;line-height:1;cursor:pointer}}
 .minfo{{flex:1;min-width:0}}
 .slot{{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}}
 .mname{{font-size:16px;font-weight:700;margin-top:2px}}.mm{{font-size:12px;color:var(--muted)}}
@@ -316,9 +387,26 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 .ing,.steps{{padding-left:18px;font-size:14px;line-height:1.6}}.steps li{{margin-bottom:4px}}
 .sec{{margin-top:30px}}.sec h2{{font-size:20px;font-weight:800;letter-spacing:-.01em;margin-bottom:12px}}
 .shop{{display:flex;flex-direction:column;gap:12px}}
-.cat{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}}
-.ct{{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px}}
-.cat ul{{padding-left:18px;font-size:14px;line-height:1.7}}
+.cat{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}}
+.ct{{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}}
+.cat ul{{list-style:none;padding:0;font-size:14px}}
+/* Позиция — переключатель, а не строчка текста: список нужен в магазине, где
+   единственное действие — отметить купленное. Цель нажатия во всю ширину, чтобы
+   попадать пальцем не глядя. */
+.si{{display:flex;align-items:flex-start;gap:11px;padding:8px 2px;cursor:pointer;line-height:1.35}}
+.si input{{position:absolute;opacity:0;width:0;height:0}}
+.si .sb{{width:21px;height:21px;flex:0 0 auto;border:2px solid var(--line);border-radius:6px;
+  margin-top:1px;position:relative;transition:.14s}}
+.si input:checked+.sb{{background:var(--g);border-color:var(--g)}}
+.si input:checked+.sb::after{{content:"";position:absolute;left:6px;top:2px;width:6px;height:11px;
+  border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}}
+.si input:focus-visible+.sb{{outline:2px solid var(--gd);outline-offset:2px}}
+.si input:checked~.st{{color:var(--muted);text-decoration:line-through}}
+.shead{{display:flex;align-items:baseline;justify-content:space-between;gap:12px}}
+.sclear{{border:none;background:none;color:var(--muted);font-size:13px;font-weight:700;
+  text-decoration:underline;text-underline-offset:2px;cursor:pointer;padding:0;font-family:inherit}}
+.sprog{{color:var(--muted);font-size:13px;font-weight:700;margin:-6px 0 12px}}
+.sprog.all{{color:var(--gd)}}
 .tips{{list-style:none;display:flex;flex-direction:column;gap:12px}}
 .tips li{{display:flex;gap:10px;font-size:15px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px}}
 .tips .c{{width:8px;height:8px;border-radius:50%;background:var(--g);flex:0 0 auto;margin-top:7px}}
@@ -380,7 +468,11 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 .wtop #wnum{{color:var(--muted);font-weight:700;font-size:13px}}
 .wcups{{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}}
 .cup{{width:24px;height:28px;padding:0;border:none;background:none;cursor:pointer;color:var(--line);transition:color .15s}}
-.cup svg{{width:100%;height:100%;display:block}}.cup.f{{color:var(--g)}}
+.cup svg{{width:100%;height:100%;display:block}}
+/* Выпитый стакан — синий, а не зелёный: зелёным на этом экране помечено
+   выполненное по еде («Приготовил», серия дней), и вода в том же цвете сливалась
+   с ним в одну шкалу. Синий читается как вода без подписи. */
+.cup.f{{color:var(--wtr)}}
 .wcard{{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}}
 .wrow{{display:flex;justify-content:space-between;align-items:flex-end}}
 .wbig{{font-size:34px;font-weight:800;color:var(--gd);letter-spacing:-.02em}}
@@ -440,7 +532,7 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
     <div class="wcups" id="wcups"></div></div>
   <div class="tabs">{tabs}</div>
   {panels}
-  {_shopping(pl.get('shopping') or [])}
+  {_shopping(pl.get('shopping') or [], pl.get('days') or [])}
   {_tips(pl.get('tips') or [])}
   <section class="sec" id="weightsec"><h2>Твой вес</h2>
     <div class="wcard">
@@ -589,7 +681,8 @@ fetch('/api/plan/'+T+'/progress').then(r=>r.json()).then(srv=>{{
 }}).catch(()=>{{_synced=true;}});
 // подгрузка фото блюд по мере генерации (первый юзер видит их через ~10–20с)
 (function(){{let tries=0;function poll(){{tries++;
-  const imgs=[...document.querySelectorAll('img.mimg[data-slug]')].filter(im=>!im.dataset.ready);
+  // Селектор именно '.mimg img': сама марка теперь <button>, а картинка внутри.
+  const imgs=[...document.querySelectorAll('.mimg img[data-slug]')].filter(im=>!im.dataset.ready);
   if(!imgs.length)return;
   imgs.forEach(im=>{{fetch(im.getAttribute('src'),{{method:'HEAD'}}).then(r=>{{
     if((r.headers.get('content-type')||'').indexOf('webp')>=0){{im.dataset.ready='1';im.src='/dish/'+im.dataset.slug+'?v='+Date.now();}}
@@ -665,6 +758,68 @@ document.querySelectorAll('.dislike').forEach(b=>{{let armed=false;
     const j=await r.json();if(!j.ok)throw 0; location.hash=''; location.reload();
   }}catch(e){{document.querySelectorAll('.dislike').forEach(x=>x.disabled=false);alert('Не удалось обновить меню — попробуй ещё раз');}}
 }});}});
+// Фото блюда на весь экран. В списке марка 56–64px, а в кэше 512px — блюдо в
+// такой марке не разглядеть, хотя «понятно, что покупаешь» и есть весь смысл фото.
+(function(){{
+  const lb=document.createElement('div'); lb.className='lb'; lb.setAttribute('hidden','');
+  lb.innerHTML="<button class='x' type='button' aria-label='Закрыть'>&times;</button>"
+    +"<figure><img alt=''><figcaption></figcaption></figure>";
+  document.body.appendChild(lb);
+  const im=lb.querySelector('img'), cap=lb.querySelector('figcaption');
+  let opener=null;
+  function open(slug,name,btn){{
+    opener=btn;
+    im.src='/dish/'+encodeURIComponent(slug)+'?lg=1'; im.alt=name||''; cap.textContent=name||'';
+    lb.removeAttribute('hidden'); lb.classList.add('on');
+    document.body.style.overflow='hidden';       // фон не должен ехать под открытым фото
+    lb.querySelector('.x').focus();
+  }}
+  function close(){{
+    lb.classList.remove('on'); lb.setAttribute('hidden','');
+    document.body.style.overflow='';
+    if(opener){{opener.focus();opener=null;}}     // возвращаем фокус туда, откуда открыли
+  }}
+  document.addEventListener('click',e=>{{
+    const b=e.target.closest('.mimg[data-zoom]');
+    if(b){{open(b.dataset.zoom,b.dataset.name,b);return;}}
+    // Клик по фону и по кресту закрывают; по самой картинке — нет.
+    if(lb.classList.contains('on') && !e.target.closest('figure')) close();
+  }});
+  document.addEventListener('keydown',e=>{{if(e.key==='Escape'&&lb.classList.contains('on'))close();}});
+}})();
+
+// Список покупок: отметки купленного. Раньше это была стена текста без единого
+// элемента управления — то есть с ним нельзя было делать ровно то, ради чего
+// список и нужен. Отметки держим локально: они про поход в магазин, а не про
+// данные аккаунта, и синхронизировать их между устройствами незачем.
+(function(){{
+  const box=document.getElementById('shop'); if(!box) return;
+  const KEY='np_shop_'+T, out=document.getElementById('sdone');
+  const prog=document.querySelector('.sprog');
+  const total=parseInt(box.dataset.total||'0');
+  let st={{}}; try{{st=JSON.parse(localStorage.getItem(KEY)||'{{}}');}}catch(e){{}}
+  const boxes=[...box.querySelectorAll('input[data-si]')];
+  function paint(){{
+    const n=boxes.filter(b=>b.checked).length;
+    if(out) out.textContent=n;
+    if(prog) prog.classList.toggle('all', total>0 && n===total);
+  }}
+  boxes.forEach(b=>{{
+    b.checked=!!st[b.dataset.si];
+    b.addEventListener('change',()=>{{
+      if(b.checked) st[b.dataset.si]=1; else delete st[b.dataset.si];
+      try{{localStorage.setItem(KEY,JSON.stringify(st));}}catch(e){{}}
+      paint();
+    }});
+  }});
+  const clr=document.getElementById('sclear');
+  if(clr) clr.addEventListener('click',()=>{{
+    st={{}}; try{{localStorage.removeItem(KEY);}}catch(e){{}}
+    boxes.forEach(b=>b.checked=false); paint();
+  }});
+  paint();
+}})();
+
 // PWA: service worker + install prompt
 if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{{}});
 let deferred=null; const ib=document.getElementById('install');
@@ -685,3 +840,4 @@ def menu_email_html(pl: dict, plan_link: str = "") -> str:
             + _norm_card(pl) + cta
             + "<div style='padding:14px 24px 0;font-weight:800;font-size:16px'>Меню на неделю</div>"
             + days + _foot() + "</div>")
+

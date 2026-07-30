@@ -768,13 +768,15 @@ def _is_known_dish(slug: str) -> bool:
 
 
 @app.api_route("/dish/{slug}", methods=["GET", "HEAD"])
-def dish_photo(slug: str, bg: BackgroundTasks, t: str = "") -> Response:
+def dish_photo(slug: str, bg: BackgroundTasks, t: str = "", lg: str = "") -> Response:
     """Фото блюда из общего кэша; если нет — плейсхолдер + фоновая генерация.
     Генерируем ТОЛЬКО для известных блюд (каталог + сохранённые планы) — иначе любой мог бы
     заказывать платную LLM-генерацию произвольных слагов (финансовый DoS + переполнение диска)."""
     slug = "".join(c for c in slug if c.isalnum() or c == "-")[:60]
     if slug and dish_photos.has_photo(slug):
-        return FileResponse(str(dish_photos.photo_file(slug)), media_type="image/webp",
+        # lg=1 — просмотр на весь экран: отдаём крупный вариант, если он есть.
+        # В списке марка 64px, и тянуть туда крупный файл незачем.
+        return FileResponse(str(dish_photos.photo_file(slug, big=lg == "1")), media_type="image/webp",
                             headers={"Cache-Control": "public, max-age=2592000, immutable"})
     if slug and _is_known_dish(slug):
         bg.add_task(dish_photos.generate, slug, t or slug.replace("-", " "))

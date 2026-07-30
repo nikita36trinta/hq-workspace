@@ -59,7 +59,14 @@ def has_photo(slug: str) -> bool:
     return (PHOTOS / f"{slug}.webp").exists()
 
 
-def photo_file(slug: str) -> Path:
+def photo_file(slug: str, big: bool = False) -> Path:
+    """Файл фото. big=True — крупный вариант для просмотра на весь экран, с
+    откатом на обычный: у блюд, снятых до появления крупного варианта, его нет,
+    и лучше показать 512px, чем ничего."""
+    if big:
+        lg = PHOTOS / f"{slug}-lg.webp"
+        if lg.exists():
+            return lg
     return PHOTOS / f"{slug}.webp"
 
 
@@ -94,6 +101,15 @@ def _save_webp(slug: str, raw: bytes) -> None:
     w, h = im.size
     s = min(w, h)
     im = im.crop(((w - s) // 2, (h - s) // 2, (w - s) // 2 + s, (h - s) // 2 + s))
+    # Крупный вариант для просмотра на весь экран. Генератор отдаёт больше 512,
+    # и раньше мы этот запас просто выбрасывали — фото, открытое во весь экран,
+    # выглядело мягким. Пишем оба: список берёт 512, просмотр — крупный.
+    # Отдельным файлом, а не вместо: в списке 64px-марка не должна тянуть мегабайт.
+    if s > 512:
+        big = im.resize((min(s, 1024), min(s, 1024)), Image.LANCZOS)
+        tmpb = PHOTOS / f"{slug}-lg.tmp.webp"
+        big.save(tmpb, "WEBP", quality=82, method=6)
+        tmpb.replace(PHOTOS / f"{slug}-lg.webp")
     im = im.resize((512, 512), Image.LANCZOS)
     tmp = PHOTOS / f"{slug}.tmp.webp"
     im.save(tmp, "WEBP", quality=80, method=6)

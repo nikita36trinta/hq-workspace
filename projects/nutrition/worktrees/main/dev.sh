@@ -2,6 +2,10 @@
 # Локальная площадка для правок. Исходники ПРИМОНТИРОВАНЫ, uvicorn с --reload,
 # поэтому правка файла видна по F5 — без docker cp и без перезапуска прода.
 #
+# WATCHFILES_FORCE_POLLING обязателен: через bind-mount на macOS inotify внутрь
+# контейнера не доходит, и --reload молча не срабатывает — правишь файл, а в
+# браузере старая страница.
+#
 # Раньше я гонял каждую итерацию через scp на боевой сервер: 12 секунд на
 # перезапуск и, что важнее, каждое промежуточное состояние висело на живом
 # сайте. Здесь ни того, ни другого.
@@ -24,6 +28,7 @@ docker run -d --name "$NAME" -p 8790:8790 \
   -v "$PWD/static:/app/static:ro" \
   -v "$PWD/.devdata:/app/data" \
   -e DATA_DIR=/app/data \
+  -e WATCHFILES_FORCE_POLLING=1 \
   nutriplan-dev-img \
   uvicorn app:app --host 0.0.0.0 --port 8790 --reload \
     --reload-dir /app --reload-include '*.py' >/dev/null

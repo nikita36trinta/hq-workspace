@@ -46,6 +46,23 @@ export async function walkQuizToPaywall(page: Page, maxSteps = 30): Promise<numb
 	throw new Error(`quiz did not reach the email step within ${maxSteps} steps`);
 }
 
+/**
+ * Закрыть приветственный оверлей на экране плана.
+ *
+ * Он показывается один раз на токен и накрывает ВЕСЬ экран, перехватывая
+ * нажатия. Тесты, которые щёлкали элементы через page.evaluate, этого не
+ * замечали — JS-click не проверяет попадание. Настоящий тап в него упирается,
+ * поэтому проходить его надо так же, как человек.
+ */
+export async function dismissWelcome(page: Page): Promise<void> {
+	const skip = page.locator("#wskip");
+	if (await skip.isVisible().catch(() => false)) {
+		await skip.click();
+		await page.waitForTimeout(250);
+	}
+	await expect(page.locator("#welcome"), "оверлей приветствия должен закрыться").toBeHidden();
+}
+
 /** Distance from the top of the viewport to the first rendered content. */
 export async function contentTop(page: Page): Promise<number> {
 	return page.evaluate(() => {

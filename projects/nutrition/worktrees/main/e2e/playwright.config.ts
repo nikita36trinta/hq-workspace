@@ -54,7 +54,12 @@ export default defineConfig({
 		command:
 			"docker rm -f nutriplan-e2e >/dev/null 2>&1; " +
 			"docker build -q -t nutriplan-e2e .. >/dev/null && " +
-			"docker run --rm --name nutriplan-e2e -p 8791:8790 -e DATA_DIR=/tmp/e2edata nutriplan-e2e",
+			// Фикстура плана подкладывается в data-каталог только для чтения.
+			// Без неё /plan/sample собирается банк-фолбэком (ключа LLM в наборе
+			// нет), а у банк-плана НЕТ списка покупок и рецептов — и тест на
+			// список молча уходил в skip. Пропущенный тест ничего не проверяет.
+			"docker run --rm --name nutriplan-e2e -p 8791:8790 -e DATA_DIR=/tmp/e2edata " +
+			"-v \"$PWD/fixtures/plans/sample.json:/tmp/e2edata/plans/sample.json:ro\" nutriplan-e2e",
 		url: "http://localhost:8791/api/health",
 		reuseExistingServer: false,
 		timeout: 300_000,
