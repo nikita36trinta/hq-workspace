@@ -202,9 +202,17 @@
   .prog .tick{position:absolute;transform:translateX(-50%);font-size:11.5px;color:var(--muted);white-space:nowrap}
   .prog .axis{display:flex;justify-content:space-between;color:var(--muted);font-size:12.5px;margin-top:8px}
   .card{background:var(--field);border:1.5px solid var(--line);border-radius:22px;padding:22px;margin-top:16px}
-  .kcal{display:flex;align-items:baseline;gap:10px}
-  .kcal .big{font-size:44px;font-weight:800;color:var(--accent-d);letter-spacing:-.02em;line-height:1}
-  .kcal .lab{color:var(--muted);font-size:14px}
+  /* Норма — главное число экрана, и подано оно должно быть как число, а не как
+     цифра, к которой сбоку приклеен абзац. Раньше блок был flex с
+     align-items:baseline: первая строка подписи прилипала к низу цифры, над ней
+     зияла пустота высотой в сорок пикселей, а тире в конце висело в воздухе. */
+  .kcal{display:block}
+  .kcal .knum{display:flex;align-items:baseline;gap:9px}
+  .kcal .big{font-size:52px;font-weight:800;color:var(--accent-d);letter-spacing:-.035em;line-height:.95}
+  .kcal .kunit{line-height:1.05}
+  .kcal .kunit b{display:block;font-size:16px;font-weight:800;color:var(--accent-d)}
+  .kcal .kunit span{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-top:0}
+  .kcal .klab{margin-top:8px;color:var(--muted);font-size:14.5px;line-height:1.4}
   .macros{display:flex;gap:9px;margin-top:18px}
   /* Песочные, а не мятные: в макете плитки БЖУ — тёплый нейтральный слой, и
      зелёным на экране остаётся только то, что действительно акцент (норма,
@@ -946,7 +954,11 @@ function renderPlan(){
 
   const revealed = `
     <div class="card">
-      <div class="kcal"><span class="big">${cal}</span><span class="lab">ккал в день —<br>твоя норма для ${goal} без голода</span></div>
+      <div class="kcal">
+        <div class="knum"><span class="big">${cal}</span>
+          <span class="kunit"><b>ккал</b><span>в день</span></span></div>
+        <p class="klab">Твоя норма для ${goal} без голода</p>
+      </div>
       <div class="macros">
         <div><div class="mrow"><span class="mic"><img src="/assets/macro-prot.svg" alt="" loading="lazy"></span><b>${P}</b></div><span>белки, г</span></div>
         <div><div class="mrow"><span class="mic"><img src="/assets/macro-fat.svg" alt="" loading="lazy"></span><b>${F}</b></div><span>жиры, г</span></div>
