@@ -289,3 +289,50 @@ test.describe("regressions · гейт почты", () => {
 		expect(kcal, "открытая норма должна совпасть с тем, что было размыто").toBe(data[0].num);
 	});
 });
+
+test.describe("regressions · заливка под кнопкой", () => {
+	/**
+	 * Found 2026-07-30 по скриншоту владельца: под кнопкой был виден светлый
+	 * прямоугольник с прямыми краями.
+	 *
+	 * Заливка была фоном самого .foot, поэтому её края совпадали с его боксом:
+	 * по бокам — отступы .shell, снизу — на 11px выше низа страницы (высоту
+	 * подвала задаёт flex, в CSS её заранее не посчитать). Под ней лежит не
+	 * ровный --bg, а свечение и фото блюд, поэтому края читались. Стоило
+	 * докрутить до конца — подвал отлипал, и прямоугольник оставался посреди
+	 * контента.
+	 *
+	 * Теперь заливка — фиксированный ::before у нижней кромки окна: раскладки
+	 * она не знает, значит и обрываться ей негде.
+	 */
+	test("заливка прибита к окну, а не к боксу подвала", async ({ page }) => {
+		await page.goto("/quiz?l=slim");
+		await walkQuizToPaywall(page);
+		await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+		await page.waitForTimeout(400);
+
+		const foot = page.locator(".foot");
+		expect(
+			await foot.evaluate((e) => getComputedStyle(e).backgroundImage),
+			"фон вернулся на сам подвал — снова будут видны края",
+		).toBe("none");
+		expect(
+			await foot.evaluate((e) => getComputedStyle(e, "::before").position),
+			"заливка обязана быть fixed",
+		).toBe("fixed");
+
+		// и она действительно доходит до кромок окна
+		const g = await page.evaluate(() => {
+			const probe = document.createElement("div");
+			probe.style.cssText = "position:fixed;left:0;right:0;bottom:0;height:150px";
+			document.body.appendChild(probe);
+			const r = probe.getBoundingClientRect();
+			probe.remove();
+			return { left: Math.round(r.left), right: Math.round(r.right), bottom: Math.round(r.bottom),
+				vw: document.documentElement.clientWidth, vh: window.innerHeight };
+		});
+		expect(g.left).toBe(0);
+		expect(g.right).toBe(g.vw);
+		expect(g.bottom).toBe(g.vh);
+	});
+});

@@ -108,8 +108,25 @@
   /* z-index обязателен: backdrop-filter на стеклянных карточках создаёт НОВЫЙ
      контекст наложения, и карточка начала перекрывать липкую кнопку — клик по
      «Показать мою норму» перехватывался текстом подсказки. Поймано e2e. */
-  .foot{position:sticky;bottom:0;z-index:4;background:linear-gradient(180deg,transparent,var(--bg) 26%);
-    padding:16px 0 calc(10px + env(safe-area-inset-bottom));margin-top:22px}
+  /* Подвал закрашивает фон под собой, чтобы карточки уезжали под кнопку, а не
+     сквозь неё.
+
+     Заливка живёт в ::before и прибита к низу ОКНА, а не к самому подвалу.
+     Пока она была фоном .foot, её края было видно светлым прямоугольником:
+     по бокам она кончалась на отступах .shell, снизу — на 11px выше низа
+     страницы (высоту подвала определяла раскладка flex, и посчитать её в CSS
+     заранее нельзя), а под ней лежит не ровный --bg, а свечение и фото блюд.
+     Стоило докрутить до конца — и подвал отлипал, оставляя прямоугольник
+     посреди контента.
+
+     Фиксированный слой этой арифметики не знает: он всегда во всю ширину и
+     всегда у нижней кромки, поэтому обрывов не остаётся ни при какой прокрутке
+     и ни на какой ширине. z-index:-1 держит его под кнопкой, но внутри
+     стекового контекста .foot — то есть над карточками. */
+  .foot{position:sticky;bottom:0;z-index:4;padding:16px 0 calc(10px + env(safe-area-inset-bottom));
+    margin-top:22px}
+  .foot::before{content:'';position:fixed;left:0;right:0;bottom:0;height:150px;z-index:-1;
+    pointer-events:none;background:linear-gradient(180deg,transparent,var(--bg) 48%)}
   .cta{width:100%;border:none;border-radius:15px;background:var(--accent);color:var(--cta-ink);
     font-size:17px;font-weight:800;padding:17px;transition:.16s;box-shadow:0 14px 30px -14px var(--accent)}
   .cta:hover:not(:disabled){background:var(--accent-d)}
@@ -344,7 +361,8 @@
     display:flex;align-items:center;justify-content:center}
   .pw-l li .c svg{width:15px;height:15px;stroke:var(--accent-d);fill:none;stroke-width:2;
     stroke-linecap:round;stroke-linejoin:round}
-  .pw .foot{position:static;background:none;margin-top:16px;padding:0}
+  .pw .foot{position:static;background:none;margin:16px 0 0;padding:0}
+  .pw .foot::before{content:none}
 
   /* тарифы: выбранный должен быть заметно «главнее», иначе выбор не читается */
   .tars{margin-top:20px;display:flex;flex-direction:column;gap:10px}
@@ -494,7 +512,9 @@
      — за экран всё равно не видно. Широкий вылет за .shell возвращаем с 700px:
      .shell упирается в 520px, значит по бокам свободно больше 86px. */
   .shell{overflow-x:clip}
-  @media (min-width:700px){ .shell{overflow-x:visible} }
+  @media (min-width:700px){
+    .shell{overflow-x:visible}
+  }
   html{overflow-x:clip}
 </style>
 </head>
