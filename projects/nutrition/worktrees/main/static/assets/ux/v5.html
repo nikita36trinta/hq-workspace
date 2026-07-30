@@ -222,6 +222,60 @@
 
   .scr{display:none}.scr.on{display:block}
 
+  /* ── профиль ────────────────────────────────────────────────────────────
+     Было три строки-заглушки. Экран отвечает на четыре вопроса, которые человек
+     реально задаёт: где я по весу, держусь ли темпа, под что собран план и что
+     с деньгами. Вес вынесен наверх крупно — ради него и подписывались. */
+  .sech2{display:block;margin:26px 4px 11px;color:var(--ink-2)}
+
+  .wcard{border-radius:var(--rx);padding:19px 20px 17px}
+  .wtop{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+  .wnum{display:flex;align-items:baseline;gap:5px;margin-top:8px}
+  .wnum b{font-family:Unbounded;font-weight:800;font-size:44px;letter-spacing:-.055em;
+    line-height:.9;color:var(--g-d)}
+  .wnum i{font-style:normal;font-size:15px;font-weight:600;color:var(--muted)}
+  .wsub{font-size:13px;color:var(--muted);margin-top:9px}
+  .wdelta{background:var(--g-soft);color:var(--g-d);border-radius:var(--rm);padding:9px 12px;
+    font-family:Unbounded;font-weight:700;font-size:14px;letter-spacing:-.03em;text-align:right;
+    flex:0 0 auto}
+  .wdelta span{display:block;font-family:Onest;font-size:10px;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--g-d);opacity:.7;margin-top:3px}
+  .spark{margin-top:16px;height:56px}
+  .spark svg{width:100%;height:100%;display:block;overflow:visible}
+  .wbtn{width:100%;margin-top:15px;background:var(--ink);color:#fff;border-radius:var(--rl);
+    padding:14px;font-size:14.5px;font-weight:700}
+
+  .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .pcell{border-radius:var(--rl);padding:14px 13px}
+  .pcell b{display:block;font-family:Unbounded;font-weight:700;font-size:26px;letter-spacing:-.05em;
+    margin-top:9px;line-height:1}
+  .pcell span{display:block;font-size:10.5px;color:var(--muted);margin-top:5px}
+
+  .plist{border-radius:var(--rl);padding:4px 16px}
+  .prow{display:flex;align-items:center;gap:12px;padding:13px 0;
+    border-bottom:1px solid var(--glass-line);font-size:14px}
+  .prow:last-child{border-bottom:none}
+  .prow span{color:var(--muted);flex:1 1 auto;min-width:0}
+  .prow b{font-weight:600;text-align:right}
+  .prow.col{display:block}
+  .prow.col span{display:block;margin-bottom:9px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chips i{font-style:normal;background:color-mix(in srgb,var(--ink) 5%,transparent);
+    border-radius:var(--rs);padding:7px 11px;font-size:12.5px}
+  .chips i.add{background:var(--g-soft);color:var(--g-d);font-weight:700}
+
+  .pwide{width:100%;margin-top:10px;border-radius:var(--rl);padding:14px;font-size:14px;
+    font-weight:600;color:var(--ink)}
+  .pwide.danger{color:#C2410C}
+  .prow2{display:flex;gap:10px}
+  .prow2 .pwide{flex:1}
+  .pnote{font-size:12px;color:var(--muted);margin-top:10px;padding:0 4px;line-height:1.45}
+
+  .plegal{margin:30px 0 10px;text-align:center}
+  .plegal .plinks{display:flex;gap:16px;justify-content:center;font-size:12.5px;color:var(--muted)}
+  .plegal .plinks a{text-decoration:underline;text-underline-offset:2px}
+  .plegal p{font-size:11px;line-height:1.45;color:var(--muted);margin:12px auto 0;max-width:44ch}
+
   /* покупки: каждая позиция — своя пилюля */
   .gh{display:flex;align-items:center;gap:9px;margin:20px 4px 10px}
   .gh b{font-size:12.5px;font-weight:700}
@@ -355,7 +409,61 @@
 
   <section class="scr" id="s-me">
     <div class="hero"><div class="cap">Профиль</div><h1>Я</h1></div>
-    <div id="me" style="margin-top:16px"></div>
+
+    <!-- Вес — главное число этого экрана: ради него человек и пришёл. -->
+    <div class="wcard glass rise">
+      <div class="wtop">
+        <div>
+          <div class="cap">Вес сейчас</div>
+          <div class="wnum"><b class="num">70</b><i>кг</i></div>
+          <div class="wsub">Цель 64 кг · осталось 6 кг</div>
+        </div>
+        <div class="wdelta">−2 кг<span>за 3 недели</span></div>
+      </div>
+      <div class="spark" id="spark"></div>
+      <button class="wbtn">Записать вес</button>
+    </div>
+
+    <div class="cap sech2">Прогресс</div>
+    <div class="pgrid">
+      <div class="pcell glass"><div class="cap">Серия</div><b class="num">1</b><span>день подряд</span></div>
+      <div class="pcell glass"><div class="cap">Выполнено</div><b class="num">1</b><span>из 7 дней</span></div>
+      <div class="pcell glass"><div class="cap">Вода</div><b class="num">5</b><span>в среднем</span></div>
+    </div>
+
+    <div class="cap sech2">Мой план</div>
+    <div class="plist glass">
+      <div class="prow"><span>Цель</span><b>Снижение веса</b></div>
+      <div class="prow"><span>Приёмов в день</span><b>5</b></div>
+      <div class="prow"><span>Время на готовку</span><b>до 30 минут</b></div>
+      <div class="prow col"><span>Ограничения</span>
+        <div class="chips"><i>без лактозы</i><i>не ем грибы</i><i class="add">+ изменить</i></div>
+      </div>
+    </div>
+    <button class="pwide glass">Пересобрать план под новые ответы</button>
+
+    <div class="cap sech2">Подписка</div>
+    <div class="plist glass">
+      <div class="prow"><span>Тариф</span><b>499 ₽ в месяц</b></div>
+      <div class="prow"><span>Следующее списание</span><b>29 августа</b></div>
+      <div class="prow"><span>Карта</span><b>•••• 4242</b></div>
+    </div>
+    <div class="prow2">
+      <button class="pwide glass">Отвязать карту</button>
+      <button class="pwide glass danger">Отменить подписку</button>
+    </div>
+    <p class="pnote">После отмены недели приходят до конца оплаченного периода — до 29 августа.</p>
+
+    <div class="cap sech2">Аккаунт</div>
+    <div class="plist glass">
+      <div class="prow"><span>Почта</span><b>kto@example.com</b></div>
+    </div>
+
+    <footer class="plegal">
+      <div class="plinks"><a>Оферта</a><a>Политика ПДн</a><a>Согласие</a></div>
+      <p>План носит рекомендательный, информационно-справочный характер и не является
+         медицинской услугой. При заболеваниях и беременности проконсультируйтесь с врачом.</p>
+    </footer>
   </section>
 </div>
 
@@ -457,11 +565,20 @@
     <div class="gh"><b>${c.cat}</b><span>${c.items.length}</span></div>
     ${c.items.map(i=>`<div class="si glass"><div class="cb">${IC.check}</div><span>${i}</span></div>`).join('')}`).join(''));
 
-  put('me', [['Вес сегодня','Последний замер: 70 кг','Записать'],
-             ['Серия','1 день подряд','Смотреть'],
-             ['Подписка','499 ₽ · списание 29 августа','Управлять']]
-    .map(([a,b,c])=>`<div class="row glass"><div class="t"><b>${a}</b><span>${b}</span></div>
-      <div class="k" style="font-family:Onest;font-size:12.5px;font-weight:600">${c}</div></div>`).join(''));
+  // График веса: точки настоящие для прототипа (72→70 за три недели), кривая
+  // строится по ним, а не рисуется «красиво» — иначе она врала бы о динамике.
+  (function(){
+    const pts=[72,71.6,71.1,70.8,70.4,70.2,70];
+    const W=298,H=56,min=Math.min(...pts)-.6,max=Math.max(...pts)+.4;
+    const x=i=>i/(pts.length-1)*W, y=v=>H-(v-min)/(max-min)*H;
+    const d=pts.map((v,i)=>`${i?'L':'M'} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+    put('spark', `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <path d="${d} L ${W} ${H} L 0 ${H} Z" fill="var(--g-soft)" opacity=".8"/>
+      <path d="${d}" fill="none" stroke="var(--g)" stroke-width="2.5"
+        stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      <circle cx="${W}" cy="${y(pts[pts.length-1]).toFixed(1)}" r="4" fill="var(--g)"/>
+    </svg>`);
+  })();
 
   document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>{
     document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('on',x===b));
