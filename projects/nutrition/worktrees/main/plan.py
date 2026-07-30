@@ -164,8 +164,11 @@ def lead_html(quiz: dict, plan_link: str = "") -> str:
 
 # ---------- Веб-страница плана (seed будущего PWA) + письмо-меню ----------
 
-def _meal_card(m: dict, day: int = 0, slot: str = "") -> str:
-    key = f"{day}:{slot}"
+def _meal_card(m: dict, day: int = 0, slot: str = "", idx: int = 0) -> str:
+    # В ключ отметки входит НОМЕР приёма в дне: слоты повторяются («Перекус» ×2),
+    # и по ключу «день:слот» отметка на одном приёме помечала оба — день считался
+    # выполненным раньше времени и калории второго приёма падали в «съедено».
+    key = f"{day}:{idx}:{slot}"
     kc = m.get("kcal", "")
     try:
         kcnum = int(float(m.get("kcal") or 0))
@@ -195,7 +198,7 @@ def _meal_card(m: dict, day: int = 0, slot: str = "") -> str:
             f"<div class='mname'>{_e(name)}</div>{macros}</div>"
             f"<div class='kc'>{_e(kc)}<small>ккал</small></div></div>{details}"
             f"<div class='mact'><button class='done' data-k='{key}'><span class='dc'></span>Приготовил</button>"
-            f"<button class='swap' data-day='{day}' data-slot='{slot}'>Заменить</button>"
+            f"<button class='swap' data-day='{day}' data-slot='{slot}' data-i='{idx}' data-k='{key}'>Заменить</button>"
             f"<button class='dislike' data-name='{_e(name)}' title='Не нравится — убрать из меню'>"
             f"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
             f"<path d='M17 2H7.3a2 2 0 0 0-2 1.7l-1.3 8A2 2 0 0 0 6 14h4l-.7 3.3a2 2 0 0 0 3.5 1.6L17 14'/>"
@@ -304,7 +307,58 @@ def _acct_html(sub, token: str) -> str:
             f"</div></section>")
 
 
-def page_html(pl: dict, title: str = "Твой план питания", token: str = "", sub=None) -> str:
+def _days_since(iso: str) -> int | None:
+    """Сколько полных суток прошло с начала плана. None — даты нет или она битая."""
+    if not iso:
+        return None
+    try:
+        from datetime import datetime, timezone
+        d = datetime.fromisoformat(str(iso))
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - d).days
+    except Exception:
+        return None
+
+
+def _renews_weeks(sub) -> bool:
+    """Придёт ли следующая неделя сама. Не только у active: отменившему подписку cron
+    довозит недели до конца ОПЛАЧЕННОГО периода (app.py, _period_paid), и до этой даты
+    «план не продлевается» было бы прямым враньём — меню придёт и на почту, и сюда."""
+    if not sub:
+        return False
+    st = sub.get("status")
+    if st == "active":
+        return True
+    if st != "canceled":
+        return False
+    left = _days_since(sub.get("next") or "")   # дата платежа впереди → «прошло» отрицательное
+    return left is not None and left < 0
+
+
+def _weekover(ndays: int, renew_link: str) -> str:
+    """Экран «неделя пройдена» для разового плана.
+
+    Разовый план не создаёт подписку, а регенерацию гоняет cron только по
+    подпискам — нового меню не будет НИКОГДА. Без этого блока на 8-й день человек
+    открывает ту же неделю, где всё отмечено, и повода возвращаться нет.
+    Текст не обещает автосборку: её здесь действительно не происходит.
+    """
+    return (f"<section class='wover'><div class='wobadge'>Неделя пройдена</div>"
+            f"<h2>Твои 7 дней закончились</h2>"
+            f"<p class='wosum'>Выполнено <b><span id='woDone'>0</span> из {ndays}</b> дней.</p>"
+            f"<p class='wotxt'>План остаётся здесь: меню, рецепты и список покупок никуда не денутся — "
+            f"по ним можно готовить дальше. Но новое меню он сам не соберёт: разовый план "
+            f"рассчитан на одну неделю и не продлевается.</p>"
+            f"<a class='wocta' href='{_e(renew_link)}'>Собрать новую неделю по подписке</a>"
+            # Не пишем «придёт сюда же»: подписка оформляется через квиз, а он заводит
+            # НОВЫЙ токен плана — ссылка на новую неделю будет другой, она в письме.
+            f"<p class='wonote'>В подписке новое меню на 7 дней приходит каждую неделю — "
+            f"письмом со ссылкой на обновлённый план.</p></section>")
+
+
+def page_html(pl: dict, title: str = "Твой план питания", token: str = "", sub=None,
+              renew_link: str = "/quiz") -> str:
     days = pl.get("days") or []
     q = pl.get("quiz") or {}
     try:
@@ -316,11 +370,20 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
     water_goal = max(6, min(12, round(start_w * 30 / 250))) if start_w else 8
     manifest = f"/app.webmanifest?t={token}" if token else "/app.webmanifest"
     acct = _acct_html(sub, token)
+    # ver/started пишет app.py при сохранении плана; у планов, созданных раньше, их нет —
+    # тогда ведём себя как прежде. Фильтруем символы, потому что ver уезжает в JS-строку.
+    ver = "".join(c for c in str(pl.get("ver") or "") if c.isalnum() or c in "-_.")
+    week_over = ""
+    if not _renews_weeks(sub):   # кому неделю пересоберёт cron — блок не показываем
+        age = _days_since(pl.get("started") or "")
+        if age is not None and age >= 7:
+            week_over = _weekover(len(days), renew_link)
     tabs = "".join(f"<button class='tab{" on" if i==0 else ""}' data-d='{i}'>{i + 1}</button>"
                    for i, _ in enumerate(days))
     panels = ""
     for i, d in enumerate(days):
-        meals = "".join(_meal_card(m, i, m.get("slot", "")) for m in (d.get("meals") or []))
+        meals = "".join(_meal_card(m, i, m.get("slot", ""), j)
+                        for j, m in enumerate(d.get("meals") or []))
         tot = sum(int(m.get("kcal") or 0) for m in (d.get("meals") or []))
         panels += (f"<div class='panel{" on" if i==0 else ""}' data-d='{i}'>"
                    f"<div class='dtitle'>{_day_label(i)} <span>{tot} ккал</span></div>"
@@ -340,7 +403,7 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
 /* --wtr — вода. Отдельный токен, а не разовый цвет в правиле: вода отмечается
    в двух местах (стаканы и полоса прогресса дня), и они обязаны совпадать. */
 :root{{--g:#16A34A;--gd:#0E7A36;--soft:#E7F8EC;--ink:#20321F;--muted:#6B7566;--bg:#FBF8F1;--line:#EEE7D8;--card:#fff;
-  --wtr:#2563EB;--wtr-soft:#DBEAFE}}
+  --wtr:#38BDF8;--wtr-soft:#E0F2FE}}
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}}
 .wrap{{max-width:560px;margin:0 auto;padding:0 18px 60px}}
@@ -433,6 +496,21 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 .plegal{{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);text-align:center;font-size:13px;color:var(--muted)}}
 .plegal .plinks a{{color:var(--muted);margin:0 8px;text-decoration:underline;text-underline-offset:2px}}
 .plegal .preq{{margin-top:10px}}.plegal .preq a{{color:var(--muted)}}
+/* Юридическая оговорка: мелкая, но читаемая. 11.5px и обычный muted — это
+   сноска, а не скрытый текст; невидимая оговорка юридически бесполезна. */
+.plegal .pdisc{{margin-top:12px;font-size:11.5px;line-height:1.45;max-width:52ch;
+  margin-left:auto;margin-right:auto;color:var(--muted)}}
+/* «Неделя пройдена». Спокойный блок, а не перекрывающее окно: план под ним
+   остаётся рабочим, человек имеет право просто готовить дальше. */
+.wover{{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;margin-top:18px}}
+.wobadge{{display:inline-block;background:var(--soft);color:var(--gd);font-weight:800;font-size:12px;
+  text-transform:uppercase;letter-spacing:.04em;padding:5px 12px;border-radius:99px}}
+.wover h2{{font-size:21px;font-weight:800;letter-spacing:-.01em;margin:12px 0 6px}}
+.wosum{{font-size:15px}}.wosum b{{color:var(--gd)}}
+.wotxt{{font-size:14px;color:var(--muted);line-height:1.5;margin-top:10px}}
+.wocta{{display:block;text-align:center;margin-top:16px;background:var(--g);color:#fff;text-decoration:none;
+  font-weight:800;font-size:15px;padding:14px;border-radius:14px}}
+.wonote{{font-size:13px;color:var(--muted);line-height:1.45;margin-top:10px;text-align:center}}
 .streakc{{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 15px;margin-top:16px}}
 .sm{{width:56px;height:56px;border-radius:14px;overflow:hidden;background:var(--soft);flex:0 0 auto}}
 .sm video,.sm img{{width:100%;height:100%;object-fit:cover;display:block}}
@@ -530,6 +608,7 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 </div>
 <div class="wrap">
   <h1>{title}</h1><p class="lead">Персонально под твою цель, вкусы и ритм</p>
+  {week_over}
   <div class="norm"><div class="big">{pl.get('cal','')}<small> ккал/день</small></div>
     <div class="macros"><div><b>{pl.get('P','')}</b><span>белки, г</span></div>
       <div><b>{pl.get('F','')}</b><span>жиры, г</span></div><div><b>{pl.get('C','')}</b><span>углеводы, г</span></div></div></div>
@@ -562,6 +641,13 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
   {acct}
   <footer class="plegal">
     <div class="plinks"><a href="/offer">Оферта</a><a href="/privacy">Политика ПДн</a><a href="/consent">Согласие</a><a href="/login">Войти по почте</a></div>
+    <!-- Оговорка в подвале, мелким шрифтом: то же, что уже есть в оферте и в
+         письмах, но теперь и в самом продукте. Мелким — не значит спрятанным:
+         текст читаемый и контрастный. Оговорка, которую суд признает скрытой,
+         не защищает вовсе, так что «сделать невидимой» работало бы против цели. -->
+    <div class="pdisc">План носит рекомендательный, информационно-справочный характер и не является
+      медицинской услугой, диагностикой, лечением или назначением лечебной диеты. При заболеваниях,
+      беременности и особенностях здоровья проконсультируйтесь с врачом.</div>
     <div class="preq">Самозанятый Ульянин Никита Юрьевич · ИНН 772459697062 · <a href="mailto:support@mynutriplan.ru">support@mynutriplan.ru</a></div>
   </footer>
 </div>
@@ -579,7 +665,9 @@ const NDAYS={len(days)};
   if(m){{activateDay(parseInt(m[1]));return;}}
   let wd=(new Date().getDay()+6)%7; if(wd>=NDAYS) wd=0; activateDay(wd);}})();
 // app-loop: отметки «приготовил» + прогресс (localStorage)
-const T='{token}', DKEY='np_done_'+T;
+// Версия плана — в ключе отметок: иначе новая неделя открывается с галочками
+// старой, а серверный сброс прогресса тут же перетирается локальным состоянием.
+const T='{token}', VER='{ver}', DKEY='np_done_'+T+(VER?'_v'+VER:'');
 const START_W={start_w or 0}, GOAL="{goal_code}", WGOAL={water_goal};
 // онбординг-тур (показываем один раз на план)
 (function(){{
@@ -593,7 +681,23 @@ const START_W={start_w or 0}, GOAL="{goal_code}", WGOAL={water_goal};
   document.getElementById('wskip').onclick=fin;
   show(0); ov.removeAttribute('hidden');
 }})();
+// Перенос отметок со старого ключа «день:слот» на новый «день:номер:слот».
+// Если слот в дне один — отметка переезжает; если слотов с таким названием два,
+// понять, какой из них отмечали, невозможно, поэтому такую отметку снимаем
+// (лучше снять галочку, чем поставить две чужих).
+function migrateDone(o){{
+  let ch=false;
+  Object.keys(o||{{}}).forEach(k=>{{
+    const p=k.split(':'); if(p.length!==2) return;
+    const els=[...document.querySelectorAll(".panel[data-d='"+p[0]+"'] .meal")]
+      .filter(el=>(el.dataset.k||'').split(':').slice(2).join(':')===p[1]);
+    delete o[k]; ch=true;
+    if(els.length===1) o[els[0].dataset.k]=1;
+  }});
+  return ch;
+}}
 let done=JSON.parse(localStorage.getItem(DKEY)||'{{}}');
+if(migrateDone(done)) localStorage.setItem(DKEY,JSON.stringify(done));
 function dayComplete(i){{const ks=[...document.querySelectorAll(".panel[data-d='"+i+"'] .meal")].map(el=>el.dataset.k);return ks.length>0 && ks.every(k=>done[k]);}}
 function paint(){{
   document.querySelectorAll('.meal').forEach(el=>el.classList.toggle('on', !!done[el.dataset.k]));
@@ -601,6 +705,7 @@ function paint(){{
   for(let i=0;i<tabs.length;i++){{const c=dayComplete(i); tabs[i].classList.toggle('complete',c);
     if(c){{comp++;run++;best=Math.max(best,run);}} else run=0;}}
   const pr=document.getElementById('prog'); if(pr) pr.textContent=comp;
+  const wo=document.getElementById('woDone'); if(wo) wo.textContent=comp;   // итог недели
   const sm=document.getElementById('streakmsg');
   if(sm) sm.innerHTML = best>=2 ? ('Серия <b>'+best+'</b> дней подряд — так держать!')
     : comp>0 ? 'Отличное начало! Не бросай серию' : 'Отмечай «Приготовил» — собери серию';
@@ -663,12 +768,16 @@ if(wsv)wsv.onclick=()=>{{const el=document.getElementById('winput');const v=pars
   localStorage.setItem(WTK,JSON.stringify(a));el.value='';renderWeight();pushProgress();}};
 renderWeight();
 // ---- серверная синхронизация прогресса (стрик/вода/вес) к аккаунту ----
+let _srvread=false;   // прочитали ли мы серверное состояние хоть раз (см. t в collectLocal)
 function collectLocal(){{
   const water={{}}; const wp='np_water_'+T+'_';
   for(let i=0;i<localStorage.length;i++){{const k=localStorage.key(i);
     if(k&&k.indexOf(wp)===0){{const v=parseInt(localStorage.getItem(k)||'0'); if(v)water[k.slice(wp.length)]=v;}}}}
   let weight=[]; try{{weight=JSON.parse(localStorage.getItem('np_wt_'+T)||'[]');}}catch(e){{}}
-  return {{done:done, water:water, weight:weight, t:Date.now()}};  // t = версия для merge на сервере
+  // t = версия для merge на сервере. Если серверное состояние прочитать не удалось,
+  // шлём t=0: сервер тогда доливает, а не заменяет. Иначе клиент с упавшим GET
+  // отправляет пустой done и стирает прогресс — после смены ver локально пусто.
+  return {{done:done, water:water, weight:weight, t:_srvread?Date.now():0}};
 }}
 function applyLocal(p){{
   if(!p)return;
@@ -682,8 +791,9 @@ function pushProgress(){{if(!_synced)return;clearTimeout(_pushT);_pushT=setTimeo
 }},1000);}}
 // начальная синхронизация ОДИН раз: сервер ∪ локальное → перерисовать → отправить объединённое (дальше replace)
 fetch('/api/plan/'+T+'/progress').then(r=>r.json()).then(srv=>{{
+  _srvread=true;
   const loc=collectLocal();
-  const mDone=Object.assign({{}},srv.done||{{}},loc.done||{{}});
+  const mDone=Object.assign({{}},srv.done||{{}},loc.done||{{}}); migrateDone(mDone);  // на сервере тоже лежат старые ключи
   const mWater=Object.assign({{}},srv.water||{{}}); Object.entries(loc.water||{{}}).forEach(([d,n])=>{{mWater[d]=Math.max(mWater[d]||0,n);}});
   const wt={{}}; (srv.weight||[]).concat(loc.weight||[]).forEach(e=>{{if(e&&e.d)wt[e.d]=e;}});
   applyLocal({{done:mDone,water:mWater,weight:Object.values(wt).sort((a,b)=>a.d<b.d?-1:1)}});
@@ -701,11 +811,14 @@ fetch('/api/plan/'+T+'/progress').then(r=>r.json()).then(srv=>{{
 }}setTimeout(poll,5000);}})();
 // замена блюда (LLM-регенерация одного блюда, затем перезагрузка на том же дне)
 document.querySelectorAll('.swap').forEach(b=>b.addEventListener('click',async()=>{{
-  const day=+b.dataset.day, slot=b.dataset.slot, o=b.textContent; b.disabled=true; b.textContent='Подбираю…';
+  const day=+b.dataset.day, slot=b.dataset.slot, idx=+b.dataset.i, o=b.textContent; b.disabled=true; b.textContent='Подбираю…';
   try{{
-    const r=await fetch('/api/plan/{token}/swap',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{day,slot}})}});
+    // idx — номер приёма в дне. Слоты повторяются («Перекус» ×2), и по одному
+    // slot сервер не отличит второй перекус от первого. Лишнее поле сервер
+    // просто игнорирует, пока не начнёт его использовать.
+    const r=await fetch('/api/plan/{token}/swap',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{day,slot,idx}})}});
     const j=await r.json(); if(!j.meal) throw 0;
-    delete done[day+':'+slot]; localStorage.setItem(DKEY,JSON.stringify(done));  // новое блюдо — сбрасываем «съедено»
+    delete done[b.dataset.k]; localStorage.setItem(DKEY,JSON.stringify(done));  // новое блюдо — сбрасываем «съедено»
     try{{await fetch('/api/plan/'+T+'/progress',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(collectLocal())}});}}catch(e){{}}
     location.hash='d'+day; location.reload();
   }}catch(e){{ b.disabled=false; b.textContent=o; alert('Не удалось заменить — попробуй ещё раз'); }}

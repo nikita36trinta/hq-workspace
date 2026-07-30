@@ -118,18 +118,73 @@ def _send_email_raw(key: str, to: str, subject: str, html: str, tag: str = "") -
         return {"error": str(e)[:120]}
 
 
-def _save_plan(token: str, pl: dict, reset_progress: bool = False) -> None:
+# Поля, привязанные к ТОКЕНУ, а не к конкретной версии меню: при регенерации плана
+# они переезжают в новую версию. Иначе started уехал бы на дату регенерации, а
+# письма-возвраты ушли бы по второму разу.
+_PLAN_STICKY = ("started", "mail_d2", "mail_d6")
+
+
+def _write_plan(token: str, pl: dict) -> None:
     try:
         PLANS.mkdir(parents=True, exist_ok=True)
         (PLANS / f"{token}.json").write_text(json.dumps(pl, ensure_ascii=False), encoding="utf-8")
     except Exception:  # noqa: BLE001
         pass
+
+
+def _plan_mark(token: str, fields: dict) -> None:
+    """Служебная пометка в файле плана (письма, деградация) БЕЗ роста ver: ver считает
+    версии меню, к которым клиент привязывает отметки «приготовил»."""
+    safe = "".join(c for c in token if c.isalnum())
+    pl = _load_plan(safe)
+    if not pl:
+        return
+    pl.update(fields)
+    _write_plan(safe, pl)
+
+
+def _save_plan(token: str, pl: dict, reset_progress: bool = False) -> None:
+    safe = "".join(c for c in token if c.isalnum())  # как в _load_plan, иначе сохраним не туда
+    prev = _load_plan(safe)
+    now = datetime.now(timezone.utc).isoformat()
+    # ver+started: клиенту нужно знать, к какой версии меню относятся его отметки
+    # «приготовил» — иначе серверный сброс прогресса он тут же перезатирает локальным
+    # состоянием. started — дата первого сохранения токена, при регенерации не меняется.
+    try:
+        old_ver = int(prev.get("ver") or 0)
+    except Exception:  # noqa: BLE001
+        old_ver = 0
+    # ver — номер ПОКОЛЕНИЯ МЕНЮ, а не номер записи на диск: к нему клиент привязывает
+    # localStorage-ключ отметок «приготовил». Замена одного блюда (swap) сохраняет тот же
+    # план — подними мы там ver, у человека на ровном месте обнулился бы ключ со всеми
+    # отметками недели. Новое меню = reset_progress.
+    pl["ver"] = old_ver + 1 if (reset_progress or not old_ver) else old_ver
+    for k in _PLAN_STICKY:
+        if prev.get(k) and not pl.get(k):
+            pl[k] = prev[k]
+    pl.setdefault("started", now)
+    # Банк-заготовка — план БЕЗ рецептов и списка покупок, то есть без того, что
+    # продаёт пейволл. Молча отдавать её нельзя: помечаем и считаем, cron дорегенерирует
+    # (пометка снимется сама — успешная перегенерация приходит новым словарём).
+    if pl.get("source") != "ai" and safe not in DEMO_TOKENS:
+        pl["degraded"] = True
+        pl.setdefault("degraded_at", now)
+        if not prev.get("degraded"):
+            _bump("plan_degraded")
+            print(f"[ALERT] план {safe} сохранён деградированным (source={pl.get('source')!r}): "
+                  f"без рецептов и списка покупок", flush=True)
+    _write_plan(safe, pl)
     if reset_progress:  # новая версия плана → блюда не должны быть уже «приготовлены»
         try:
             pr = _load_progress(token)
-            if pr.get("done"):
-                pr["done"] = {}  # воду/вес сохраняем — это трекеры, а не отметки блюд
-                _save_progress(token, pr)
+            pr["done"] = {}  # воду/вес сохраняем — это трекеры, а не отметки блюд
+            pr.setdefault("water", {})
+            pr.setdefault("weight", [])  # форма ответа для клиента не должна меняться
+            # Штамп версии, к которой относится сброс: без него клиент видит пустой
+            # «приготовил» с сервера, считает его отставшим и возвращает свои старые
+            # отметки — сброс отменяется сам собой.
+            pr["ver"] = pl["ver"]
+            _save_progress(token, pr)
         except Exception:  # noqa: BLE001
             pass
 
@@ -193,6 +248,8 @@ def _save_progress(token: str, data: dict) -> None:
 
 @app.get("/api/plan/{token}/progress")
 def get_progress(token: str) -> JSONResponse:
+    """ver — версия плана, к которой относятся отметки «приготовил» (см. _save_plan):
+    клиенту она нужна, чтобы отличить серверный сброс от отставшего состояния."""
     return JSONResponse(_load_progress(token) or {"done": {}, "water": {}, "weight": []})
 
 
@@ -227,6 +284,8 @@ async def post_progress(token: str, request: Request) -> JSONResponse:
         data = {"done": done, "water": water,
                 "weight": sorted(wt.values(), key=lambda e: e.get("d") or ""),
                 "_t": prev.get("_t")}
+    if prev.get("ver") is not None:
+        data["ver"] = prev["ver"]  # версию штампует сервер при сбросе, клиент её не переписывает
     _save_progress(tok, data)
     return JSONResponse(data)
 
@@ -252,6 +311,13 @@ def _fulfill_paid(email: str, quiz: dict, oid: str, base: str) -> None:
         import plan_ai
         pl = plan_ai.generate_plan(quiz or {})
         pl["quiz"] = quiz or {}  # нужно для замены блюд
+        if pl.get("source") != "ai":
+            # Оплачено, а отдаём банк-заготовку: ни рецептов, ни списка покупок —
+            # ровно то, что продавал пейволл. Метку в плане ставит _save_plan,
+            # здесь важно, КОМУ именно это ушло.
+            _bump("fulfill_degraded")
+            print(f"[ALERT] оплаченный план деградирован: order={oid} email={email} "
+                  f"source={pl.get('source')!r}", flush=True)
         if oid:
             _save_plan(oid, pl)
         link = f"{base}/plan/{oid}" if oid else ""
@@ -324,6 +390,37 @@ def _guarded_status(sid: str, new_status: str) -> bool:
     return True
 
 
+_RU_MONTHS = ("января", "февраля", "марта", "апреля", "мая", "июня", "июля",
+              "августа", "сентября", "октября", "ноября", "декабря")
+
+
+def _ru_date(iso: str) -> str:
+    """Дата для письма — в московском времени: храним всё в UTC, а человек сверяет
+    дату списания с выпиской банка, и разница в 3 часа даёт разные сутки."""
+    try:
+        d = datetime.fromisoformat(iso)
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        d = d.astimezone(timezone(timedelta(hours=3)))
+        return f"{d.day} {_RU_MONTHS[d.month - 1]}"
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _mail_shell(head: str, body: str, cta_href: str = "", cta_label: str = "", foot: str = "") -> str:
+    cta = (f"<p style='margin:20px 0'><a href='{cta_href}' style='display:inline-block;background:#16A34A;"
+           f"color:#fff;text-decoration:none;font-weight:800;padding:15px 26px;border-radius:14px'>"
+           f"{cta_label}</a></p>") if (cta_href and cta_label) else ""
+    return (f"<div style='font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;"
+            f"padding:32px;color:#20321F'><h2 style='margin:0 0 12px'>{head}</h2>"
+            f"<div style='color:#6B7566;font-size:15px;line-height:1.55'>{body}</div>{cta}{foot}</div>")
+
+
+def _cancel_note(base: str, sid: str) -> str:
+    return (f"<p style='color:#8A9384;font-size:13px;margin-top:18px'>Отменить подписку можно в любой момент — "
+            f"<a href='{base}/sub/cancel?s={sid}' style='color:#8A9384'>управление подпиской</a>.</p>")
+
+
 def _sub_ended_email(base: str, unbound: bool) -> str:
     head = ("Подписка завершена" if unbound else "Подписка приостановлена")
     body = ("Автопродление отключено (ты отвязал карту) — доступ к плану сохранён. "
@@ -331,12 +428,49 @@ def _sub_ended_email(base: str, unbound: bool) -> str:
             if unbound else
             "Не получилось продлить подписку — банк не подтвердил списание. Твой план сохранён. "
             "Оформи подписку заново, чтобы продолжить получать свежие планы:")
-    return (f"<div style='font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;"
-            f"padding:32px;color:#20321F'><h2 style='margin:0 0 12px'>{head}</h2>"
-            f"<p style='color:#6B7566'>{body}</p>"
-            f"<p style='margin:20px 0'><a href='{base}/quiz' style='display:inline-block;background:#16A34A;"
-            f"color:#fff;text-decoration:none;font-weight:800;padding:15px 26px;border-radius:14px'>"
-            f"Возобновить подписку</a></p></div>")
+    return _mail_shell(head, body, f"{base}/quiz", "Возобновить подписку")
+
+
+def _sub_started_email(base: str, sid: str, amount, next_charge: str) -> str:
+    return _mail_shell(
+        "Подписка активирована",
+        f"Стоимость — {amount} ₽ в месяц, следующее списание {_ru_date(next_charge)}.<br>"
+        "Раз в неделю собираем новый план на 7 дней и присылаем ссылку на почту.",
+        f"{base}/plan/{sid}", "Открыть план", _cancel_note(base, sid))
+
+
+def _sub_renew_soon_email(base: str, sid: str, amount, next_charge: str) -> str:
+    return _mail_shell(
+        "Через 3 дня продлим подписку",
+        f"{_ru_date(next_charge)} спишем {amount} ₽ с привязанной карты — за следующий месяц.",
+        f"{base}/plan/{sid}", "Открыть план", _cancel_note(base, sid))
+
+
+def _sub_charged_email(base: str, sid: str, amount, next_charge: str) -> str:
+    return _mail_shell(
+        "Списание по подписке",
+        f"Списали {amount} ₽ за следующий месяц. Следующее списание — {_ru_date(next_charge)}.",
+        f"{base}/plan/{sid}", "Открыть план", _cancel_note(base, sid))
+
+
+def _plan_d2_email(base: str, token: str) -> str:
+    return _mail_shell(
+        "Как первый день?",
+        "Отметь в плане блюда, которые уже приготовил — так видно, где ты идёшь по плану. "
+        "Блюдо не подошло — замени его прямо на странице.",
+        f"{base}/plan/{token}", "Открыть план")
+
+
+def _plan_d6_email(base: str, token: str, renews: bool) -> str:
+    """renews — у человека действует оплаченный период, следующая неделя придёт сама.
+    Без подписки ничего не обещаем: план просто остаётся по ссылке."""
+    body = ("Неделя плана заканчивается. Новый план на следующие 7 дней соберём автоматически — "
+            "ссылка придёт на почту." if renews else
+            "Неделя плана заканчивается. Этот план остаётся по ссылке — по нему можно готовить дальше.")
+    foot = "" if renews else (
+        f"<p style='color:#8A9384;font-size:13px;margin-top:18px'>Нужен новый набор блюд — "
+        f"<a href='{base}/quiz' style='color:#8A9384'>собрать следующий план</a>.</p>")
+    return _mail_shell("Неделя заканчивается", body, f"{base}/plan/{token}", "Открыть план", foot)
 
 
 _PROCESSED = DATA / "processed_payments.json"
@@ -363,6 +497,38 @@ def _already_processed(pid: str) -> bool:
     except Exception:  # noqa: BLE001
         pass
     return False
+
+
+def _sub_mail_once(sid: str, key: str, subject: str, html: str, tag: str) -> bool:
+    """Письмо по подписке ровно один раз: отметка лежит в файле подписки, поэтому
+    ни повторная доставка вебхука, ни повторный тик cron дубля не дадут. Метку ставим
+    ДО отправки — лучше не отправить второй раз, чем отправить дважды (сбой отправки
+    и так виден в логе и счётчике mail_fail)."""
+    s = _load_sub(sid)
+    if not s or s.get(key):
+        return False
+    _sub_merge(sid, {key: datetime.now(timezone.utc).isoformat()})
+    _send_email(s.get("email", ""), subject, html, tag)
+    return True
+
+
+def _mail_charged(sub: dict, pid: str, base: str) -> None:
+    """Письмо о факте списания — одно на платёж. Об успехе одного и того же платежа
+    узнают оба пути (вебхук sub_renew и досмотр pending в cron), поэтому ключ общий."""
+    sid = sub.get("sub_id", "")
+    if _already_processed(f"charged_mail:{pid or sid + '|' + str(sub.get('next_charge', ''))}"):
+        return
+    _send_email(sub.get("email", ""), "Списание по подписке · NutriPlan",
+                _sub_charged_email(base, sid, sub.get("amount", SUB_PRICE_RUB),
+                                   sub.get("next_charge", "")), "sub_charged")
+
+
+def _period_paid(sub: dict, now: datetime) -> bool:
+    """Оплаченный период ещё не закончился (now < next_charge)."""
+    try:
+        return now < datetime.fromisoformat(sub["next_charge"])
+    except Exception:  # noqa: BLE001
+        return False
 
 
 # Демо-планы для проверки ЮKassa — самовосстанавливаются в исходное состояние
@@ -1582,6 +1748,13 @@ async def pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
                            "next_charge": (now + timedelta(days=30)).isoformat(),
                            "next_plan": (now + timedelta(days=7)).isoformat()})
             _bump(f"sub_ok_{slug}")
+            # Письмо об активации — отдельно от письма с планом: человек должен из почты
+            # знать сумму, дату следующего списания и куда идти отменять. В фон, чтобы
+            # мейлер не съел таймаут вебхука (иначе ЮKassa начнёт ретраить доставку).
+            s = _load_sub(oid)
+            bg.add_task(_sub_mail_once, oid, "mail_started", "Подписка активирована · NutriPlan",
+                        _sub_started_email(base, oid, s.get("amount", SUB_PRICE_RUB),
+                                           s.get("next_charge", "")), "sub_started")
             bg.add_task(_fulfill_paid, email, quiz, oid, base)  # даже при пустом quiz → bank-план + письмо
         elif typ == "sub_renew":
             _bump(f"sub_renew_ok_{slug}")
@@ -1593,6 +1766,7 @@ async def pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
                 _sub_merge(oid, {"next_charge": s["next_charge"],
                                  **({"status": "active"} if s.get("status") == "past_due" else {})},
                            remove=("pending_charge_id",))
+                bg.add_task(_mail_charged, s, obj.get("id", ""), base)  # с уже сдвинутой датой
         else:
             _bump(f"pay_ok_{slug}")
             bg.add_task(_fulfill_paid, email, quiz, oid, base)  # даже при пустом quiz
@@ -2077,6 +2251,42 @@ def pay_success(o: str = "") -> HTMLResponse:
         + poll + paid_goal + "</div></body></html>"))
 
 
+def _return_mails(token: str, pl: dict, base: str, now: datetime) -> int:
+    """Письма-возвраты на 2-й и 6-й день плана. По одному разу на токен: метка лежит
+    в самом плане и переживает недельную регенерацию (_PLAN_STICKY), иначе каждая
+    новая неделя рассылала бы их заново. Работает и без подписки — адрес берём из заказа."""
+    started = pl.get("started")
+    if not started:
+        return 0  # планы, сохранённые до появления поля: точки отсчёта нет, задним числом не шлём
+    try:
+        d0 = datetime.fromisoformat(started)
+        if d0.tzinfo is None:
+            d0 = d0.replace(tzinfo=timezone.utc)
+    except Exception:  # noqa: BLE001
+        return 0
+    age = (now - d0).days  # день старта = 0, значит 2-й день плана это age 1, 6-й — age 5
+    need_d2 = age >= 1 and not pl.get("mail_d2")
+    need_d6 = age >= 5 and not pl.get("mail_d6")
+    if not (need_d2 or need_d6):
+        return 0
+    sub = _load_sub(token)
+    email = (sub.get("email") or "").strip() or (_find_order(token).get("email") or "").strip()
+    if not email:
+        return 0
+    sent = 0
+    if need_d2:
+        _plan_mark(token, {"mail_d2": now.isoformat()})  # метка ДО отправки — не дублировать
+        _send_email(email, "Как первый день? · NutriPlan", _plan_d2_email(base, token), "plan_d2")
+        sent += 1
+    if need_d6:
+        # следующая неделя придёт сама только пока период оплачен — иначе ничего не обещаем
+        renews = sub.get("status") == "active" or (sub.get("status") == "canceled" and _period_paid(sub, now))
+        _plan_mark(token, {"mail_d6": now.isoformat()})
+        _send_email(email, "Неделя заканчивается · NutriPlan", _plan_d6_email(base, token, renews), "plan_d6")
+        sent += 1
+    return sent
+
+
 @app.get("/api/cron/run")
 def cron_run(request: Request, secret: str = "") -> JSONResponse:
     """Тик планировщика: недельная регенерация плана + месячное списание. Дёргать системным cron.
@@ -2087,7 +2297,8 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
     import plan_ai
     now = datetime.now(timezone.utc)
     base = str(request.base_url).rstrip("/")
-    out = {"checked": 0, "replanned": 0, "billed": 0, "pending": 0, "retrying": 0, "past_due": 0, "demo_skipped": 0}
+    out = {"checked": 0, "replanned": 0, "billed": 0, "pending": 0, "retrying": 0, "past_due": 0,
+           "demo_skipped": 0, "canceled_served": 0, "renew_notified": 0}
     grace = timedelta(days=3)  # окно ретраев после неудачного списания, потом past_due
     for sub in _all_subs():
         # демо-подписки (для проверяющих ЮKassa) не биллим и не регенерим — иначе
@@ -2095,9 +2306,15 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
         if (sub.get("sub_id") in DEMO_TOKENS) or (sub.get("plan_token") in DEMO_TOKENS):
             out["demo_skipped"] += 1
             continue
-        if sub.get("status") != "active":
+        # Отменивший УЖЕ ОПЛАТИЛ период до next_charge — недели ему довозим до конца
+        # этого периода (деньги при этом не трогаем: списание только для active).
+        active = sub.get("status") == "active"
+        served = (not active) and sub.get("status") == "canceled" and _period_paid(sub, now)
+        if not (active or served):
             continue
         out["checked"] += 1
+        if served:
+            out["canceled_served"] += 1
         sid = sub["sub_id"]
         upd: dict = {}      # только cron-поля, пишем через merge (не затираем cancel/unbind)
         rem: list = []
@@ -2118,15 +2335,29 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                 out["replanned"] += 1
         except Exception:  # noqa: BLE001
             pass
+        # деньги — только у active: с отменённого не списываем, ему лишь довозим недели
         try:  # месячное списание (pending-aware + grace-ретраи + честная обработка отвязки)
-            pend = sub.get("pending_charge_id")
-            due = now >= datetime.fromisoformat(sub["next_charge"])
+            pend = sub.get("pending_charge_id") if active else None
+            nc = datetime.fromisoformat(sub["next_charge"])
+            due = active and now >= nc
+            # Предупреждение за 3 дня. Только если списание реально произойдёт (карта на
+            # месте) и ровно один раз на период — метка хранит тот next_charge, о котором
+            # уже предупредили, поэтому в следующем месяце предупредим снова.
+            if (active and sub.get("payment_method_id") and not pend and not due
+                    and nc - now <= timedelta(days=3)
+                    and sub.get("renew_notified_for") != sub["next_charge"]):
+                _sub_merge(sid, {"renew_notified_for": sub["next_charge"]})  # метка ДО отправки
+                _send_email(sub["email"], "Через 3 дня продлим подписку · NutriPlan",
+                            _sub_renew_soon_email(base, sid, sub.get("amount", SUB_PRICE_RUB),
+                                                  sub["next_charge"]), "sub_renew_soon")
+                out["renew_notified"] += 1
             if pend:
                 st = _yk_payment_status(pend)  # досматриваем незакрытый платёж, новый НЕ создаём
                 if st == "succeeded":
                     if _advance_charge(sub, now):
                         upd["next_charge"] = sub["next_charge"]; out["billed"] += 1
                     rem.append("pending_charge_id")
+                    _mail_charged(sub, pend, base)
                 elif st == "canceled":
                     rem.append("pending_charge_id")  # провал → grace-логика на след. тике
                 # иначе pending — ждём
@@ -2143,10 +2374,11 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                     if _advance_charge(sub, now):
                         upd["next_charge"] = sub["next_charge"]
                     out["billed"] += 1
+                    _mail_charged(sub, pid, base)
                 elif status == "pending":
                     upd["pending_charge_id"] = pid; out["pending"] += 1  # НЕ провал
                 else:  # failed — ретраим до grace, потом past_due + письмо
-                    if now > datetime.fromisoformat(sub["next_charge"]) + grace:
+                    if now > nc + grace:
                         if _guarded_status(sid, "past_due"):
                             out["past_due"] += 1
                             _send_email(sub["email"], "Не удалось продлить подписку · NutriPlan",
@@ -2157,24 +2389,30 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
             pass
         if upd or rem:
             _sub_merge(sid, upd, remove=tuple(rem))
-    # Самолечение планов: упавшие в bank-fallback (LLM сбоил — без рецептов/покупок)
-    # дорегенерируем. Кап на тик — ограничить LLM-затраты; демо не трогаем.
+    # Один проход по планам: письма-возвраты + самолечение деградированных.
+    # Кап на тик: у починки — LLM-затраты, у писем — чтобы разовый сбой не вылился
+    # в рассылку по всей базе за один тик.
     out["repaired"] = 0
+    out["returned"] = 0
     for f in sorted(PLANS.glob("*.json")):
-        if out["repaired"] >= 3:
-            break
         try:
             if f.stem in DEMO_TOKENS:
                 continue
             pl = json.loads(f.read_text(encoding="utf-8"))
-            if pl.get("source") != "bank" or not pl.get("quiz"):
-                continue
-            fresh = plan_ai.generate_plan(pl["quiz"])
-            if fresh.get("source") == "ai":  # апгрейд только на полноценный план
-                fresh["quiz"] = pl["quiz"]
-                _save_plan(f.stem, fresh)
-                _pregen_dish_photos(fresh)   # блюда сменились — иначе на экране плейсхолдеры
-                out["repaired"] += 1
+            if out["returned"] < 20:
+                out["returned"] += _return_mails(f.stem, pl, base, now)
+            # source != "ai" (или явная метка) — план без рецептов и списка покупок
+            if out["repaired"] < 3 and (pl.get("source") != "ai" or pl.get("degraded")) and pl.get("quiz"):
+                fresh = plan_ai.generate_plan(pl["quiz"])
+                if fresh.get("source") == "ai":  # апгрейд только на полноценный план
+                    fresh["quiz"] = pl["quiz"]
+                    # reset_progress: чинёный план — ДРУГОЙ набор блюд, старые отметки
+                    # «приготовил» повисли бы на чужих блюдах.
+                    # Метка degraded не переносится → снимается тут.
+                    _save_plan(f.stem, fresh, reset_progress=True)
+                    _pregen_dish_photos(fresh)   # блюда сменились — иначе на экране плейсхолдеры
+                    _bump("plan_repaired")
+                    out["repaired"] += 1
         except Exception:  # noqa: BLE001
             pass
     return JSONResponse(out)
@@ -2210,4 +2448,22 @@ def admin_stats(request: Request, token: str = "") -> JSONResponse:
             "visits_ad": c.get(f"visit_{slug}_ad", 0),
             "visits_organic": c.get(f"visit_{slug}_organic", 0),
         })
-    return JSONResponse({"landings": rows})
+    # Деградация плана — вопрос выполнения обязательства (пейволл продавал рецепты и
+    # список покупок), поэтому владелец должен видеть её здесь, а не только в логе.
+    open_deg = []
+    try:
+        for f in sorted(PLANS.glob("*.json")):
+            if len(open_deg) >= 50:
+                break
+            pl = json.loads(f.read_text(encoding="utf-8"))
+            if pl.get("degraded"):
+                open_deg.append({"token": f.stem, "at": pl.get("degraded_at", ""),
+                                 "source": pl.get("source", ""), "ver": pl.get("ver")})
+    except Exception:  # noqa: BLE001
+        pass
+    return JSONResponse({"landings": rows, "degraded": {
+        "open": open_deg,                                   # не починенные прямо сейчас
+        "hits": c.get("plan_degraded", 0),                  # сколько раз вообще случалось
+        "sold": c.get("fulfill_degraded", 0),               # из них — ушло оплатившим
+        "repaired": c.get("plan_repaired", 0),              # дорегенерировано cron'ом
+    }})

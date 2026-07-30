@@ -247,6 +247,10 @@
   .prog .guide-v{position:absolute;width:1px;border-left:1px dashed var(--line);opacity:.9}
   .prog .tick{position:absolute;transform:translateX(-50%);font-size:11.5px;color:var(--muted);white-space:nowrap}
   .prog .axis{display:flex;justify-content:space-between;color:var(--muted);font-size:12.5px;margin-top:8px}
+  /* Пояснение, когда введённая цель не влезла в безопасные границы: спокойным
+     тоном и без плашки-предупреждения — это не ошибка человека. */
+  .prog .gnote{color:var(--muted);font-size:13px;line-height:1.42;margin-top:6px;
+    padding-top:11px;border-top:1px solid var(--line)}
   .card{background:var(--field);border:1.5px solid var(--line);border-radius:22px;padding:22px;margin-top:16px}
   /* Норма — главное число экрана, и подано оно должно быть как число, а не как
      цифра, к которой сбоку приклеен абзац. Раньше блок был flex с
@@ -305,25 +309,30 @@
   .meal .kc i{display:block;font-style:normal;font-size:10px;font-weight:700;letter-spacing:.06em;
     text-transform:uppercase;color:var(--muted);margin-bottom:2px}
   .locked{position:relative}
-  .locked .veil{position:absolute;left:0;right:0;bottom:0;height:64%;border-radius:0 0 22px 22px;
-    background:linear-gradient(180deg,transparent,var(--field) 78%);display:flex;align-items:flex-end;justify-content:center;
-    padding-bottom:12px}
+  /* Туман закрывает ТОЛЬКО последний приём пищи: при высоте в 64% блока на 390px
+     из трёх строк читалась одна, то есть «пример дня» ничего не показывал.
+     Привязан к самой строке, а не к доле высоты блока: строки с фото и без
+     отличаются на 20px, и любой процент попадал бы то в соседнюю строку, то
+     мимо. pointer-events сняты — туман ничего не ловит. */
+  .locked .meal:last-child{position:relative}
+  .locked .meal:last-child::after{content:'';position:absolute;left:0;right:0;top:-16px;bottom:0;
+    background:linear-gradient(180deg,transparent,var(--field) 78%);pointer-events:none}
   /* Из надписи «+ещё 6 дней меню» сделана кнопка. Надпись сообщала, что за
      туманом что-то есть, но нажать на неё было нельзя — человек упирался в
      закрытую дверь без ручки. Теперь она ведёт к тарифам. */
-  /* На всю ширину и капсом — в макете это главная кнопка экрана, а не
-     скромная ссылка посреди тумана. */
-  .locked .veil{padding:0 0 14px}
-  .locked .veil .go{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;
+  /* Кнопка живёт ПОД карточкой, а не внутри тумана: в тумане она сама
+     закрывала собой третью строку меню — то, ради чего экран и показывают. */
+  .daygo{margin-top:14px}
+  .daygo .go{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;
     background:linear-gradient(160deg,var(--accent),var(--accent-d));color:var(--cta-ink);
     border:none;border-radius:16px;font-size:13.5px;font-weight:800;letter-spacing:.03em;
     text-transform:uppercase;padding:16px 14px;cursor:pointer;transition:.16s;
     box-shadow:0 18px 34px -16px color-mix(in srgb,var(--accent-d) 85%,transparent),
                inset 0 1px 0 color-mix(in srgb,#fff 26%,transparent)}
-  .locked .veil .go:hover{filter:brightness(1.06)}
-  .locked .veil .go em{font-style:normal;font-weight:600;text-transform:none;letter-spacing:0;
+  .daygo .go:hover{filter:brightness(1.06)}
+  .daygo .go em{font-style:normal;font-weight:600;text-transform:none;letter-spacing:0;
     opacity:.9;font-size:13px}
-  .locked .veil .go svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.4;
+  .daygo .go svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.4;
     stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
   /* Замок на последней (скрытой) строке — «здесь заперто», а не «здесь пусто». */
   .meal .mi.lock{background:var(--line);opacity:.9}
@@ -403,6 +412,15 @@
   .tp b{display:block;font-size:22px;font-weight:800;color:var(--accent-d);line-height:1.1}
   .tp small{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
 
+  /* Подписка выбрана заранее — значит, она обязана объяснить себя ДО оплаты:
+     сумма, период и как отменить, рядом с кнопкой, а не мелким шрифтом в
+     оферте. Про повторное списание человек должен узнать здесь, а не из смс
+     через месяц. */
+  .renew{display:flex;align-items:flex-start;gap:9px;margin-top:16px;font-size:13.5px;line-height:1.4;
+    color:color-mix(in srgb,var(--ink) 80%,transparent)}
+  .renew svg{width:16px;height:16px;flex:0 0 auto;margin-top:1px;stroke:var(--accent-d)}
+  .renew b{font-weight:800}
+
   /* Честные опоры вместо мелкой серой строчки: то, что реально выполняется. */
   .pw-trust{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
   .pw-trust span{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
@@ -476,8 +494,8 @@
     border-color:var(--accent);
   }
   /* Туман над скрытым днём должен растворяться в стекле, а не в белом листе. */
-  .plan .locked .veil{
-    background:linear-gradient(180deg, transparent, color-mix(in srgb, var(--field) 72%, transparent) 76%);
+  .plan .locked .meal:last-child::after{
+    background:linear-gradient(180deg, transparent, color-mix(in srgb, var(--field) 84%, transparent) 78%);
   }
 
   /* Если браузер не умеет размытие — материал становится плотным, иначе текст
@@ -603,11 +621,14 @@ const IC = {
   cup:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h11v5a5 5 0 0 1-11 0z"/><path d="M16 9h2a2 2 0 0 1 0 4h-2"/><path d="M5 21h11"/></svg>',
   plate:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4"/></svg>',
   lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="2.5"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>',
+  repeat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 13v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 11v1a4 4 0 0 1-4 4H3"/></svg>',
 };
 
 const STEPS = [
-  {type:'intro', pose:'wave', bubble:'Привет! Я твой Авокадо-гид'},
-  {type:'intro', pose:'cheer', bubble:'Отвечай честно — за 2 минуты соберу план под тебя'},
+  // Один intro-экран, а не два: первый был чистым приветствием и ничего не
+  // говорил о продукте — два экрана «Далее» до первого вопроса человек просто
+  // проматывает. Оставлен тот, что называет результат и время.
+  {type:'intro', pose:'wave', bubble:'Отвечай честно — за 2 минуты соберу план под тебя'},
 
   {q:1, type:'single', key:'goal', pose:'ask', h:'Что для тебя главная цель?', sub:'Соберём план именно под неё', opts:[
     {v:'lose', b:'Сбросить вес', s:'Плавно и без голода', ic:'lose'},
@@ -842,12 +863,23 @@ function renderMetrics(st){
 
 // Персист состояния квиза: refresh/сворачивание вкладки не должны стирать 11 шагов и пейволл.
 const SKEY='np_quiz_v2';
+// Сохранённый idx — номер в ТОМ списке шагов, который был на момент сохранения.
+// Стоит добавить или убрать шаг — и тот же номер указывает уже на другой вопрос:
+// человек проскакивает один и остаётся без ответа, а норма считается по дефолту.
+// Поэтому рядом с состоянием лежит подпись списка. Ответы переносим всегда (они
+// по ключам, а не по номерам), место в списке — только при совпадении подписи.
+const SSIG=STEPS.map(s=>s.key||s.type).join('|');
 function saveState(){ try{ localStorage.setItem(SKEY, JSON.stringify(
-  {answers, idx, planRevealed, leadEmail, t:Date.now()})); }catch(e){} }
+  {answers, idx, planRevealed, leadEmail, sig:SSIG, t:Date.now()})); }catch(e){} }
 function loadState(){ try{ const s=JSON.parse(localStorage.getItem(SKEY)||'null');
   if(s && s.answers && (Date.now()-(s.t||0) < 864e5)){ // не старше суток
-    Object.assign(answers, s.answers); idx=Math.min(s.idx||0, STEPS.length-1);
+    Object.assign(answers, s.answers);
     planRevealed=!!s.planRevealed; leadEmail=s.leadEmail||'';
+    idx = s.sig===SSIG ? Math.min(s.idx||0, STEPS.length-1)
+                       // список поменялся: тому, кто уже дошёл до нормы, возвращаем
+                       // её же, остальные проходят вопросы заново — с уже
+                       // подставленными ответами, то есть нажатиями «Далее».
+                       : (planRevealed ? STEPS.length-1 : 0);
     if(STEPS[idx] && STEPS[idx].type==='build') idx=Math.max(0, idx-1); // build транзиентный
     return true; } }catch(e){} return false; }
 function clearState(){ try{ localStorage.removeItem(SKEY); }catch(e){} }
@@ -893,27 +925,70 @@ function calcPlan(){
   if(answers.goal==='lose') cal*=0.80; else if(answers.goal==='gain') cal*=1.12;
   cal=Math.max(cal, answers.gender==='m'?1500:1200); // порог: не показываем экстремальный дефицит
   cal=Math.round(cal/10)*10;
-  return {cal, P:Math.round(cal*0.30/4), F:Math.round(cal*0.30/9), C:Math.round(cal*0.40/4), w, target:+b.target||0};
+  return {cal, P:Math.round(cal*0.30/4), F:Math.round(cal*0.30/9), C:Math.round(cal*0.40/4), w, h, target:+b.target||0};
 }
 const GOAL_TXT={lose:'снижения веса',keep:'поддержания формы',gain:'набора массы',health:'здорового питания'};
 
-function prognosis(w,target,goal){
-  // возвращает {headline, curveDown, weeks, dateStr, endLabel}
-  let weeks=8, endLabel='', down = goal!=='gain';
-  // target учитываем только если он согласован с целью (lose → меньше текущего, gain → больше),
-  // иначе прогноз рисует абсурд («похудеешь» до веса БОЛЬШЕ текущего).
-  const valid = target && ((goal==='lose' && target < w) || (goal==='gain' && target > w));
-  if(valid && Math.abs(w-target)>=1){
-    const diff=Math.abs(w-target), perWeek=goal==='gain'?0.35:0.6;
-    weeks=Math.max(3, Math.min(52, Math.round(diff/perWeek)));
-    endLabel=target+' кг';
+function prognosis(w,target,goal,h){
+  // возвращает {headline, dir, weeks, dateStr, endLabel, note}
+  //
+  // Направление кривой задаёт ЦЕЛЬ, а не наличие целевого веса. Раньше вниз шло
+  // всё, кроме набора массы: человеку с целью «держать форму» или «наладить
+  // питание» экран рисовал похудение, которого ему никто не обещал.
+  let dir = goal==='gain' ? 'up' : (goal==='lose' ? 'down' : 'flat');
+  let weeks=8, endLabel='', note='';
+  // Целевой вес учитываем только если он согласован с целью (lose → меньше
+  // текущего, gain → больше), иначе прогноз рисует абсурд («похудеешь» до веса
+  // БОЛЬШЕ текущего).
+  const wanted = !!target && Math.abs(target-w)>=1 &&
+    ((dir==='down' && target<w) || (dir==='up' && target>w));
+  if(wanted){
+    // Границы разумного: не ниже ИМТ 18.5 и не больше трети текущего веса за
+    // один заход. Что за границей — не рисуем вовсе: считаем по спокойному
+    // темпу и говорим об этом вслух, а не подменяем цифру молча.
+    const minOk = h ? 18.5*(h/100)*(h/100) : 0;
+    const limit = dir==='down' ? Math.max(minOk, w-w/3) : w+w/3;
+    let safe = Math.round(dir==='down' ? Math.max(target, limit) : Math.min(target, limit));
+    if(Math.abs(safe-target)>=1){
+      note = dir==='down'
+        ? (target < minOk
+            ? `${target} кг для роста ${Math.round(h)} см — слишком мало. Считаем до ${safe} кг: этот вес держится спокойно и без срывов.`
+            : `Сбросить ${Math.round(w-target)} кг сразу — слишком резкий шаг. Считаем до ${safe} кг, дальше можно продолжить.`)
+        : `Набрать ${Math.round(target-w)} кг сразу — слишком резкий шаг. Считаем до ${safe} кг, дальше можно продолжить.`;
+    }
+    if(dir==='down' ? safe<w : safe>w){
+      const perWeek = dir==='up' ? 0.35 : 0.6;
+      weeks=Math.max(3, Math.round(Math.abs(w-safe)/perWeek));
+      if(weeks>52){
+        // Дальше года не считаем, но режем ГОРИЗОНТ, а не темп. Прежний
+        // Math.min(52, …) оставлял цель на месте и просто придвигал дату: 120 кг
+        // → 80 кг «за год» — это 0.77 кг в неделю вместо заявленных 0.6, то есть
+        // обещание, которого план не выполнит. Теперь показываем, где человек
+        // будет через год по тому же спокойному темпу.
+        weeks=52;
+        safe=Math.round(dir==='down' ? w-perWeek*52 : w+perWeek*52);
+        note=`До ${target} кг дорога длиннее года. Показываем первый год — ${safe} кг, дальше тем же темпом.`;
+      }
+      endLabel=safe+' кг';
+    } else {
+      // Безопасная граница уже не ниже текущего веса — снижать нечего, и рисовать
+      // снижение тем более.
+      dir='flat';
+      note=`Для роста ${Math.round(h)} см твой вес уже спокойный. План не про снижение, а про то, что есть каждый день.`;
+    }
+  } else if(dir==='flat' && target && Math.abs(target-w)>=1){
+    // Желаемый вес человек ввёл, а цель выбрал не про вес. Молча его выкинуть —
+    // значит оставить вопрос «а куда делась моя цифра».
+    note='Цель выбрана без снижения веса, поэтому прогноз ровный: план про то, что есть каждый день.';
   }
   const d=new Date(); d.setDate(d.getDate()+weeks*7);
   const dateStr=d.toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
   const headline = endLabel
     ? `Ты придёшь к <em>${endLabel}</em> примерно к ${dateStr}`
-    : `Первые результаты — уже через <em>${weeks} недель</em>`;
-  return {headline, down, dateStr, endLabel, weeks};
+    : (dir==='flat'
+        ? `Питание выстроится за <em>${weeks} недель</em>`
+        : `Первые результаты — уже через <em>${weeks} недель</em>`);
+  return {headline, dir, dateStr, endLabel, weeks, note};
 }
 
 // Настоящий первый день плана + фото блюд.
@@ -937,14 +1012,16 @@ async function loadRealDay(){
   const rows = box.querySelectorAll('.meal');
   meals.slice(0, rows.length).forEach((m, i) => {
     const row = rows[i];
+    const mi = row.querySelector('.mi');
     // Фото ставим ТОЛЬКО когда оно реально есть: заглушка-кружок на месте
     // иконки выглядит как сломанная картинка, иконка честнее.
-    if(m.photo && m.slug){
+    // И никогда — в закрытую строку: там стоит замок, и ответ сервера приходит
+    // асинхронно, то есть спокойно затирал бы его фотографией еды.
+    if(m.photo && m.slug && mi && !mi.classList.contains('lock')){
       const img = document.createElement('img');
       img.src = '/dish/' + encodeURIComponent(m.slug);
       img.alt = m.title; img.loading = 'lazy';
-      const mi = row.querySelector('.mi');
-      if(mi){ mi.innerHTML = ''; mi.appendChild(img); row.classList.add('hasphoto'); }
+      mi.innerHTML = ''; mi.appendChild(img); row.classList.add('hasphoto');
     }
     const t = row.querySelector('.mt');
     if(t){
@@ -968,9 +1045,9 @@ async function loadRealDay(){
 
 let planRevealed=false, leadEmail='';
 function renderPlan(){
-  const {cal,P,F,C,w,target}=calcPlan();
+  const {cal,P,F,C,w,h,target}=calcPlan();
   const goal=GOAL_TXT[answers.goal]||'твоей цели';
-  const pg=prognosis(w,target,answers.goal);
+  const pg=prognosis(w,target,answers.goal,h);
   const m1=Math.round(cal*0.30), m2=Math.round(cal*0.40), m3=Math.round(cal*0.30);
 
   // Числа для оффера — считаются из ответов и из цен, пришедших с сервера.
@@ -993,7 +1070,18 @@ function renderPlan(){
   const perPlan = Math.round(SUB_PRICE / 4);
   const subDay = Math.round(SUB_PRICE / 30);
   const onceDay = Math.round(PRICE / 7);
-  const y0 = pg.down ? 34 : 116, y1 = pg.down ? 116 : 34;
+  // Текст про списание меняется вместе с тарифом: у разового плана обещать
+  // «отмену» нечего, а у подписки нельзя молчать о повторе.
+  const RENEW = {
+    // «В один клик» тут было бы неправдой: и кнопка в плане, и ссылка из письма
+    // ведут в раздел «Подписка», где отмена подтверждается вторым нажатием.
+    sub: `<b>${SUB_PRICE} ₽ спишется сегодня и дальше каждый месяц</b>, пока не отменишь. Отменить можно в любой момент — кнопкой в плане или по ссылке из письма.`,
+    once: `<b>${PRICE} ₽ один раз</b> — повторных списаний не будет.`,
+  };
+  // Ровная линия для «держать форму» / «наладить питание»: у этих целей
+  // снижения не обещано, значит и кривая никуда не идёт.
+  const y0 = pg.dir==='flat' ? 75 : (pg.dir==='down' ? 34 : 116);
+  const y1 = pg.dir==='flat' ? 75 : (pg.dir==='down' ? 116 : 34);
   const path = `M 10 ${y0} C 120 ${y0}, 150 ${y1}, 288 ${y1}`;
   // Прогноз веса. Числа те же, что в заголовке, — меняется только то, КАК они
   // поданы: раньше маскот наезжал на подпись «60 кг», та ломалась на две строки
@@ -1036,7 +1124,7 @@ function renderPlan(){
   const graph = `<div class="prog">
       <div class="ghead">
         <span class="glabel">Прогноз</span>
-        ${deltaKg ? `<span class="gdelta">${pg.down ? '−' : '+'}${deltaKg} кг за ${pg.weeks} нед.</span>` : ''}
+        ${deltaKg ? `<span class="gdelta">${pg.dir==='up' ? '+' : '−'}${deltaKg} кг за ${pg.weeks} нед.</span>` : ''}
       </div>
       <div class="gwrap">
         <svg viewBox="0 0 298 150" preserveAspectRatio="none">
@@ -1051,22 +1139,29 @@ function renderPlan(){
           <path d="${path}" fill="none" stroke="var(--curve)" stroke-width="5" stroke-linecap="round"
             vector-effect="non-scaling-stroke"/>
         </svg>
-        ${miles.map(m => `
-          <div class="guide-v" style="left:${m.xp}%;top:${m.yp}%;height:calc(${100 - m.yp}% + 6px)"></div>
+        ${miles.map(m => {
+          // У растущей кривой место над точкой занято пунктиром цели — подпись
+          // там оказывалась перечёркнутой. Поэтому на наборе веса вехи
+          // подписываем снизу, а вертикальную направляющую начинаем под подписью.
+          const up = pg.dir === 'up';
+          return `
+          <div class="guide-v" style="left:${m.xp}%;top:calc(${m.yp}% + ${up ? 26 : 0}px);height:calc(${100 - m.yp}% ${up ? '- 20px' : '+ 6px'})"></div>
           <div class="mile" style="left:${m.xp}%;top:${m.yp}%"></div>
-          <div class="mkg" style="left:${m.xp}%;top:calc(${m.yp}% - 17px)">${m.kg} кг</div>
-          <div class="tick" style="left:${m.xp}%;top:calc(100% + 9px)">${m.label}</div>`).join('')}
+          <div class="mkg" style="left:${m.xp}%;top:calc(${m.yp}% ${up ? '+ 17px' : '- 17px'})">${m.kg} кг</div>
+          <div class="tick" style="left:${m.xp}%;top:calc(100% + 9px)">${m.label}</div>`;
+        }).join('')}
         <div class="tick" style="left:3.4%;top:calc(100% + 9px);transform:translateX(-10%)">Сегодня</div>
         <div class="tick" style="left:96.6%;top:calc(100% + 9px);transform:translateX(-90%)">${pg.dateStr}</div>
         <div class="dot start" style="left:3.4%;top:${yStartPct}%"></div>
         <div class="kg start" style="left:3.4%;top:calc(${yStartPct}% - 20px)">${startKg} кг</div>
         <div class="dot end" style="left:96.6%;top:${yTop}%"></div>
-        ${endKg !== null ? `<div class="kg end" style="left:88%;top:calc(${yTop}% ${pg.down ? '- 24px' : '+ 24px'})">${endKg} кг</div>` : ''}
+        ${endKg !== null ? `<div class="kg end" style="left:88%;top:calc(${yTop}% ${pg.dir==='down' ? '- 24px' : '+ 24px'})">${endKg} кг</div>` : ''}
         <!-- Маскота в графике нет намеренно: он либо наезжал на плашку с
              дельтой (кривая вверх), либо садился на саму линию и закрывал
              конечную точку. И по существу он здесь конкурировал с главным —
              числом. На интро-экранах и в пузыре у каждого вопроса он остаётся. -->
       </div>
+      ${pg.note ? `<p class="gnote">${pg.note}</p>` : ''}
     </div>`;
 
   const locked = `
@@ -1105,9 +1200,9 @@ function renderPlan(){
         <div class="meal"><span class="mi">${IC.cup}</span><span class="mt"><b>Омлет с овощами</b><span>Яйца, помидоры, зелень</span></span><span class="kc"><i>Завтрак</i>${m1} ккал</span></div>
         <div class="meal"><span class="mi">${IC.plate}</span><span class="mt"><b>Рыба запеченная с овощами</b><span>Белая рыба и овощи</span></span><span class="kc"><i>Обед</i>${m2} ккал</span></div>
         <div class="meal"><span class="mi">${IC.bowl}</span><span class="mt"><b>Куриное филе с овощами</b><span>Куриное филе и брокколи</span></span><span class="kc"><i>Ужин</i>${m3} ккал</span></div>
-        <div class="veil"><button class="go" id="toPw" type="button">Перейти к полному плану
-          <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
       </div>
+      <div class="daygo"><button class="go" id="toPw" type="button">Перейти к полному плану
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
     </div>
     <div class="bridge"><b>Норма — это половина дела.</b> <span>Вторая половина — что именно
       класть в тарелку каждый день, чтобы в неё попадать и не срываться.</span></div>
@@ -1132,9 +1227,9 @@ function renderPlan(){
           <div class="tp"><b>${PRICE} ₽</b><small>разово</small></div></label>
       </div>
 
+      <div class="renew">${IC.repeat}<span id="renewTx">${RENEW.sub}</span></div>
       <div class="foot"><button class="cta" id="pay">Оформить →</button></div>
       <div class="pw-trust">
-        <span>${IC.check} Отмена в один клик</span>
         <span>${IC.check} Чек на почту</span>
         <span>${IC.check} Оплата через ЮKassa</span>
       </div>
@@ -1152,22 +1247,23 @@ function renderPlan(){
   </div>`;
   playAll();
   if(planRevealed){
-    loadRealDay();
-    // Кнопка из-под тумана ведёт к тарифам. Скроллим сами, а не якорем:
-    // якорь оставил бы #hash в адресе и сломал бы возврат «назад».
-    const go = document.getElementById('toPw');
-    if(go) go.addEventListener('click', () => {
-      const pw = document.querySelector('.pw');
-      if(pw) pw.scrollIntoView({behavior:'smooth', block:'start'});
-    });
-    // Замок на последнем приёме пищи: под туманом должно читаться «заперто»,
-    // а не «здесь пусто».
+    // Замок ставим ДО загрузки настоящего дня: loadRealDay асинхронный, и
+    // порядок «сначала загрузка, потом замок» означал бы, что пришедший ответ
+    // затирает замок фотографией.
     const rows = document.querySelectorAll('#dayBlock .meal');
     const last = rows[rows.length - 1];
     if(last){
       const mi = last.querySelector('.mi');
       if(mi){ mi.classList.add('lock'); mi.innerHTML = IC.lock; }
     }
+    loadRealDay();
+    // Кнопка под карточкой дня ведёт к тарифам. Скроллим сами, а не якорем:
+    // якорь оставил бы #hash в адресе и сломал бы возврат «назад».
+    const go = document.getElementById('toPw');
+    if(go) go.addEventListener('click', () => {
+      const pw = document.querySelector('.pw');
+      if(pw) pw.scrollIntoView({behavior:'smooth', block:'start'});
+    });
   }
 
   if(!planRevealed){
@@ -1189,8 +1285,12 @@ function renderPlan(){
       leadEmail=v; planRevealed=true; saveState(); render(); window.scrollTo(0,0);
     });
   } else {
+    const renewTx=document.getElementById('renewTx');
     stage.querySelectorAll('.tar').forEach(el=>el.addEventListener('click', ()=>{
       stage.querySelectorAll('.tar').forEach(x=>x.classList.toggle('sel', x===el));
+      // Строка про списание всегда описывает ВЫБРАННЫЙ тариф, иначе предвыбор
+      // подписки превращается в обещание, которого человек не читал.
+      if(renewTx) renewTx.innerHTML = RENEW[el.dataset.t] || RENEW.sub;
     }));
     $('#pay').addEventListener('click', startPayment);
   }
