@@ -149,32 +149,39 @@
     display:flex;align-items:center;justify-content:center}
   .t-next .alt i{width:20px;height:20px}
 
-  .t-s{border-radius:var(--rl);padding:15px 16px;display:flex;flex-direction:column;min-height:112px}
-  .t-s .n{font-family:Unbounded;font-weight:700;font-size:24px;letter-spacing:-.045em;margin-top:auto;
-    color:var(--ink)}
+  /* Обе плитки — одна сетка строк: подпись / ряд значков / подвал. Раньше это
+     были два независимых flex-столбца, и подвал воды с кнопками оказывался выше
+     подвала серии — ряды не сходились по горизонтали. Фиксированные высоты строк
+     держат их на одном уровне независимо от содержимого. */
+  .t-s{border-radius:var(--rl);padding:15px 16px;display:grid;
+    grid-template-rows:auto 30px 34px;align-items:center;gap:9px}
+  .t-s .cap{align-self:start}
+  .t-s .n{font-family:Unbounded;font-weight:700;font-size:24px;letter-spacing:-.045em;
+    color:var(--ink);display:flex;align-items:center}
   .t-s .n small{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:4px}
   /* Стакан рисуем силуэтом, а не прямоугольником: чуть сужается книзу и скруглён
      по дну — так он читается стаканом без подписи. Прямоугольник со скруглением
      читался как индикатор заряда. */
-  .cups{display:flex;gap:5px;margin-top:10px;align-items:flex-end}
+  .cups{display:flex;gap:5px;align-items:flex-end;height:100%}
   .cups .cup{flex:1;height:26px;color:color-mix(in srgb,var(--ink) 9%,transparent);
     transition:color .15s}
   .cups .cup.f{color:var(--wtr)}
   .cups .cup svg{width:100%;height:100%;display:block}
 
-  .wctl{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:10px}
+  .wctl{display:flex;align-items:center;gap:8px}
   .wctl button{width:30px;height:30px;border-radius:11px;flex:0 0 auto;
     background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink-2);
     font-size:19px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center}
   .wctl button:active{background:var(--g-soft);color:var(--g-d)}
-  .wctl .n{margin:0 auto 0 0;font-family:Unbounded;font-weight:700;font-size:20px;letter-spacing:-.045em}
-  .wctl .n small{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:4px}
+  /* Размер НЕ переопределяем: у воды он был 20px, у серии 24px, и числа
+     расходились по вертикали на 3px — ряды переставали читаться как пара. */
+  .wctl .n{margin:0 auto 0 0}
   /* Серия — семь дней плана в ряд, как стаканы у воды: закрытые цветные,
      остальные серые. Одинокий огонёк показывал только достижение и не показывал,
      сколько ещё идти; ряд отвечает на оба вопроса сразу.
      Огонёк — многоцветный рисунок, перекрасить его через currentColor нельзя,
      поэтому незакрытые дни гасим фильтром. */
-  .streak{display:flex;gap:3px;margin-top:9px}
+  .streak{display:flex;gap:3px;align-items:flex-end;height:100%}
   .streak img{width:100%;height:auto;display:block}
   .streak span{flex:1;min-width:0;max-width:22px}
   .streak span.off img{filter:grayscale(1) opacity(.28)}
@@ -212,6 +219,55 @@
   .gh{display:flex;align-items:center;gap:9px;margin:20px 4px 10px}
   .gh b{font-size:12.5px;font-weight:700}
   .gh span{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:700}
+
+  /* ── страница блюда ─────────────────────────────────────────────────────
+     Открывается по нажатию на строку или на карточку «сейчас». Это отдельный
+     ЭКРАН, а не всплывашка: тут состав, шаги и действия — на телефоне такому
+     нужна вся высота, а не половина под клавиатурой.
+     Возврат — кнопкой и системным «назад»: экран заводится в историю через
+     history.pushState, иначе жест «назад» уводил бы из приложения целиком. */
+  .dish{position:fixed;inset:0;z-index:60;overflow:auto;background:var(--bg);display:none}
+  .dish.on{display:block}
+  .dish .top{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:12px;
+    padding:10px 16px;background:color-mix(in srgb,var(--bg) 86%,transparent);
+    -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+  .dish .top button{width:38px;height:38px;border-radius:14px;background:var(--surf);
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-2);flex:0 0 auto}
+  .dish .top button i{width:19px;height:19px;display:block}
+  .dish .top b{font-size:13px;font-weight:700;color:var(--muted)}
+  .dish .body{max-width:430px;margin:0 auto;padding:4px 16px 120px}
+  .dish .shot{border-radius:var(--rx);overflow:hidden;box-shadow:var(--sh-3)}
+  .dish .shot img{width:100%;height:250px;object-fit:cover;border-radius:var(--rx);background:var(--g-soft)}
+  .dish h1{font-family:Unbounded;font-weight:800;font-size:26px;letter-spacing:-.045em;
+    line-height:1.05;margin-top:16px}
+  .dish .meta{color:var(--muted);font-size:13.5px;margin-top:8px}
+  .dish .kcal{display:flex;gap:10px;margin-top:14px}
+  .dish .kcal div{flex:1;border-radius:var(--rm);padding:12px 10px;text-align:center}
+  .dish .kcal b{display:block;font-family:Unbounded;font-weight:700;font-size:19px;letter-spacing:-.045em}
+  .dish .kcal span{display:block;font-size:10px;font-weight:700;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--muted);margin-top:4px}
+  .dish .blk{margin-top:24px}
+  .dish .blk .cap{margin-bottom:11px}
+  .dish .ings{display:flex;flex-wrap:wrap;gap:8px}
+  .dish .ings span{border-radius:var(--rm);padding:10px 14px;font-size:14px}
+  .dish .stp li{display:flex;gap:13px;padding:13px 0;font-size:15px;line-height:1.45;
+    border-bottom:1px solid var(--glass-line)}
+  .dish .stp li:last-child{border-bottom:none}
+  .dish .stp b{width:26px;height:26px;border-radius:10px;background:var(--g-soft);color:var(--g-d);
+    font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .dish .act{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(14px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,transparent,var(--bg) 40%)}
+  .dish .act .in{max-width:430px;margin:0 auto;display:flex;gap:10px}
+  .dish .act .go{flex:1;background:var(--g);color:#fff;border-radius:var(--rl);padding:16px;
+    font-size:15.5px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:9px;
+    box-shadow:0 16px 30px -16px var(--g)}
+  .dish .act .go.on{background:var(--g-soft);color:var(--g-d);box-shadow:none}
+  .dish .act .go i{width:18px;height:18px}
+  .dish .act .sec{width:56px;border-radius:var(--rl);background:var(--surf);color:var(--ink-2);
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--sh-2)}
+  .dish .act .sec i{width:21px;height:21px}
+  /* строка и карточка «сейчас» кликабельны целиком */
+  .row,.t-next .ph{cursor:pointer}
   .si{display:flex;align-items:center;gap:12px;padding:13px 15px;font-size:14.5px;
     border-radius:var(--rm);margin-bottom:8px}
   .si .cb{width:24px;height:24px;border-radius:9px;border:1.5px solid color-mix(in srgb,var(--ink) 14%,transparent);
@@ -292,6 +348,30 @@
   </section>
 </div>
 
+<section class="dish" id="dish" aria-hidden="true">
+  <div class="top">
+    <button id="d-back" aria-label="Назад"><i id="i-back"></i></button>
+    <b id="d-slot"></b>
+  </div>
+  <div class="body">
+    <div class="shot"><img id="d-img" src="" alt=""></div>
+    <h1 id="d-name"></h1>
+    <div class="meta" id="d-meta"></div>
+    <div class="kcal">
+      <div class="glass"><b class="num" id="d-k"></b><span>ккал</span></div>
+      <div class="glass"><b class="num" id="d-p"></b><span>белки, г</span></div>
+      <div class="glass"><b class="num" id="d-f"></b><span>жиры, г</span></div>
+      <div class="glass"><b class="num" id="d-c"></b><span>углеводы, г</span></div>
+    </div>
+    <div class="blk"><div class="cap">Что нужно</div><div class="ings" id="d-ing"></div></div>
+    <div class="blk"><div class="cap">Как готовить</div><ul class="stp" id="d-steps"></ul></div>
+  </div>
+  <div class="act"><div class="in">
+    <button class="go" id="d-go"><i id="i-go"></i><span>Приготовил</span></button>
+    <button class="sec" aria-label="Заменить"><i id="i-alt"></i></button>
+  </div></div>
+</section>
+
 <nav class="nav glass">
   <button class="on" data-s="home"><i id="n1"></i>Сегодня</button>
   <button data-s="week"><i id="n2"></i>Неделя</button>
@@ -349,7 +429,7 @@
   });
 
   put('rest', NP.meals.filter((_,i)=>i!==1).map(m=>`
-    <div class="row glass${m.done?' on':''}">
+    <div class="row glass${m.done?' on':''}" data-dish="${m.slug}">
       <img src="${dishUrl(m.slug)}" alt="">
       <div class="t"><b>${m.name}</b><span>${m.slot} · ${m.time}</span></div>
       <div class="k num">${m.kcal}</div>
@@ -377,14 +457,66 @@
     document.querySelectorAll('.scr').forEach(s=>s.classList.toggle('on',s.id==='s-'+b.dataset.s));
     scrollTo(0,0);
   }));
+  // ── страница блюда ───────────────────────────────────────────────────────
+  put('i-back',IC.back);put('i-go',IC.check);put('i-alt',IC.swap);
+  const dish=document.getElementById('dish');
+  let openMeal=null;
+
+  function openDish(slug){
+    const m=NP.meals.find(x=>x.slug===slug); if(!m) return;
+    openMeal=m;
+    put('d-slot', `${m.slot} · ${m.time}`);
+    document.getElementById('d-img').src=dishUrl(m.slug);
+    put('d-name', m.name);
+    put('d-meta', `День 1 · ${m.slot.toLowerCase()} в ${m.time}`);
+    ['k','p','f','c'].forEach((k,i)=>put('d-'+k, [m.kcal,m.p,m.f,m.c][i]));
+    put('d-ing', m.ing.map(x=>`<span class="glass">${x}</span>`).join(''));
+    put('d-steps', m.steps.map((s,n)=>`<li><b>${n+1}</b><span>${s}</span></li>`).join(''));
+    paintDishBtn();
+    dish.classList.add('on'); dish.setAttribute('aria-hidden','false');
+    dish.scrollTop=0;
+    document.body.style.overflow='hidden';
+    history.pushState({dish:1},'');        // системное «назад» закрывает экран, а не приложение
+  }
+  function closeDish(back){
+    dish.classList.remove('on'); dish.setAttribute('aria-hidden','true');
+    document.body.style.overflow='';
+    openMeal=null;
+    if(back && history.state && history.state.dish) history.back();
+  }
+  function paintDishBtn(){
+    const b=document.getElementById('d-go');
+    b.classList.toggle('on', !!openMeal && openMeal.done);
+    b.querySelector('span').textContent=openMeal&&openMeal.done?'Отмечено':'Приготовил';
+  }
+  document.getElementById('d-back').addEventListener('click',()=>closeDish(true));
+  addEventListener('popstate',()=>{ if(dish.classList.contains('on')) closeDish(false); });
+  addEventListener('keydown',e=>{ if(e.key==='Escape'&&dish.classList.contains('on')) closeDish(true); });
+  document.getElementById('d-go').addEventListener('click',()=>{
+    if(!openMeal) return;
+    openMeal.done=!openMeal.done; paintDishBtn(); macros(); syncRows();
+  });
+  function syncRows(){
+    document.querySelectorAll('.row[data-dish]').forEach(r=>{
+      const m=NP.meals.find(x=>x.slug===r.dataset.dish);
+      if(m) r.classList.toggle('on', !!m.done);
+    });
+  }
+
   document.addEventListener('click',e=>{
+    // галочка отмечает, не открывая карточку
     const t=e.target.closest('.row .tick');
     if(t){
+      e.stopPropagation();
       const row=t.closest('.row'); row.classList.toggle('on');
       // отметка меняет и БЖУ: иначе плитки показывали бы вчерашнюю правду
-      const nm=row.querySelector('.t b')?.textContent;
-      const m=NP.meals.find(x=>x.name===nm); if(m){ m.done=!m.done; macros(); }
+      const m=NP.meals.find(x=>x.slug===row.dataset.dish);
+      if(m){ m.done=!m.done; macros(); }
+      return;
     }
+    const row=e.target.closest('.row[data-dish]');
+    if(row){ openDish(row.dataset.dish); return; }
+    if(e.target.closest('.t-next .ph')){ openDish(NP.meals[1].slug); return; }
     const c=e.target.closest('.si'); if(c) c.classList.toggle('on');
   });
 </script>
