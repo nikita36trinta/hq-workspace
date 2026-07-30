@@ -53,3 +53,30 @@ export async function contentTop(page: Page): Promise<number> {
 		return stage ? Math.round(stage.getBoundingClientRect().top) : -1;
 	});
 }
+
+/**
+ * Отправить почту на пейволле и дождаться раскрытия нормы.
+ *
+ * Тапаем по координатам, а не click(): после перехода карточек на стекло
+ * (backdrop-filter создаёт новый контекст наложения) проверка попадания в
+ * Playwright начала считать, что кнопку перекрывает текст подсказки. Настоящий
+ * тап пальцем при этом срабатывает — проверено вручную, норма раскрывается,
+ * и elementFromPoint в центре кнопки возвращает саму кнопку.
+ *
+ * Чтобы это не превратилось в «ну и ладно», проверка сохранена по СУТИ: ниже
+ * ждём, что норма действительно появилась. Если кнопка правда перестанет
+ * работать, тест упадёт здесь же.
+ */
+export async function submitEmail(page: Page, email: string): Promise<void> {
+	await page.locator("#mail").fill(email);
+	const send = page.locator("#send");
+	await send.scrollIntoViewIfNeeded();
+	await page.waitForTimeout(350);          // даём доехать плавному скроллу
+	const box = await send.boundingBox();
+	if (!box) throw new Error("кнопка отправки почты не найдена");
+	await page.mouse.click(Math.round(box.x + box.width / 2), Math.round(box.y + box.height / 2));
+	await expect(
+		page.locator(".kcal .big"),
+		"после отправки почты норма обязана раскрыться",
+	).toBeVisible();
+}

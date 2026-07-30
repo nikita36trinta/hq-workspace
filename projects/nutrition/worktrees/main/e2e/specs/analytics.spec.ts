@@ -1,5 +1,5 @@
 import { expect, test } from "./_fixtures";
-import { walkQuizToPaywall } from "./_helpers";
+import { submitEmail, walkQuizToPaywall } from "./_helpers";
 
 /**
  * Аналитика и режим «не считать меня».
@@ -40,8 +40,7 @@ test.describe("analytics", () => {
 		expect(fired, "шаг рост-вес — там была мёртвая кнопка").toContain("quiz_metrics");
 		expect(fired, "экран с почтой").toContain("quiz_email_screen");
 
-		await page.locator("#mail").fill("goals@mynutriplan.ru");
-		await page.locator("#send").click();
+		await submitEmail(page, "goals@mynutriplan.ru");
 		await expect(page.locator(".kcal .big")).toBeVisible();
 
 		expect(fired, "почта оставлена").toContain("lead");
@@ -80,8 +79,7 @@ test.describe("analytics", () => {
 
 		await page.goto("/quiz?l=slim");
 		await walkQuizToPaywall(page);
-		await page.locator("#mail").fill("notrack-probe@mynutriplan.ru");
-		await page.locator("#send").click();
+		await submitEmail(page, "notrack-probe@mynutriplan.ru");
 
 		// фронт ведёт себя ровно так же — иначе тестировался бы не тот путь
 		await expect(page.locator(".kcal .big")).toBeVisible();

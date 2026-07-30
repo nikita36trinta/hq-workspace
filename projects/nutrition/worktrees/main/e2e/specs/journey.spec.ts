@@ -1,5 +1,5 @@
 import { expect, test } from "./_fixtures";
-import { contentTop, walkQuizToPaywall } from "./_helpers";
+import { contentTop, submitEmail, walkQuizToPaywall } from "./_helpers";
 
 /**
  * The one journey that has to work: landing → quiz → norm → paywall.
@@ -25,8 +25,7 @@ test.describe("funnel", () => {
 		// is being given away and the funnel below it dies.
 		await expect(page.locator(".lockrow"), "the norm must stay locked until the email").toBeVisible();
 
-		await page.locator("#mail").fill("e2e@mynutriplan.ru");
-		await page.locator("#send").click();
+		await submitEmail(page, "e2e@mynutriplan.ru");
 
 		// the real calorie number replaces the dots
 		const kcal = page.locator(".kcal .big");

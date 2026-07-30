@@ -97,7 +97,10 @@
   .field .u{color:var(--muted);font-size:14px;font-weight:700}
 
   /* bottom CTA */
-  .foot{position:sticky;bottom:0;background:linear-gradient(180deg,transparent,var(--bg) 26%);
+  /* z-index обязателен: backdrop-filter на стеклянных карточках создаёт НОВЫЙ
+     контекст наложения, и карточка начала перекрывать липкую кнопку — клик по
+     «Показать мою норму» перехватывался текстом подсказки. Поймано e2e. */
+  .foot{position:sticky;bottom:0;z-index:4;background:linear-gradient(180deg,transparent,var(--bg) 26%);
     padding:16px 0 calc(10px + env(safe-area-inset-bottom));margin-top:22px}
   .cta{width:100%;border:none;border-radius:15px;background:var(--accent);color:var(--cta-ink);
     font-size:17px;font-weight:800;padding:17px;transition:.16s;box-shadow:0 14px 30px -14px var(--accent)}
@@ -150,7 +153,7 @@
   .checks li.on .c svg{opacity:1}
 
   /* plan preview */
-  .plan{padding-top:6px}
+  .plan{padding-top:6px;position:relative}
   .plan .kick{display:inline-flex;align-items:center;gap:7px;background:var(--soft);color:var(--accent-d);
     font-weight:800;font-size:12.5px;letter-spacing:.03em;text-transform:uppercase;padding:6px 13px;border-radius:99px}
   .plan h2{font-size:clamp(23px,5.6vw,30px);font-weight:800;letter-spacing:-.02em;margin:14px 0 2px}
@@ -163,20 +166,25 @@
      Раньше её не было вовсе: разницу человек должен был вычитать в уме. */
   .prog .ghead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:2px}
   .prog .glabel{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-  .prog .gdelta{background:var(--accent);color:var(--cta-ink);font-size:14px;font-weight:800;
-    padding:4px 11px;border-radius:99px;white-space:nowrap;box-shadow:0 8px 18px -8px var(--accent)}
+  .prog .gdelta{background:linear-gradient(160deg,var(--accent),var(--accent-d));color:var(--cta-ink);
+    font-size:14px;font-weight:800;padding:6px 13px;border-radius:99px;white-space:nowrap;
+    box-shadow:0 10px 22px -10px color-mix(in srgb,var(--accent-d) 80%,transparent),
+               inset 0 1px 0 color-mix(in srgb,#fff 28%,transparent)}
   .prog .gwrap{position:relative;height:150px;margin:14px 0 26px}
   .prog svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
   /* Кружки и подписи — HTML поверх SVG, а не фигуры внутри него: SVG растянут
      по ширине (preserveAspectRatio=none), и любая окружность в нём превращалась
      в овал. Заодно ничего не наезжает друг на друга. */
-  .prog .dot{position:absolute;transform:translate(-50%,-50%);border-radius:50%;background:var(--accent)}
-  .prog .dot.start{width:11px;height:11px;opacity:.45}
-  .prog .dot.end{width:15px;height:15px;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 18%,transparent)}
-  .prog .kg{position:absolute;transform:translate(-50%,-50%);font-size:13px;font-weight:800;
-    background:var(--field);border:1px solid var(--line);border-radius:99px;padding:3px 10px;white-space:nowrap}
-  .prog .kg.start{color:var(--muted);font-weight:700;background:transparent;border:0;padding:0}
-  .prog .kg.end{color:var(--accent-d);box-shadow:0 8px 20px -12px rgba(0,0,0,.4)}
+  .prog .dot{position:absolute;transform:translate(-50%,-50%);border-radius:50%}
+  .prog .dot.start{width:13px;height:13px;background:var(--field);border:3px solid var(--curve)}
+  .prog .dot.end{width:15px;height:15px;background:var(--accent);
+    box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 16%,transparent)}
+  /* Подписи веса — просто текст. Плашки вокруг каждой цифры превращали
+     график в набор наклеек; в макете они читаются как разметка на линии. */
+  .prog .kg{position:absolute;transform:translate(-50%,-50%);font-size:13.5px;font-weight:800;
+    color:var(--ink);white-space:nowrap}
+  .prog .kg.start{font-size:13.5px}
+  .prog .kg.end{font-size:14px}
   .prog .endm{position:absolute;width:52px;height:52px;border-radius:15px;overflow:hidden;background:var(--soft);
     transform:translate(-50%,-100%);box-shadow:0 14px 26px -14px rgba(0,0,0,.3)}
   .prog .endm video,.prog .endm img{width:100%;height:100%;object-fit:cover;display:block}
@@ -186,8 +194,8 @@
      промежуточные превращают график в план с этапами — видно, что будет через
      месяц, а не только в ноябре. Веса — линейная интерполяция того же прогноза,
      поэтому в заголовке и стоит «примерно». */
-  .prog .mile{position:absolute;transform:translate(-50%,-50%);width:11px;height:11px;border-radius:50%;
-    background:var(--field);border:2.5px solid var(--accent);opacity:.75}
+  .prog .mile{position:absolute;transform:translate(-50%,-50%);width:13px;height:13px;border-radius:50%;
+    background:var(--field);border:3px solid var(--curve)}
   .prog .mkg{position:absolute;transform:translate(-50%,-50%);font-size:11.5px;font-weight:700;
     color:var(--muted);white-space:nowrap}
   .prog .guide-v{position:absolute;width:1px;border-left:1px dashed var(--line);opacity:.9}
@@ -197,10 +205,18 @@
   .kcal{display:flex;align-items:baseline;gap:10px}
   .kcal .big{font-size:44px;font-weight:800;color:var(--accent-d);letter-spacing:-.02em;line-height:1}
   .kcal .lab{color:var(--muted);font-size:14px}
-  .macros{display:flex;gap:10px;margin-top:18px}
-  .macros div{flex:1;background:var(--soft);border-radius:13px;padding:11px;text-align:center}
-  .macros b{display:block;font-size:19px;font-weight:800;color:var(--accent-d)}
-  .macros span{font-size:12px;color:var(--muted)}
+  .macros{display:flex;gap:9px;margin-top:18px}
+  /* Песочные, а не мятные: в макете плитки БЖУ — тёплый нейтральный слой, и
+     зелёным на экране остаётся только то, что действительно акцент (норма,
+     дельта, кнопка). Иконка слева от числа даёт строке ритм. */
+  .macros div{flex:1;min-width:0;background:color-mix(in srgb,var(--bg) 78%,#fff);
+    border:1px solid var(--glass-line);border-radius:15px;padding:10px 9px;
+    box-shadow:inset 0 1px 0 var(--glass-edge)}
+  .macros .mrow{display:flex;align-items:center;gap:6px}
+  .macros b{font-size:20px;font-weight:800;color:var(--ink);letter-spacing:-.02em}
+  .macros span{display:block;font-size:11.5px;color:var(--muted);margin-top:3px}
+  .macros .mic{width:20px;height:20px;flex:0 0 auto}
+  .macros .mic svg{width:100%;height:100%;display:block}
   .day{margin-top:14px}
   .day .dh{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
   .meal{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
@@ -224,11 +240,18 @@
   /* Из надписи «+ещё 6 дней меню» сделана кнопка. Надпись сообщала, что за
      туманом что-то есть, но нажать на неё было нельзя — человек упирался в
      закрытую дверь без ручки. Теперь она ведёт к тарифам. */
-  .locked .veil .go{display:inline-flex;align-items:center;gap:9px;background:var(--accent);color:var(--cta-ink);
-    border:none;border-radius:14px;font-size:14px;font-weight:800;padding:13px 18px;cursor:pointer;
-    box-shadow:0 14px 28px -14px var(--accent);transition:.16s;max-width:100%}
-  .locked .veil .go:hover{background:var(--accent-d)}
-  .locked .veil .go span{font-weight:600;opacity:.85;font-size:13px}
+  /* На всю ширину и капсом — в макете это главная кнопка экрана, а не
+     скромная ссылка посреди тумана. */
+  .locked .veil{padding:0 0 14px}
+  .locked .veil .go{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;
+    background:linear-gradient(160deg,var(--accent),var(--accent-d));color:var(--cta-ink);
+    border:none;border-radius:16px;font-size:13.5px;font-weight:800;letter-spacing:.03em;
+    text-transform:uppercase;padding:16px 14px;cursor:pointer;transition:.16s;
+    box-shadow:0 18px 34px -16px color-mix(in srgb,var(--accent-d) 85%,transparent),
+               inset 0 1px 0 color-mix(in srgb,#fff 26%,transparent)}
+  .locked .veil .go:hover{filter:brightness(1.06)}
+  .locked .veil .go em{font-style:normal;font-weight:600;text-transform:none;letter-spacing:0;
+    opacity:.9;font-size:13px}
   .locked .veil .go svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.4;
     stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
   /* Замок на последней (скрытой) строке — «здесь заперто», а не «здесь пусто». */
@@ -323,6 +346,9 @@
     --glass-soft: color-mix(in srgb, var(--field) 42%, transparent);
     --glass-edge: color-mix(in srgb, #fff 70%, transparent);
     --glass-line: color-mix(in srgb, var(--ink) 8%, transparent);
+    /* Линия прогноза в макете заметно бледнее акцента: насыщенный зелёный
+       кричал громче, чем плашка с дельтой, и спорил с ней за внимание. */
+    --curve: color-mix(in srgb, var(--accent) 42%, #fff);
   }
 
   /* Подсветка за контентом. Три пятна, а не десять: каждое — это большой
@@ -375,6 +401,24 @@
     .plan .card, .plan .prog, .plan .pw{background:var(--field);backdrop-filter:none;-webkit-backdrop-filter:none}
     .plan .macros div, .plan .tar{background:var(--soft)}
   }
+
+  /* Фотография еды по краям, за стеклом. В макете именно она делает экран
+     аппетитным: без неё карточки висят в пустоте. Снимки берём из общего кэша
+     блюд (те же, что в плане), а не из стока — показываем свою еду.
+
+     Три ограничения, чтобы это не мешало читать:
+       · слой лежит ПОД карточками (z-index -1) и над свечением;
+       · края растворяются маской, снимок не имеет видимой рамки;
+       · pointer-events отключены — картинка не перехватывает касания.        */
+  .food{position:absolute;z-index:-1;pointer-events:none;border-radius:50%;
+    background-size:cover;background-position:center;opacity:.6;filter:saturate(105%)}
+  .food.a{width:230px;height:230px;right:-86px;top:96px;
+    -webkit-mask-image:radial-gradient(closest-side,#000 42%,transparent 78%);
+    mask-image:radial-gradient(closest-side,#000 42%,transparent 78%)}
+  .food.b{width:170px;height:170px;left:-78px;top:330px;
+    -webkit-mask-image:radial-gradient(closest-side,#000 38%,transparent 76%);
+    mask-image:radial-gradient(closest-side,#000 38%,transparent 76%)}
+  @media (prefers-reduced-transparency: reduce){ .food{display:none} }
 </style>
 </head>
 <body>
@@ -425,6 +469,15 @@ const MASC_TIER = (() => {
   } catch (e) { return '_md'; }
 })();
 const mascBig = (pose='wave') => `<video autoplay loop muted playsinline poster="/assets/avocado_${pose}${MASC_TIER}.jpg"><source src="/assets/avocado_${pose}${MASC_TIER}.mp4" type="video/mp4"></video>`;
+
+
+// Иконки БЖУ. Нарисованные, а не эмодзи: эмодзи в вёрстке выдаёт «сделано на
+// скорую руку» и по-разному выглядит на разных системах.
+const MIC = {
+  prot: `<svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="13" rx="7" ry="8.5" fill="#FFF3D6" stroke="#E8C97A" stroke-width="1.4"/><circle cx="12" cy="13.5" r="3.4" fill="#F5B841"/></svg>`,
+  fat:  `<svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5c3.6 4.3 6 7.3 6 10.2A6 6 0 0 1 6 13.7C6 10.8 8.4 7.8 12 3.5Z" fill="#FFE9B8" stroke="#E8B44A" stroke-width="1.4"/></svg>`,
+  carb: `<svg viewBox="0 0 24 24" fill="none" stroke="#C9A227" stroke-width="1.5" stroke-linecap="round"><path d="M12 21V7"/><path d="M12 9c-2.4-.4-3.6-1.8-3.8-4 2.2.2 3.6 1.4 3.8 3.6"/><path d="M12 9c2.4-.4 3.6-1.8 3.8-4-2.2.2-3.6 1.4-3.8 3.6"/><path d="M12 14c-2.4-.4-3.6-1.8-3.8-4 2.2.2 3.6 1.4 3.8 3.6"/><path d="M12 14c2.4-.4 3.6-1.8 3.8-4-2.2.2-3.6 1.4-3.8 3.6"/></svg>`,
+};
 
 const IC = {
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
@@ -856,14 +909,14 @@ function renderPlan(){
       <div class="gwrap">
         <svg viewBox="0 0 298 150" preserveAspectRatio="none">
           <defs><linearGradient id="pgf" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/>
+            <stop offset="0" stop-color="var(--accent)" stop-opacity=".16"/>
             <stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
           </linearGradient></defs>
           <path d="${path} L 288 150 L 10 150 Z" fill="url(#pgf)" stroke="none"/>
           ${endKg !== null ? `<line x1="10" y1="${y1}" x2="288" y2="${y1}" stroke="var(--accent)"
             stroke-width="1.5" stroke-dasharray="2 7" stroke-linecap="round" opacity=".45"
             vector-effect="non-scaling-stroke"/>` : ''}
-          <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3.5" stroke-linecap="round"
+          <path d="${path}" fill="none" stroke="var(--curve)" stroke-width="5" stroke-linecap="round"
             vector-effect="non-scaling-stroke"/>
         </svg>
         ${miles.map(m => `
@@ -898,13 +951,17 @@ function renderPlan(){
   const revealed = `
     <div class="card">
       <div class="kcal"><span class="big">${cal}</span><span class="lab">ккал в день —<br>твоя норма для ${goal} без голода</span></div>
-      <div class="macros"><div><b>${P}</b><span>белки, г</span></div><div><b>${F}</b><span>жиры, г</span></div><div><b>${C}</b><span>углеводы, г</span></div></div>
+      <div class="macros">
+        <div><div class="mrow"><span class="mic">${MIC.prot}</span><b>${P}</b></div><span>белки, г</span></div>
+        <div><div class="mrow"><span class="mic">${MIC.fat}</span><b>${F}</b></div><span>жиры, г</span></div>
+        <div><div class="mrow"><span class="mic">${MIC.carb}</span><b>${C}</b></div><span>углеводы, г</span></div>
+      </div>
       <div class="day locked" id="dayBlock">
         <div class="dh">Пример дня — первый из 7</div>
         <div class="meal"><span class="mi">${IC.cup}</span><span class="mt"><b>Завтрак</b><span>Овсянка с ягодами и орехами</span></span><span class="kc">${m1} ккал</span></div>
         <div class="meal"><span class="mi">${IC.plate}</span><span class="mt"><b>Обед</b><span>Курица с киноа и овощами</span></span><span class="kc">${m2} ккал</span></div>
         <div class="meal"><span class="mi">${IC.bowl}</span><span class="mt"><b>Ужин</b><span>Запечённая рыба и салат</span></span><span class="kc">${m3} ккал</span></div>
-        <div class="veil"><button class="go" id="toPw" type="button">Открыть все 7 дней
+        <div class="veil"><button class="go" id="toPw" type="button">Перейти к полному плану
           <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
       </div>
     </div>
@@ -941,6 +998,8 @@ function renderPlan(){
     </div>`;
 
   stage.innerHTML = `<div class="step plan">
+    <div class="food a" aria-hidden="true" style="background-image:url('/dish/grecheskiy-salat')"></div>
+    <div class="food b" aria-hidden="true" style="background-image:url('/dish/fruktovyy-salat')"></div>
     <span class="kick">Твой план готов</span>
     <h2>${pg.headline}</h2>
     <p class="lead">Мягкий темп без голода — под твоё тело и вкусы</p>
