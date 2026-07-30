@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Варианты экрана «введи почту» · NutriPlan</title>
+<style>
+  :root{
+    --accent:#16A34A; --accent-d:#0E7A36; --soft:#E7F8EC; --muted:#6B7566;
+    --ink:#20321F; --bg:#FBF8F1; --field:#FFFFFF; --line:#EEE7D8; --cta-ink:#FFFFFF;
+    --glass: color-mix(in srgb, var(--field) 58%, transparent);
+    --glass-edge: color-mix(in srgb, #fff 70%, transparent);
+    --glass-line: color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .shell{max-width:430px;margin:0 auto;padding:24px 20px 60px}
+  .vh{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--accent-d);margin:38px 0 4px}
+  .vh:first-of-type{margin-top:0}
+  .vn{font-size:13px;color:var(--muted);margin-bottom:14px}
+
+  .card{background:var(--field);border:1.5px solid var(--line);border-radius:22px;padding:22px}
+  .dh2{font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+
+  /* поля и кнопка — общие для всех вариантов */
+  .inp{margin-top:14px;background:var(--field);border:1.5px solid var(--line);border-radius:15px;
+    padding:15px 17px;display:flex;align-items:center}
+  .inp input{width:100%;border:none;background:transparent;color:var(--ink);font-size:16px;outline:none}
+  .cta{width:100%;margin-top:12px;background:linear-gradient(160deg,var(--accent),var(--accent-d));
+    color:var(--cta-ink);border:none;border-radius:16px;font-size:13.5px;font-weight:800;
+    letter-spacing:.03em;text-transform:uppercase;padding:16px 14px;font-family:inherit;cursor:pointer;
+    box-shadow:0 18px 34px -16px color-mix(in srgb,var(--accent-d) 85%,transparent),
+               inset 0 1px 0 color-mix(in srgb,#fff 26%,transparent)}
+  .hint{color:var(--muted);font-size:14px;margin-top:14px}
+
+  /* ── общее: замок ─────────────────────────────────────────────────────── */
+  .lk{width:30px;height:30px;border-radius:10px;background:var(--soft);display:inline-flex;
+    align-items:center;justify-content:center;color:var(--accent-d);flex:0 0 auto}
+  .lk svg{width:16px;height:16px}
+  .lk.sm{width:24px;height:24px;border-radius:8px}
+  .lk.sm svg{width:13px;height:13px}
+
+  /* ── Вариант 1: полная строка КБЖУ, числа размыты ─────────────────────── */
+  .v1 .row{display:flex;align-items:flex-end;gap:14px;margin-top:12px;flex-wrap:nowrap}
+  .v1 .cell{min-width:0}
+  .v1 .num{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1.05;
+    filter:blur(6px);opacity:.62;user-select:none}
+  .v1 .cell.main .num{font-size:38px;color:var(--accent-d)}
+  .v1 .cap{font-size:11px;color:var(--muted);margin-top:4px;white-space:nowrap}
+  .v1 .kunit{font-size:13px;font-weight:800;color:var(--accent-d);margin-left:4px}
+  .v1 .top{display:flex;align-items:center;gap:9px;margin-top:10px}
+
+  /* ── Вариант 2: настоящая карточка под матовым стеклом ────────────────── */
+  .v2 .stack{position:relative;border-radius:18px;overflow:hidden;margin-top:12px}
+  .v2 .under{padding:2px 0 6px;filter:blur(7px);opacity:.75;user-select:none}
+  .v2 .big{font-size:44px;font-weight:800;letter-spacing:-.03em;color:var(--accent-d);line-height:1}
+  .v2 .mac{display:flex;gap:8px;margin-top:12px}
+  .v2 .mac div{flex:1;background:var(--soft);border-radius:12px;padding:9px;text-align:center}
+  .v2 .mac b{display:block;font-size:17px;font-weight:800}
+  .v2 .mac span{font-size:10.5px;color:var(--muted)}
+  .v2 .meal{display:flex;align-items:center;gap:10px;margin-top:12px}
+  .v2 .meal i{width:34px;height:34px;border-radius:10px;background:var(--soft);flex:0 0 auto}
+  .v2 .meal u{display:block;height:11px;width:60%;background:var(--line);border-radius:6px;
+    text-decoration:none}
+  .v2 .meal em{display:block;height:9px;width:80%;background:var(--line);border-radius:6px;
+    margin-top:6px;opacity:.7}
+  .v2 .over{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:8px;text-align:center;padding:16px;
+    background:linear-gradient(180deg,
+      color-mix(in srgb,var(--field) 55%,transparent),
+      color-mix(in srgb,var(--field) 88%,transparent));
+    -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+  .v2 .over b{font-size:15px;font-weight:800}
+  .v2 .over span{font-size:12.5px;color:var(--muted);max-width:24ch}
+
+  /* ── Вариант 3: видимый диапазон, точное число по почте ──────────────── */
+  .v3 .rng{font-size:34px;font-weight:800;letter-spacing:-.025em;color:var(--accent-d);
+    line-height:1.05;margin-top:10px}
+  .v3 .rng small{font-size:14px;font-weight:800;letter-spacing:0;margin-left:6px;color:var(--ink)}
+  .v3 .exact{display:flex;align-items:center;gap:9px;margin-top:12px;padding:11px 13px;
+    background:var(--soft);border-radius:13px}
+  .v3 .exact b{font-size:13px;font-weight:800;color:var(--accent-d)}
+  .v3 .mr{display:flex;gap:8px;margin-top:12px}
+  .v3 .mr div{flex:1;border:1px solid var(--line);border-radius:12px;padding:9px;text-align:center}
+  .v3 .mr b{display:block;font-size:15px;font-weight:800}
+  .v3 .mr span{font-size:10.5px;color:var(--muted)}
+
+  /* ── Вариант 4: без размытий — что именно откроется ───────────────────── */
+  .v4 .list{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:11px}
+  .v4 .list li{display:flex;gap:10px;align-items:flex-start}
+  .v4 .list svg{width:18px;height:18px;flex:0 0 auto;margin-top:2px;color:var(--accent)}
+  .v4 .list b{display:block;font-size:14px}
+  .v4 .list span{font-size:12.5px;color:var(--muted)}
+  .v4 .ready{display:flex;align-items:center;gap:9px;margin-top:12px;padding:11px 13px;
+    background:var(--soft);border-radius:13px}
+  .v4 .ready b{font-size:13px;font-weight:800;color:var(--accent-d)}
+
+  /* ── Вариант 5: плёнка поверх настоящего числа ────────────────────────── */
+  .v5 .peekwrap{position:relative;margin-top:12px;border-radius:16px;overflow:hidden;
+    border:1px solid var(--glass-line)}
+  .v5 .peek{padding:16px}
+  .v5 .big{font-size:38px;font-weight:800;letter-spacing:-.03em;color:var(--accent-d);line-height:1.05}
+  .v5 .big small{font-size:14px;font-weight:800;letter-spacing:0;margin-left:5px;color:var(--ink)}
+  .v5 .mrow{display:flex;gap:16px;margin-top:10px}
+  .v5 .mrow div{font-size:15px;font-weight:800}
+  .v5 .mrow span{display:block;font-size:10.5px;font-weight:600;color:var(--muted)}
+  /* Плёнка режет цифры по нижней трети: число угадывается, но не читается
+     наверняка — «почти открыто». Ниже неё уходят БЖУ целиком. */
+  .v5 .curtain{position:absolute;left:0;right:0;bottom:0;top:38%;
+    background:repeating-linear-gradient(135deg,
+      color-mix(in srgb,var(--soft) 94%,#fff) 0 9px,
+      color-mix(in srgb,var(--soft) 76%,#fff) 9px 18px);
+    border-top:1.5px dashed color-mix(in srgb,var(--accent) 50%,transparent);
+    display:flex;align-items:center;justify-content:center;gap:9px}
+  .v5 .curtain b{font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--accent-d)}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── 1 ──────────────────────────────────────────────────────────────── -->
+  <div class="vh">Вариант 1 · Вся строка КБЖУ, числа размыты</div>
+  <div class="vn">Ближе всего к твоему референсу: видно, что откроется четыре числа, а не одно.</div>
+  <div class="card v1">
+    <div class="top"><div class="dh2">Твоя дневная норма</div><span class="lk sm">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span></div>
+    <div class="row">
+      <div class="cell main"><div class="num">1420</div><div class="cap">ккал в день</div></div>
+      <div class="cell"><div class="num">107</div><div class="cap">белки</div></div>
+      <div class="cell"><div class="num">47</div><div class="cap">жиры</div></div>
+      <div class="cell"><div class="num">142</div><div class="cap">углеводы</div></div>
+    </div>
+    <p class="hint">Норма уже посчитана под твои ответы. Почта — чтобы открыть её и первый день меню.</p>
+    <div class="inp"><input type="email" placeholder="твой@email.ru"></div>
+    <button class="cta">Показать мою норму →</button>
+  </div>
+
+  <!-- ── 2 ──────────────────────────────────────────────────────────────── -->
+  <div class="vh">Вариант 2 · Готовый план за матовым стеклом</div>
+  <div class="vn">Видно всю карточку целиком — норму, БЖУ и первую строку меню. Самый сильный тизер.</div>
+  <div class="card v2">
+    <div class="dh2">Твой план готов</div>
+    <div class="stack">
+      <div class="under">
+        <div class="big">1420</div>
+        <div class="mac">
+          <div><b>107</b><span>белки</span></div>
+          <div><b>47</b><span>жиры</span></div>
+          <div><b>142</b><span>углеводы</span></div>
+        </div>
+        <div class="meal"><i></i><div style="flex:1"><u></u><em></em></div></div>
+        <div class="meal"><i></i><div style="flex:1"><u></u><em></em></div></div>
+      </div>
+      <div class="over">
+        <span class="lk">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+        <b>План собран</b>
+        <span>Осталось открыть — пришлём его и на почту, чтобы не потерялся</span>
+      </div>
+    </div>
+    <div class="inp"><input type="email" placeholder="твой@email.ru"></div>
+    <button class="cta">Открыть мой план →</button>
+  </div>
+
+  <!-- ── 3 ──────────────────────────────────────────────────────────────── -->
+  <div class="vh">Вариант 3 · Виден диапазон, точное число — по почте</div>
+  <div class="vn">Ничего не размыто и не спрятано за плёнкой. Человек уже получает пользу, а причина оставить почту — точность, а не любопытство.</div>
+  <div class="card v3">
+    <div class="dh2">Твоя дневная норма</div>
+    <div class="rng">1300–1500<small>ккал</small></div>
+    <div class="mr">
+      <div><b>~105</b><span>белки</span></div>
+      <div><b>~45</b><span>жиры</span></div>
+      <div><b>~140</b><span>углеводы</span></div>
+    </div>
+    <div class="exact"><span class="lk sm">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+      <b>Точное число посчитано под твои ответы</b></div>
+    <p class="hint">Почта — чтобы открыть точную норму и первый день меню под твою цель.</p>
+    <div class="inp"><input type="email" placeholder="твой@email.ru"></div>
+    <button class="cta">Показать точную норму →</button>
+  </div>
+
+  <!-- ── 4 ──────────────────────────────────────────────────────────────── -->
+  <div class="vh">Вариант 4 · Без размытий: что именно откроется</div>
+  <div class="vn">Ни точек, ни блюра. Обмен назван прямо: вот три вещи, которые ты получишь.</div>
+  <div class="card v4">
+    <div class="dh2">Осталось одно поле</div>
+    <ul class="list">
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
+        <span><b>Норма калорий и БЖУ</b><span>Посчитаны под твой рост, вес и цель</span></span></li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
+        <span><b>Первый день меню</b><span>С блюдами, порциями и калориями</span></span></li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
+        <span><b>Ссылка на почту</b><span>Чтобы вернуться к плану с любого устройства</span></span></li>
+    </ul>
+    <div class="ready"><span class="lk sm">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+      <b>Всё уже посчитано и ждёт</b></div>
+    <div class="inp"><input type="email" placeholder="твой@email.ru"></div>
+    <button class="cta">Показать мой план →</button>
+  </div>
+
+
+  <!-- ── 5 ──────────────────────────────────────────────────────────────── -->
+  <div class="vh">Вариант 5 · Плёнка поверх настоящего числа</div>
+  <div class="vn">Число не размыто, а закрыто наполовину: читается как «почти открыто». Верхушка цифр видна — часть нормы человек угадает, и это осознанный размен на интерес.</div>
+  <div class="card v5">
+    <div class="dh2">Твоя дневная норма</div>
+    <div class="peekwrap">
+      <div class="peek">
+        <div class="big">1420<small>ккал</small></div>
+        <div class="mrow">
+          <div>107<span>белки</span></div>
+          <div>47<span>жиры</span></div>
+          <div>142<span>углеводы</span></div>
+        </div>
+      </div>
+      <div class="curtain"><span class="lk sm">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><b>Открыть по почте</b></div>
+    </div>
+    <p class="hint">Почта — чтобы открыть норму целиком и первый день меню.</p>
+    <div class="inp"><input type="email" placeholder="твой@email.ru"></div>
+    <button class="cta">Показать мою норму →</button>
+  </div>
+
+</div>
+</body>
+</html>
