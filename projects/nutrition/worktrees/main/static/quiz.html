@@ -210,15 +210,19 @@
      зелёным на экране остаётся только то, что действительно акцент (норма,
      дельта, кнопка). Иконка слева от числа даёт строке ритм. */
   .macros > div{flex:1;min-width:0;background:color-mix(in srgb,var(--bg) 82%,#fff);
-    border:1px solid var(--glass-line);border-radius:16px;padding:11px 11px 10px;
+    border:1px solid var(--glass-line);border-radius:18px;padding:12px 12px 11px;
     box-shadow:inset 0 1px 0 var(--glass-edge)}
   .macros .mrow{display:flex;align-items:center;gap:7px}
   .macros b{font-size:21px;font-weight:800;color:var(--ink);letter-spacing:-.03em;line-height:1.1}
   .macros span{display:block;font-size:11.5px;color:var(--muted);margin-top:5px}
-  .macros .mic{width:22px;height:22px;flex:0 0 auto}
-  .macros .mic svg{width:100%;height:100%;display:block}
+  .macros .mic{width:28px;height:28px;flex:0 0 auto;border-radius:50%;
+    background:color-mix(in srgb,var(--bg) 40%,#fff);
+    border:1px solid color-mix(in srgb,var(--ink) 6%,transparent);
+    display:flex;align-items:center;justify-content:center}
+  .macros .mic svg{width:19px;height:19px;display:block}
   .day{margin-top:14px}
-  .day .dh{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+  .day .dh{font-size:14px;font-weight:800;color:color-mix(in srgb,var(--ink) 78%,transparent);
+    text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
   .meal{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
   .meal .mi{width:34px;height:34px;border-radius:10px;background:var(--soft);flex:0 0 auto;display:flex;align-items:center;justify-content:center}
   /* С фотографией строка становится витриной, а не списком: 34px хватало
@@ -232,7 +236,8 @@
   .meal .mi img{width:100%;height:100%;object-fit:cover;border-radius:10px;display:block}
   .meal .mi{overflow:hidden}
   .meal .mt b{display:block;font-size:14.5px}.meal .mt span{font-size:12.5px;color:var(--muted)}
-  .meal .kc{margin-left:auto;font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap}
+  /* Калории в макете тёмные: это значимое число, а не служебная подпись. */
+  .meal .kc{margin-left:auto;font-size:13.5px;font-weight:700;color:var(--ink);white-space:nowrap}
   .locked{position:relative}
   .locked .veil{position:absolute;left:0;right:0;bottom:0;height:64%;border-radius:0 0 22px 22px;
     background:linear-gradient(180deg,transparent,var(--field) 78%);display:flex;align-items:flex-end;justify-content:center;
