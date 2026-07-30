@@ -361,3 +361,55 @@ test.describe("regressions · заливка под кнопкой", () => {
 		).toBe("fixed");
 	});
 });
+
+test.describe("regressions · шаг параметров", () => {
+	/**
+	 * Found 2026-07-30 по скриншоту владельца: «уехало и неудобный ввод,
+	 * непонятно куда жмать».
+	 *
+	 * Строка была одна: подпись слева (flex:0 0 auto — не сжимается) и число с
+	 * единицей справа. На «Желаемый вес (по желанию)» подпись выдавливала
+	 * единицу ЗА правый край карточки. И по такой строке не читалось, что это
+	 * поле: серое «170» справа выглядело готовым значением.
+	 *
+	 * Стало: подпись сверху, ввод под ней с подчёркиванием, единица прижата к
+	 * правому краю внутри поля, вся карточка — <label>, поэтому тап в любое
+	 * место ставит курсор.
+	 */
+	test("единица не вылезает за поле и тап работает по всей карточке", async ({ page }) => {
+		await page.goto("/quiz?l=slim");
+		for (let i = 0; i < 24; i++) {
+			if (await page.locator("#stage input[type=number]").count()) break;
+			const o = page.locator("#stage button.opt");
+			if ((await o.count()) && !(await page.locator("#stage button.opt.sel").count())) await o.first().click();
+			const nx = page.locator("#next");
+			if ((await nx.isVisible().catch(() => false)) && !(await nx.isDisabled())) {
+				await nx.click(); await page.waitForTimeout(250);
+			} else await page.waitForTimeout(700);
+		}
+		const fields = page.locator(".field");
+		expect(await fields.count(), "ожидали шаг с параметрами").toBeGreaterThan(0);
+
+		const g = await fields.evaluateAll((els) =>
+			els.map((f) => {
+				const fr = f.getBoundingClientRect();
+				const u = f.querySelector(".u")!.getBoundingClientRect();
+				return { label: (f.querySelector(".lb")!.textContent ?? "").trim(),
+					fieldRight: fr.right, unitRight: u.right, h: fr.height,
+					vw: document.documentElement.clientWidth };
+			}),
+		);
+		for (const f of g) {
+			expect(f.unitRight, `«${f.label}»: единица вылезла за правый край поля`).toBeLessThanOrEqual(f.fieldRight);
+			expect(f.fieldRight, `«${f.label}»: поле шире экрана`).toBeLessThanOrEqual(f.vw);
+			expect(f.h, "по полю нужно попадать пальцем").toBeGreaterThanOrEqual(44);
+		}
+
+		// тап по подписи, а не по самому числу, обязан ставить курсор в поле
+		await fields.first().locator(".lb").click();
+		expect(
+			await page.evaluate(() => (document.activeElement as HTMLElement)?.tagName),
+			"нажатие по подписи должно фокусировать ввод",
+		).toBe("INPUT");
+	});
+});

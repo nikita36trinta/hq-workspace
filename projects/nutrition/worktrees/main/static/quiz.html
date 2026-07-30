@@ -93,24 +93,37 @@
   .freehint{color:var(--muted);font-size:12.5px;margin-top:7px;padding-left:2px}
 
   /* metrics */
-  .metrics{display:flex;flex-direction:column;gap:14px;margin-top:22px}
-  .field{background:var(--field);border:1.5px solid var(--line);border-radius:16px;padding:12px 16px;
-    display:flex;align-items:center;justify-content:space-between;gap:12px;transition:.16s}
+  .metrics{display:flex;flex-direction:column;gap:12px;margin-top:22px}
+  /* Подпись сверху, ввод под ней — а не в одну строку.
+     В одну строку подпись стояла flex:0 0 auto, то есть не сжималась, и на
+     «Желаемый вес (по желанию)» выдавливала число с единицей ЗА правый край
+     карточки. Плюс по такой строке не видно, что это поле: серое «170» справа
+     читалось как готовое значение, а не как приглашение ввести своё.
+
+     Теперь карточка кликается целиком (cursor:text + фокус по нажатию), а под
+     числом лежит подчёркивание — привычный признак ввода, который виден и без
+     фокуса. */
+  .field{background:var(--field);border:1.5px solid var(--line);border-radius:16px;
+    padding:11px 16px 12px;transition:.16s;cursor:text}
   .field:focus-within{border-color:var(--accent)}
-  .field label{color:var(--muted);font-size:15px;font-weight:600;flex:0 0 auto}
-  .field .in{display:flex;align-items:baseline;gap:6px}
-  .field input{width:92px;border:none;background:transparent;color:var(--ink);text-align:right;
-    font-size:22px;font-weight:800;outline:none;-moz-appearance:textfield}
+  .field .lb{display:block;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.01em}
+  .field .in{display:flex;align-items:baseline;gap:8px;margin-top:2px;
+    border-bottom:2px solid var(--line);transition:.16s}
+  .field:focus-within .in{border-bottom-color:var(--accent)}
+  .field input{flex:1 1 auto;min-width:0;width:100%;border:none;background:transparent;
+    color:var(--ink);font-size:24px;font-weight:800;outline:none;padding:2px 0 5px;
+    -moz-appearance:textfield}
   .field input::-webkit-outer-spin-button,.field input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   /* Плейсхолдер должен ЧИТАТЬСЯ как подсказка. Раньше он наследовал размер и
      насыщенность введённого значения, и пустое поле выглядело заполненным:
      человек считал шаг пройденным и упирался в кнопку, которая молчит. */
-  .field input::placeholder{color:var(--muted);opacity:.5;font-weight:500}
+  .field input::placeholder{color:var(--muted);opacity:.45;font-weight:600}
   .field.bad{border-color:#DC2626}
+  .field.bad .in{border-bottom-color:#DC2626}
   .mhint{color:#DC2626;font-size:13.5px;margin-top:10px;display:none}
   .mhint.show{display:block}
   .cta.dim{opacity:.55}
-  .field .u{color:var(--muted);font-size:14px;font-weight:700}
+  .field .u{color:var(--muted);font-size:14px;font-weight:700;flex:0 0 auto}
 
   /* bottom CTA */
   /* z-index обязателен: backdrop-filter на стеклянных карточках создаёт НОВЫЙ
@@ -794,8 +807,8 @@ function renderMetrics(st){
   stage.innerHTML = `<div class="step">
     ${guide(st.h, st.pose)}${st.sub?`<p class="q-sub">${st.sub}</p>`:''}
     <div class="metrics">${st.fields.map(f=>`
-      <div class="field"><label>${f.label}${f.opt?' <span style="opacity:.6">(по желанию)</span>':''}</label>
-        <div class="in"><input type="number" inputmode="numeric" data-k="${f.k}" placeholder="${f.ph}" min="${f.min}" max="${f.max}" value="${b[f.k]||''}"><span class="u">${f.u}</span></div></div>`).join('')}
+      <label class="field"><span class="lb">${f.label}${f.opt?' <span style="opacity:.6">(по желанию)</span>':''}</span>
+        <span class="in"><input type="number" inputmode="numeric" data-k="${f.k}" placeholder="${f.ph}" min="${f.min}" max="${f.max}" value="${b[f.k]||''}"><span class="u">${f.u}</span></span></label>`).join('')}
     </div>
     <div class="foot"><button class="cta" id="next">Далее</button>
       <div class="mhint" id="mhint"></div>
