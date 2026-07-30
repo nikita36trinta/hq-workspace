@@ -97,19 +97,31 @@
   /* Плитки БЖУ — те же, что на экране оплаты: рисованная иконка, число рядом,
      подпись под ним. Переношу их сюда целиком, а не пересочиняю: экран оплаты и
      приложение должны читаться как один продукт, а не как два разных. */
-  .macros{display:flex;gap:8px;margin-top:17px}
-  .macros > div{flex:1;min-width:0;background:color-mix(in srgb,#fff 62%,transparent);
-    border:1px solid var(--glass-line);border-radius:var(--rm);padding:11px 10px;
-    box-shadow:inset 0 1px 0 var(--glass-edge)}
+  /* Без подложки: плитка в плитке съедала по 22px на каждую колонку, и текст
+     упирался в собственную рамку. Карточка нормы уже задаёт границу — второй
+     контур внутри неё лишний, а освободившееся место уходит числам. */
+  .macros{display:flex;gap:14px;margin-top:16px;padding-top:14px;
+    border-top:1px solid var(--glass-line)}
+  .macros > div{flex:1;min-width:0}
   .macros .mrow{display:flex;align-items:center;gap:8px}
-  .macros .mic{width:28px;height:28px;flex:0 0 auto}
+  .macros .mic{width:30px;height:30px;flex:0 0 auto}
   .macros .mic img{width:100%;height:100%;display:block}
   .macros .mtx{min-width:0}
-  .macros b{display:block;font-family:Unbounded;font-weight:700;font-size:17px;color:var(--ink);
-    letter-spacing:-.04em;line-height:1.05;white-space:nowrap}
-  .macros b i{font-style:normal;font-family:Onest;font-size:11px;font-weight:700;color:var(--muted);
-    margin-left:3px;letter-spacing:0}
-  .macros span{display:block;font-size:10.5px;color:var(--muted);margin-top:3px;white-space:nowrap}
+  /* «Сколько из скольких», а не просто норма: раньше в плитке стояло 118 г, и по
+     ней нельзя было понять, съедено это или осталось. Крупно — набранное,
+     мелким — цель. */
+  /* «10 из 118 г» в строку не влезало и выезжало за плитку: на 390px под текст
+     остаётся около 60px. Поэтому набранное и цель разделены косой чертой без
+     слова «из», а единица ушла в подпись — «белки, г». */
+  .macros b{display:block;font-family:Unbounded;font-weight:700;font-size:15px;color:var(--ink);
+    letter-spacing:-.045em;line-height:1.05;white-space:nowrap}
+  .macros b i{font-style:normal;font-family:Onest;font-size:11.5px;font-weight:700;color:var(--muted);
+    margin-left:1px;letter-spacing:0}
+  .macros span{display:block;font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .macros .mbar{height:4px;border-radius:99px;background:color-mix(in srgb,var(--ink) 8%,transparent);
+    margin-top:8px;overflow:hidden}
+  .macros .mbar i{display:block;height:100%;border-radius:99px;background:var(--g)}
 
   /* Фото вставлено В РАМКУ со своим радиусом, а не встык к краям карточки:
      так у модуля закруглено и снаружи, и внутри. */
@@ -141,11 +153,25 @@
   .t-s .n{font-family:Unbounded;font-weight:700;font-size:24px;letter-spacing:-.045em;margin-top:auto;
     color:var(--ink)}
   .t-s .n small{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:4px}
-  .cups{display:flex;gap:4px;margin-top:10px}
-  .cups i{flex:1;height:22px;border-radius:7px 7px 9px 9px;
-    background:color-mix(in srgb,var(--ink) 7%,transparent)}
-  .cups i.f{background:var(--wtr)}
-  .flame{width:24px;height:24px;color:var(--accent);margin-top:7px}
+  /* Стакан рисуем силуэтом, а не прямоугольником: чуть сужается книзу и скруглён
+     по дну — так он читается стаканом без подписи. Прямоугольник со скруглением
+     читался как индикатор заряда. */
+  .cups{display:flex;gap:5px;margin-top:10px;align-items:flex-end}
+  .cups .cup{flex:1;height:26px;color:color-mix(in srgb,var(--ink) 9%,transparent);
+    transition:color .15s}
+  .cups .cup.f{color:var(--wtr)}
+  .cups .cup svg{width:100%;height:100%;display:block}
+
+  .wctl{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:10px}
+  .wctl button{width:30px;height:30px;border-radius:11px;flex:0 0 auto;
+    background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink-2);
+    font-size:19px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center}
+  .wctl button:active{background:var(--g-soft);color:var(--g-d)}
+  .wctl .n{margin:0 auto 0 0;font-family:Unbounded;font-weight:700;font-size:20px;letter-spacing:-.045em}
+  .wctl .n small{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:4px}
+  /* Огонёк без подложки и без скругления: это рисунок с прозрачным фоном, а не
+     фотография — рамка вокруг него читалась бы как отдельный элемент. */
+  .mascot{margin-top:8px;width:26px;height:26px}
 
   .sech{display:flex;align-items:center;justify-content:space-between;margin:26px 4px 12px}
   .sech a{font-size:12.5px;font-weight:700;color:var(--g-d)}
@@ -208,14 +234,7 @@
         <div class="big num">1300<i>ккал</i></div>
         <div class="sub">Съедено 280 из 1580 ккал</div>
         <div class="track" id="track"></div>
-        <div class="macros">
-          <div><div class="mrow"><span class="mic"><img src="/assets/macro-prot.svg" alt="" loading="lazy"></span>
-            <span class="mtx"><b class="num">118<i>г</i></b><span>белки</span></span></div></div>
-          <div><div class="mrow"><span class="mic"><img src="/assets/macro-fat.svg" alt="" loading="lazy"></span>
-            <span class="mtx"><b class="num">53<i>г</i></b><span>жиры</span></span></div></div>
-          <div><div class="mrow"><span class="mic"><img src="/assets/macro-carb.svg" alt="" loading="lazy"></span>
-            <span class="mtx"><b class="num">158<i>г</i></b><span>углеводы</span></span></div></div>
-        </div>
+        <div class="macros" id="macros"></div>
       </div>
 
       <article class="t-next glass rise">
@@ -234,11 +253,15 @@
       <div class="t-s glass rise">
         <div class="cap">Вода</div>
         <div class="cups" id="cups"></div>
-        <div class="n num">5<small>из 9</small></div>
+        <div class="wctl">
+          <button id="w-minus" aria-label="Убрать стакан">−</button>
+          <span class="n num" id="w-n">5<small>из 9</small></span>
+          <button id="w-plus" aria-label="Добавить стакан">+</button>
+        </div>
       </div>
       <div class="t-s glass rise">
         <div class="cap">Серия</div>
-        <div class="flame" id="i-fl"></div>
+        <img class="mascot" src="/assets/ux/streak-flame.svg" alt="" width="26" height="26">
         <div class="n num">1<small>день</small></div>
       </div>
     </div>
@@ -273,11 +296,44 @@
 <script src="/assets/ux/_shared.js"></script>
 <script>
   const put=(id,s)=>{const e=document.getElementById(id);if(e)e.innerHTML=s;};
-  put('x',IC.close);put('i-ok',IC.check);put('i-sw',IC.swap);put('i-fl',IC.fire);
+  put('x',IC.close);put('i-ok',IC.check);put('i-sw',IC.swap);
   put('n1',IC.home);put('n2',IC.week);put('n3',IC.cart);put('n4',IC.me);
 
   put('track', NP.meals.map((m,i)=>`<i class="${i===0?'on':''}"></i>`).join(''));
-  put('cups', Array.from({length:NP.water.goal},(_,i)=>`<i class="${i<NP.water.done?'f':''}"></i>`).join(''));
+
+  // ── БЖУ: набрано из нормы ────────────────────────────────────────────────
+  // Считаем по отмеченным приёмам, а не берём число из воздуха: плитка должна
+  // показывать то же, что и полоса калорий, иначе экран противоречит сам себе.
+  const MAC=[['prot','белки','p',NP.norm.p],['fat','жиры','f',NP.norm.f],['carb','углеводы','c',NP.norm.c]];
+  function macros(){
+    put('macros', MAC.map(([ic,label,key,goal])=>{
+      const got=NP.meals.filter(m=>m.done).reduce((s,m)=>s+m[key],0);
+      const pct=Math.min(100,Math.round(got/goal*100));
+      return `<div><div class="mrow">
+        <span class="mic"><img src="/assets/macro-${ic}.svg" alt="" loading="lazy"></span>
+        <span class="mtx"><b class="num">${got}<i>/${goal}</i></b><span>${label}, г</span></span>
+      </div><div class="mbar"><i style="width:${pct}%"></i></div></div>`;
+    }).join(''));
+  }
+  macros();
+
+  // ── Вода: стакан силуэтом + кнопки ───────────────────────────────────────
+  const GLASS='<svg viewBox="0 0 20 26" fill="currentColor" aria-hidden="true">'
+    +'<path d="M3.4 1h13.2a1.3 1.3 0 0 1 1.29 1.44l-1.72 20.3A3.2 3.2 0 0 1 12.98 25.6H7.02a3.2 3.2 0 0 1-3.19-2.86L2.11 2.44A1.3 1.3 0 0 1 3.4 1Z"/></svg>';
+  let water=NP.water.done;
+  function drawWater(){
+    water=Math.max(0,Math.min(NP.water.goal,water));
+    put('cups', Array.from({length:NP.water.goal},(_,i)=>
+      `<span class="cup${i<water?' f':''}" data-w="${i+1}">${GLASS}</span>`).join(''));
+    put('w-n', `${water}<small>из ${NP.water.goal}</small>`);
+  }
+  drawWater();
+  document.getElementById('w-minus').addEventListener('click',()=>{water--;drawWater();});
+  document.getElementById('w-plus').addEventListener('click',()=>{water++;drawWater();});
+  document.addEventListener('click',e=>{
+    const c=e.target.closest('.cups .cup'); if(!c) return;
+    const n=+c.dataset.w; water=(water===n)?n-1:n; drawWater();   // тап по стакану тоже работает
+  });
 
   put('rest', NP.meals.filter((_,i)=>i!==1).map(m=>`
     <div class="row glass${m.done?' on':''}">
@@ -309,7 +365,13 @@
     scrollTo(0,0);
   }));
   document.addEventListener('click',e=>{
-    const t=e.target.closest('.row .tick'); if(t) t.closest('.row').classList.toggle('on');
+    const t=e.target.closest('.row .tick');
+    if(t){
+      const row=t.closest('.row'); row.classList.toggle('on');
+      // отметка меняет и БЖУ: иначе плитки показывали бы вчерашнюю правду
+      const nm=row.querySelector('.t b')?.textContent;
+      const m=NP.meals.find(x=>x.name===nm); if(m){ m.done=!m.done; macros(); }
+    }
     const c=e.target.closest('.si'); if(c) c.classList.toggle('on');
   });
 </script>
