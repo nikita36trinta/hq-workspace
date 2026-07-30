@@ -72,25 +72,20 @@
     .glass{background:var(--surf);backdrop-filter:none;-webkit-backdrop-filter:none}
   }
 
+  /* ── маскот ─────────────────────────────────────────────────────────────── */
+  .say{display:flex;gap:12px;align-items:center;padding:16px 0 2px}
+  .say .av{width:46px;height:46px;border-radius:18px;flex:0 0 auto;overflow:hidden;
+    background:var(--g-soft);box-shadow:var(--sh-2)}
+  .say .tx{font-size:14.5px;line-height:1.38;color:var(--ink-2)}
+  .say .tx b{color:var(--ink);font-weight:700}
+
   .hero{padding:16px 0 2px}
   .hero h1{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;
     line-height:.98;margin-top:8px}
 
   /* ── bento ──────────────────────────────────────────────────────────────── */
   .bento{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
-  .t-cal{grid-column:1/-1;border-radius:var(--rx);padding:20px 21px 18px;position:relative;
-    overflow:hidden}
-  /* Маскот в углу карточки нормы. Он у нас снят на видео и до сих пор жил только
-     в интро квиза — на главном экране это единственная деталь, которая делает
-     приложение «нашим», а не любым другим счётчиком калорий.
-     Не перекрывает число: карточка держит правый отступ под него. */
-  /* Скруглено: у видео плотная мятная подложка, и прямым квадратом оно читалось
-     как вставленная извне картинка, а не часть карточки. */
-  .t-cal .masc{position:absolute;right:12px;top:12px;width:84px;height:84px;pointer-events:none;
-    border-radius:22px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--glass-line)}
-  .t-cal .masc video,.t-cal .masc img{width:100%;height:100%;object-fit:cover;display:block}
-  .t-cal .cap,.t-cal .big,.t-cal .sub{padding-right:78px}
-  @media (prefers-reduced-motion:reduce){ .t-cal .masc video{display:none} }
+  .t-cal{grid-column:1/-1;border-radius:var(--rx);padding:20px 21px 18px}
   .t-cal .big{font-family:Unbounded;font-weight:800;font-size:54px;letter-spacing:-.055em;
     line-height:.9;margin-top:9px;color:var(--g-d)}
   .t-cal .big i{font-style:normal;font-size:16px;font-weight:600;letter-spacing:-.01em;
@@ -299,18 +294,15 @@
 
 <div class="wrap">
   <section class="scr on" id="s-home">
-    <!-- Реплика маскота убрана: она повторяла то, что и так написано на карточке
-         «сейчас» ниже, и отодвигала главное число на пол-экрана вниз.
-         Сам маскот остался — в углу карточки нормы, где он не занимает строку. -->
+    <div class="say rise">
+      <span class="av"><img src="/assets/avocado_ask_sm.png" alt="" width="46" height="46"></span>
+      <span class="tx">Завтрак закрыт, идём дальше. Сейчас лёгкий перекус — <b>105 ккал</b>.</span>
+    </div>
+
     <div class="hero rise"><div class="cap">День 1 из 7</div><h1>Сегодня</h1></div>
 
     <div class="bento">
       <div class="t-cal glass rise">
-        <span class="masc" aria-hidden="true">
-          <video autoplay loop muted playsinline poster="/assets/avocado_cheer_sm.jpg">
-            <source src="/assets/avocado_cheer_sm.mp4" type="video/mp4">
-          </video>
-        </span>
         <div class="cap">Осталось на день</div>
         <div class="big num">1300<i>ккал</i></div>
         <div class="sub">Съедено 280 из 1580 ккал</div>
