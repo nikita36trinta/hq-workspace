@@ -162,8 +162,11 @@
   /* Стакан рисуем силуэтом, а не прямоугольником: чуть сужается книзу и скруглён
      по дну — так он читается стаканом без подписи. Прямоугольник со скруглением
      читался как индикатор заряда. */
+  /* 22px, а не 26: при равной высоте огонёк шире стакана, и семь штук в 26px
+     переставали влезать в плитку. Высота у обоих рядов одна — иначе значки
+     снова разъедутся по вертикали. */
   .cups{display:flex;gap:5px;align-items:flex-end;height:100%}
-  .cups .cup{flex:1;height:26px;color:color-mix(in srgb,var(--ink) 9%,transparent);
+  .cups .cup{flex:1;height:22px;color:color-mix(in srgb,var(--ink) 9%,transparent);
     transition:color .15s}
   .cups .cup.f{color:var(--wtr)}
   .cups .cup svg{width:100%;height:100%;display:block}
@@ -181,9 +184,13 @@
      сколько ещё идти; ряд отвечает на оба вопроса сразу.
      Огонёк — многоцветный рисунок, перекрасить его через currentColor нельзя,
      поэтому незакрытые дни гасим фильтром. */
+  /* Высота огонька задаётся ЯВНО и равна высоте стакана: раньше ширина шла от
+     колонки, а высота получалась из квадратного холста — значки выходили ниже и
+     мельче стаканов, хотя коробки под ними совпадали. Холст обрезан по фигуре,
+     поэтому при равной высоте огонёк ещё и уже стакана, и семь штук влезают. */
   .streak{display:flex;gap:3px;align-items:flex-end;height:100%}
-  .streak img{width:100%;height:auto;display:block}
-  .streak span{flex:1;min-width:0;max-width:22px}
+  .streak span{height:22px;display:block;flex:0 0 auto}
+  .streak img{height:100%;width:auto;display:block}
   .streak span.off img{filter:grayscale(1) opacity(.28)}
 
   .sech{display:flex;align-items:center;justify-content:space-between;margin:26px 4px 12px}
@@ -244,8 +251,12 @@
   .dish .kcal{display:flex;gap:10px;margin-top:14px}
   .dish .kcal div{flex:1;border-radius:var(--rm);padding:12px 10px;text-align:center}
   .dish .kcal b{display:block;font-family:Unbounded;font-weight:700;font-size:19px;letter-spacing:-.045em}
-  .dish .kcal span{display:block;font-size:10px;font-weight:700;letter-spacing:.09em;
-    text-transform:uppercase;color:var(--muted);margin-top:4px}
+  /* Единица стоит при числе, а не в подписи: «УГЛЕВОДЫ, Г» не влезало в колонку
+     и «г» уезжало на вторую строку. */
+  .dish .kcal b i{font-style:normal;font-family:Onest;font-size:11px;font-weight:700;
+    color:var(--muted);letter-spacing:0;margin-left:1px}
+  .dish .kcal span{display:block;font-size:9.5px;font-weight:700;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--muted);margin-top:5px;white-space:nowrap}
   .dish .blk{margin-top:24px}
   .dish .blk .cap{margin-bottom:11px}
   .dish .ings{display:flex;flex-wrap:wrap;gap:8px}
@@ -359,9 +370,9 @@
     <div class="meta" id="d-meta"></div>
     <div class="kcal">
       <div class="glass"><b class="num" id="d-k"></b><span>ккал</span></div>
-      <div class="glass"><b class="num" id="d-p"></b><span>белки, г</span></div>
-      <div class="glass"><b class="num" id="d-f"></b><span>жиры, г</span></div>
-      <div class="glass"><b class="num" id="d-c"></b><span>углеводы, г</span></div>
+      <div class="glass"><b class="num" id="d-p"></b><span>белки</span></div>
+      <div class="glass"><b class="num" id="d-f"></b><span>жиры</span></div>
+      <div class="glass"><b class="num" id="d-c"></b><span>углеводы</span></div>
     </div>
     <div class="blk"><div class="cap">Что нужно</div><div class="ings" id="d-ing"></div></div>
     <div class="blk"><div class="cap">Как готовить</div><ul class="stp" id="d-steps"></ul></div>
@@ -469,7 +480,8 @@
     document.getElementById('d-img').src=dishUrl(m.slug);
     put('d-name', m.name);
     put('d-meta', `День 1 · ${m.slot.toLowerCase()} в ${m.time}`);
-    ['k','p','f','c'].forEach((k,i)=>put('d-'+k, [m.kcal,m.p,m.f,m.c][i]));
+    put('d-k', m.kcal);
+    ['p','f','c'].forEach((k,i)=>put('d-'+k, `${[m.p,m.f,m.c][i]}<i>г</i>`));
     put('d-ing', m.ing.map(x=>`<span class="glass">${x}</span>`).join(''));
     put('d-steps', m.steps.map((s,n)=>`<li><b>${n+1}</b><span>${s}</span></li>`).join(''));
     paintDishBtn();
