@@ -213,19 +213,24 @@
   .kcal .kunit b{display:block;font-size:16px;font-weight:800;color:var(--accent-d)}
   .kcal .kunit span{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-top:0}
   .kcal .klab{margin-top:8px;color:var(--muted);font-size:14.5px;line-height:1.4}
-  .macros{display:flex;gap:9px;margin-top:18px}
+  .macros{display:flex;gap:7px;margin-top:18px}
   /* Песочные, а не мятные: в макете плитки БЖУ — тёплый нейтральный слой, и
      зелёным на экране остаётся только то, что действительно акцент (норма,
      дельта, кнопка). Иконка слева от числа даёт строке ритм. */
   .macros > div{flex:1;min-width:0;background:color-mix(in srgb,var(--bg) 82%,#fff);
-    border:1px solid var(--glass-line);border-radius:18px;padding:12px 12px 11px;
+    border:1px solid var(--glass-line);border-radius:18px;padding:11px 9px;
     box-shadow:inset 0 1px 0 var(--glass-edge)}
+  /* Иконка слева, число и подпись столбиком справа. Раньше подпись висела под
+     иконкой, то есть под пустым местом, а не под тем числом, к которому
+     относится. */
   .macros .mrow{display:flex;align-items:center;gap:7px}
-  .macros b{font-size:21px;font-weight:800;color:var(--ink);letter-spacing:-.03em;line-height:1.1}
-  .macros span{display:block;font-size:11.5px;color:var(--muted);margin-top:5px}
+  .macros .mtx{min-width:0}
+  .macros b{display:block;font-size:20px;font-weight:800;color:var(--ink);letter-spacing:-.03em;line-height:1.05;white-space:nowrap}
+  .macros b i{font-style:normal;font-size:12px;font-weight:700;color:var(--muted);margin-left:2px}
+  .macros span{display:block;font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap}
   /* Иллюстрации в стиле маскота вместо плоских значков — свой вес у них уже
      есть, подложка только тесила бы. */
-  .macros .mic{width:32px;height:32px;flex:0 0 auto}
+  .macros .mic{width:27px;height:27px;flex:0 0 auto}
   .macros .mic img{width:100%;height:100%;display:block}
   .day{margin-top:14px}
   .day .dh{font-size:14px;font-weight:800;color:color-mix(in srgb,var(--ink) 78%,transparent);
@@ -242,9 +247,11 @@
      абстрактный значок. Картинки уже есть — общий кэш по слагу, /dish/<slug>. */
   .meal .mi img{width:100%;height:100%;object-fit:cover;border-radius:10px;display:block}
   .meal .mi{overflow:hidden}
-  .meal .mt b{display:block;font-size:14.5px}.meal .mt span{font-size:12.5px;color:var(--muted)}
+  .meal .mt{min-width:0}
+  .meal .mt b{display:block;font-size:14.5px}
+  .meal .mt span{display:block;font-size:12px;color:var(--muted);line-height:1.35;margin-top:2px}
   /* Калории в макете тёмные: это значимое число, а не служебная подпись. */
-  .meal .kc{margin-left:auto;font-size:13.5px;font-weight:700;color:var(--ink);white-space:nowrap}
+  .meal .kc{margin-left:auto;padding-left:8px;font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap}
   .locked{position:relative}
   .locked .veil{position:absolute;left:0;right:0;bottom:0;height:64%;border-radius:0 0 22px 22px;
     background:linear-gradient(180deg,transparent,var(--field) 78%);display:flex;align-items:flex-end;justify-content:center;
@@ -832,7 +839,13 @@ async function loadRealDay(){
       if(mi){ mi.innerHTML = ''; mi.appendChild(img); row.classList.add('hasphoto'); }
     }
     const t = row.querySelector('.mt');
-    if(t) t.innerHTML = '<b>' + m.meal + '</b><span>' + m.title + '</span>';
+    if(t){
+      // Название и состав: «Греческий салат: огурцы, помидоры, фета…». Одного
+      // названия было мало — по нему не понять, что окажется в тарелке.
+      const esc = v => String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+      const line = m.desc ? esc(m.desc) : esc(m.title);
+      t.innerHTML = '<b>' + esc(m.meal) + '</b><span>' + line + '</span>';
+    }
     const kc = row.querySelector('.kc');
     if(kc) kc.textContent = m.kcal + ' ккал';
   });
@@ -960,9 +973,9 @@ function renderPlan(){
         <p class="klab">Твоя норма для ${goal} без голода</p>
       </div>
       <div class="macros">
-        <div><div class="mrow"><span class="mic"><img src="/assets/macro-prot.svg" alt="" loading="lazy"></span><b>${P}</b></div><span>белки, г</span></div>
-        <div><div class="mrow"><span class="mic"><img src="/assets/macro-fat.svg" alt="" loading="lazy"></span><b>${F}</b></div><span>жиры, г</span></div>
-        <div><div class="mrow"><span class="mic"><img src="/assets/macro-carb.svg" alt="" loading="lazy"></span><b>${C}</b></div><span>углеводы, г</span></div>
+        <div><div class="mrow"><span class="mic"><img src="/assets/macro-prot.svg" alt="" loading="lazy"></span><span class="mtx"><b>${P}<i>г</i></b><span>белки</span></span></div></div>
+        <div><div class="mrow"><span class="mic"><img src="/assets/macro-fat.svg" alt="" loading="lazy"></span><span class="mtx"><b>${F}<i>г</i></b><span>жиры</span></span></div></div>
+        <div><div class="mrow"><span class="mic"><img src="/assets/macro-carb.svg" alt="" loading="lazy"></span><span class="mtx"><b>${C}<i>г</i></b><span>углеводы</span></span></div></div>
       </div>
       <div class="day locked" id="dayBlock">
         <div class="dh">Пример дня — первый из 7</div>
