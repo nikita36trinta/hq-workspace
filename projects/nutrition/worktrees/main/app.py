@@ -1094,6 +1094,68 @@ PREVIEW_PICKS = {
 }
 
 
+# Исключения из свободного текста для превью.
+#
+# plan_ai сверяет их только с НАЗВАНИЕМ блюда, и этого мало: человек пишет
+# «яйца» — а «Омлет с овощами» в названии яиц не содержит и остаётся на экране.
+# Пишет «рыба» — уезжает «Рыба запеченная», но остаётся «Стейк из лосося».
+#
+# В превью у нас есть состав каждого блюда, который мы сами и написали, поэтому
+# сверяем по «название + состав» и раскрываем зонтичные слова в конкретные.
+# Это не заменяет фильтр каталога, а достраивает его на девяти блюдах, которые
+# реально попадают на экран покупки.
+PREVIEW_SYNONYMS = {
+    "рыб": ["рыб", "лосось", "лосос", "тунец", "сельдь", "минтай", "треск", "форель", "скумбри", "морепродукт", "креветк"],
+    "мяс": ["мяс", "котлет", "тефтел", "говядин", "свинин", "фарш", "бекон", "колбас", "ветчин", "курин", "куриц", "индейк"],
+    "куриц": ["куриц", "курин", "курк"],
+    "курин": ["куриц", "курин"],
+    "яйц": ["яйц", "яич", "омлет"],
+    "молок": ["молок", "молоч", "сливк", "сметан", "творог", "сыр", "йогурт", "фет", "пармезан"],
+    "молоч": ["молок", "молоч", "сливк", "сметан", "творог", "сыр", "йогурт", "фет", "пармезан"],
+    "сыр": ["сыр", "фет", "пармезан"],
+    "творог": ["творог", "сырник"],
+    "греч": ["гречк", "гречнев"],
+}
+
+
+PREVIEW_UMBRELLA = {          # слово → флаг каталога, который надо отсечь целиком
+    "молочн": "lact", "молок": "lact", "лактоз": "lact",
+    "рыб": "fish",
+    "мяс": "meat",
+}
+
+
+def _preview_flags(quiz: dict) -> set:
+    """Какие категории каталога человек исключил зонтичным словом."""
+    raw = str(quiz.get("exclude") or "").lower()
+    out = set()
+    for word, flag in PREVIEW_UMBRELLA.items():
+        if word in raw:
+            out.add(flag)
+    return out
+
+
+def _preview_excluded(quiz: dict) -> list[str]:
+    """Стемы того, что человек написал в «что ещё не ешь», с раскрытием
+    зонтичных слов: «рыба» должна убирать и лосося тоже."""
+    raw = str(quiz.get("exclude") or "")
+    terms: list[str] = []
+    for piece in raw.replace(";", ",").split(","):
+        t = piece.strip().lower()
+        if len(t) < 3:
+            continue
+        # Ищем зонтичное слово по ПРЕФИКСУ в обе стороны. Обрезать хвост по
+        # длине не годится: «рыба» давала стем «рыба», ключа «рыб» не находила,
+        # и лосось оставался на экране у того, кто не ест рыбу.
+        hit = None
+        for key, syns in PREVIEW_SYNONYMS.items():
+            if t.startswith(key) or key.startswith(t):
+                hit = syns
+                break
+        terms.extend(hit if hit else [t[:-1] if len(t) > 4 else t])
+    return terms
+
+
 # Чего в превью не показываем НИКОГДА, даже из запасной ветки: она берёт весь
 # разрешённый каталог, а там пицца, бургеры и шашлык. На экране плана похудения
 # это читается как насмешка над только что заданной целью.
@@ -1138,12 +1200,31 @@ def preview_day(req: PreviewReq) -> JSONResponse:
     labels = [("Завтрак", "breakfast"), ("Обед", "lunch"), ("Ужин", "dinner")]
 
     meals = []
+    excl_terms = _preview_excluded(quiz)
+    excl_flags = _preview_flags(quiz)
     try:
         import plan_ai
         allowed = plan_ai._allowed_by_meal(quiz)
         by_title = {d["title"]: d for d in plan_ai._catalog()}
         for i, (label, key) in enumerate(labels):
             pool = [t for t in (allowed.get(key) or []) if t not in PREVIEW_DENY]
+            # Отсекаем то, что человек написал руками, — по названию И составу.
+            if excl_terms:
+                picks_map = PREVIEW_PICKS.get(key, {})
+                pool = [t for t in pool
+                        if not any(x in (t + " " + picks_map.get(t, "")).lower()
+                                   for x in excl_terms)]
+            if excl_flags:
+                def _ok(t: str) -> bool:
+                    d = by_title.get(t, {})
+                    if "lact" in excl_flags and d.get("lact"):
+                        return False
+                    if "fish" in excl_flags and d.get("fish"):
+                        return False
+                    if "meat" in excl_flags and not d.get("veg") and not d.get("fish"):
+                        return False
+                    return True
+                pool = [t for t in pool if _ok(t)]
             # Сначала отобранные, и только если ограничения вырезали их все —
             # весь разрешённый каталог: лучше неожиданное блюдо, чем пустой
             # экран у человека с редким набором ограничений.

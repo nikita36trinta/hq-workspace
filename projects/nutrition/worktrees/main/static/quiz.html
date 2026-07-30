@@ -76,6 +76,14 @@
   .opt.sel .mk svg{opacity:1}
   .opt.sq .mk{border-radius:7px}
 
+  /* Свободные исключения на шаге ограничений: нижняя строка, не отдельный шаг. */
+  .freein{margin-top:14px}
+  .freein input{width:100%;background:var(--field);border:1.5px solid var(--line);border-radius:15px;
+    padding:14px 16px;font-size:16px;font-family:inherit;color:var(--ink);outline:none;transition:.16s}
+  .freein input:focus{border-color:var(--accent)}
+  .freein input::placeholder{color:var(--muted);opacity:.65}
+  .freehint{color:var(--muted);font-size:12.5px;margin-top:7px;padding-left:2px}
+
   /* metrics */
   .metrics{display:flex;flex-direction:column;gap:14px;margin-top:22px}
   .field{background:var(--field);border:1.5px solid var(--line);border-radius:16px;padding:12px 16px;
@@ -556,7 +564,8 @@ const STEPS = [
     {v:'count', b:'Сложно считать калории'},
     {v:'yoyo', b:'Вес быстро возвращается'},
   ]},
-  {q:1, type:'multi', key:'diet', pose:'ask', h:'Есть ограничения в еде?', sub:'Учтём в подборе блюд', opts:[
+  {q:1, type:'multi', key:'diet', pose:'ask', h:'Есть ограничения в еде?', sub:'Учтём в подборе блюд',
+   free:{key:'exclude', ph:'Что ещё не ешь? Через запятую', label:'Например: грибы, творог, кинза'}, opts:[
     {v:'all', b:'Ем всё', solo:true},
     {v:'nomeat', b:'Без мяса'},
     {v:'nolact', b:'Без лактозы'},
@@ -665,6 +674,9 @@ function renderChoice(st){
   stage.innerHTML = `<div class="step">
     ${guide(st.h, st.pose)}${st.sub?`<p class="q-sub">${st.sub}</p>`:''}
     <div class="opts">${st.opts.map(o=>optRow(st,o)).join('')}</div>
+    ${st.free?`<div class="freein">
+      <input type="text" id="freeIn" placeholder="${st.free.ph}" value="${(answers[st.free.key]||'').replace(/"/g,'&quot;')}" autocomplete="off">
+      <div class="freehint">${st.free.label}</div></div>`:''}
     <div class="foot"><button class="cta" id="next">Далее</button>${st.skip?`<button class="skip" id="skip">Пропустить</button>`:''}</div>
   </div>`;
   const nx=$('#next');
@@ -690,6 +702,11 @@ function renderChoice(st){
       nx.disabled = !canNext();
     }
   }));
+  if(st.free){
+    const fi=$('#freeIn');
+    // Пустая строка — это ответ «ничего не исключаю», её и сохраняем.
+    fi.addEventListener('input', ()=>{ answers[st.free.key]=fi.value.trim(); saveState(); });
+  }
   nx.addEventListener('click', nextStep);
   if(st.skip) $('#skip').addEventListener('click', ()=>{ answers[st.key]=answers[st.key]||[]; nextStep(); });
 }
