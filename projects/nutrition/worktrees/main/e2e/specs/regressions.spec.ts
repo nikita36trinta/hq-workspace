@@ -335,4 +335,29 @@ test.describe("regressions · заливка под кнопкой", () => {
 		expect(g.right).toBe(g.vw);
 		expect(g.bottom).toBe(g.vh);
 	});
+	/**
+	 * Found 2026-07-30, тот же дефект сверху: .top красил себя var(--bg), и на
+	 * свечении был виден светлый прямоугольник с прямым левым краем и прямым
+	 * низом. Заливка тоже переехала в фиксированный ::before.
+	 */
+	test("шапка не красит прямоугольник поверх свечения", async ({ page }) => {
+		await page.goto("/quiz?l=slim");
+		// на интро шапка скрыта — доходим до первого вопроса
+		for (let i = 0; i < 6; i++) {
+			if (await page.locator(".top:not(.hide)").count()) break;
+			const nx = page.locator("#next");
+			if (await nx.isVisible().catch(() => false)) await nx.click();
+			await page.waitForTimeout(300);
+		}
+		const top = page.locator(".top");
+		await expect(top, "шапка должна быть видна на вопросе").not.toHaveClass(/hide/);
+		expect(
+			await top.evaluate((e) => getComputedStyle(e).backgroundImage),
+			"фон вернулся на саму шапку — снова будет виден прямоугольник",
+		).toBe("none");
+		expect(
+			await top.evaluate((e) => getComputedStyle(e, "::before").position),
+			"заливка шапки обязана быть fixed",
+		).toBe("fixed");
+	});
 });

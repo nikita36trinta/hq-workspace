@@ -22,7 +22,15 @@
     padding:0 20px calc(20px + env(safe-area-inset-bottom))}
 
   /* top bar */
-  .top{position:sticky;top:0;z-index:10;background:var(--bg);padding:14px 0 10px}
+  /* Та же история, что с подвалом: заливка шапки стояла её фоном и обрывалась
+     по кромкам .shell — на свечении был виден светлый прямоугольник с прямым
+     левым краем и прямым низом. Уносим заливку в фиксированный ::before у
+     верхней кромки окна: она во всю ширину и с растворяющимся низом, поэтому
+     краёв не остаётся. Непрозрачна там, где стоят логотип и прогресс, дальше
+     сходит на нет. */
+  .top{position:sticky;top:0;z-index:10;padding:14px 0 10px}
+  .top::before{content:'';position:fixed;left:0;right:0;top:0;height:120px;z-index:-1;
+    pointer-events:none;background:linear-gradient(180deg,var(--bg) 0,var(--bg) 66%,transparent)}
   .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:18px;padding:2px 0 12px}
   .brand .dot{width:11px;height:11px;border-radius:50%;background:var(--accent)}
   .top .row{display:flex;align-items:center;gap:12px;height:34px}
