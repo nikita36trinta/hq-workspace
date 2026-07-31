@@ -31,8 +31,17 @@ footer .req{margin-top:8px}
 <body>
 <header><div class="wrap nav">
   <a href="/" class="logo"><span class="dot"></span>NutriPlan</a>
-  <a href="/">← на главную</a>
+  <!-- Возврат туда, откуда пришли. Раньше жёстко вело на лендинг: человек
+       открывал документ из своего плана, а возвращался на витрину для новых. -->
+  <a href="/" id="back">← назад</a>
 </div></header>
+<script>
+  var b=document.getElementById('back');
+  if(document.referrer && new URL(document.referrer).origin===location.origin){
+    b.href=document.referrer;
+    b.addEventListener('click',function(e){e.preventDefault();history.back();});
+  }
+</script>
 <main><div class="wrap">
   <h1>Политика обработки персональных данных</h1>
   <p class="meta">Редакция от 17 июля 2026 года. Действует для сайта <a href="https://mynutriplan.ru">mynutriplan.ru</a>.</p>

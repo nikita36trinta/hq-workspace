@@ -26,10 +26,10 @@ test.describe("приложение плана · оболочка", () => {
 		await dismissWelcome(page);
 		await page.waitForTimeout(400);
 
-		const before = await page.locator(".panel.on .caltxt").textContent();
+		const before = await page.locator("#calSub").textContent();
 		await page.locator(".panel.on .meal .tick").first().click();
 		await page.waitForTimeout(300);
-		const after = await page.locator(".panel.on .caltxt").textContent();
+		const after = await page.locator("#calSub").textContent();
 
 		expect(errors, "на странице выброшено исключение — обработчики ниже не навесились").toEqual([]);
 		expect(after, "«Приготовил» не пересчитал съеденное").not.toBe(before);
@@ -83,11 +83,17 @@ test.describe("приложение плана · оболочка", () => {
 	});
 
 	/**
-	 * День недели открывается ТОЛЬКО на просмотр — так это и заказано. Если в
-	 * копию дня просочатся «Приготовил»/«Заменить», человек будет менять блюда
-	 * в клоне, а отметки уйдут в никуда: у клона снят data-k.
+	 * Контракт просмотра дня ИЗМЕНИЛСЯ по решению владельца: сначала день был
+	 * «только посмотреть», теперь в нём есть замена блюда, замена всего дня и
+	 * подробности блюда. Спека переписана под новый контракт, но охраняемый
+	 * дефект остался прежним и проверяется по-прежнему:
+	 *
+	 * отметка «приготовил» в ЧУЖОМ дне недопустима. Съеденное отмечают в тот
+	 * день, когда едят; если галочка просочится в копию, человек закроет чужой
+	 * день и собьёт себе серию — а с прежней копией отметка ещё и уходила в
+	 * никуда, потому что у клона снимался data-k.
 	 */
-	test("тап по дню недели открывает меню дня без единого действия", async ({ page }) => {
+	test("в просмотре дня есть замена и рецепт, но нет отметки «приготовил»", async ({ page }) => {
 		await page.goto("/plan/sample");
 		await dismissWelcome(page);
 		await page.locator('.bnav button[data-s="week"]').click();
@@ -104,13 +110,31 @@ test.describe("приложение плана · оболочка", () => {
 		const view = page.locator("#dayview");
 		await expect(view, "просмотр дня не открылся").toHaveClass(/\bon\b/);
 		expect(await view.locator(".meal").count(), "в просмотре дня нет блюд").toBeGreaterThan(2);
-		expect(await view.locator(".mact, details, .tick, .mhide").count(),
-			"в просмотре дня не должно быть кнопок и рецептов").toBe(0);
-		expect(await view.locator("[data-k]").count(),
-			"клон дня не должен нести ключи отметок — иначе отметит чужой день").toBe(0);
-		expect(await view.locator(".mopen:not([disabled])").count(),
-			"строка чужого дня не должна открывать блюдо: там «Приготовил» и «Заменить»").toBe(0);
 		await expect(page.locator("#dvtitle"), "заголовок дня пуст").not.toHaveText("");
+
+		// Новое в контракте: править меню недели заранее — ради этого сюда и заходят.
+		await expect(view.locator(".swapday"), "нет кнопки «Заменить весь день»").toBeVisible();
+		expect(await view.locator(".mopen:not([disabled])").count(),
+			"строки должны открывать блюдо: там состав, рецепт и замена").toBeGreaterThan(0);
+
+		// Неизменное: отметить «приготовил» в чужом дне нельзя ни из строки…
+		expect(await view.locator(".tick").count(),
+			"галочка «приготовил» просочилась в чужой день").toBe(0);
+
+		// …ни с экрана блюда, открытого отсюда.
+		await view.locator(".mopen").first().click();
+		await page.waitForTimeout(400);
+		const dish = page.locator("#dishview");
+		await expect(dish, "экран блюда из просмотра дня не открылся").toHaveClass(/\bon\b/);
+		await expect(dish, "экран блюда не помечен как открытый из чужого дня").toHaveClass(/\bfromday\b/);
+		await expect(dish.locator(".done"), "«Приготовил» виден в чужом дне").toBeHidden();
+		await expect(dish.locator(".swap"), "«Заменить» должно остаться").toBeVisible();
+
+		// «Назад» снимает ОДИН слой: закрыло блюдо, просмотр дня остался.
+		await page.goBack();
+		await page.waitForTimeout(400);
+		await expect(dish, "«назад» не закрыло экран блюда").not.toHaveClass(/\bon\b/);
+		await expect(view, "«назад» закрыло сразу два экрана вместо одного").toHaveClass(/\bon\b/);
 
 		// системное «назад» обязано закрывать экран, а не уводить из приложения
 		await page.goBack();
@@ -174,7 +198,7 @@ test.describe("приложение плана · оболочка", () => {
 		// Клон «Приготовил» обязан реально переключать отметку. Сравниваем ДО и
 		// ПОСЛЕ, а не ждём «отмечено»: прогресс синхронизируется с сервером, и
 		// блюдо вполне может быть уже отмечено прошлым прогоном.
-		const before = await page.locator(".panel.on .caltxt").textContent();
+		const before = await page.locator("#calSub").textContent();
 		const wasOn = await v.locator(".done").evaluate((e) => e.classList.contains("on"));
 		await v.locator(".done").click();
 		await page.waitForTimeout(300);
@@ -182,7 +206,7 @@ test.describe("приложение плана · оболочка", () => {
 			"кнопка не показала смену отметки").toBe(!wasOn);
 		await page.locator("#dishback").click();
 		await page.waitForTimeout(300);
-		expect(await page.locator(".panel.on .caltxt").textContent(),
+		expect(await page.locator("#calSub").textContent(),
 			"отметка с экрана блюда не дошла до счётчика калорий").not.toBe(before);
 	});
 

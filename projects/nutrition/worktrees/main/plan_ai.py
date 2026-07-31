@@ -587,3 +587,86 @@ def swap_meal(quiz: dict, slot: str, kcal: int, avoid: str = "") -> dict | None:
         return m
     except Exception:  # noqa: BLE001
         return None
+
+
+def swap_day(quiz: dict, meals: list, timeout: int = 90) -> list | None:
+    """Перегенерить ВЕСЬ день целиком, сохранив состав приёмов и калорийность.
+
+    Одним запросом, а не пятью подряд по swap_meal: пять последовательных
+    вызовов — это минута ожидания и пять шансов получить 502, а главное, блюда
+    подбирались бы независимо и день переставал быть днём (три помидорных блюда
+    подряд — обычный исход).
+
+    Возвращает список приёмов той же длины и с теми же слотами либо None: день
+    заменяется целиком или не заменяется вовсе, половина нового дня хуже
+    старого.
+    """
+    key = _key()
+    if not key or not meals:
+        return None
+    slots = [(m.get("slot") or "").strip() for m in meals]
+    kcals = []
+    for m in meals:
+        try:
+            kcals.append(int(float(m.get("kcal") or 0)))
+        except Exception:  # noqa: BLE001
+            kcals.append(400)
+    total = sum(kcals)
+    avoid = [m.get("name", "") for m in meals if m.get("name")]
+    plan_line = "; ".join(f"{s} ~{k} ккал" for s, k in zip(slots, kcals))
+    system = "Ты нутрициолог. Отвечаешь ТОЛЬКО валидным JSON, без markdown."
+    user = (
+        f"Собери НОВЫЙ вариант дня на {total} ккал: {plan_line}.\n"
+        f"Ограничения (соблюдать СТРОГО): {_labels(quiz.get('diet'), DIET_RU)}.\n"
+        f"Любит: {_labels(quiz.get('favorites'), FAV_RU)}. "
+        f"Время на готовку: {COOK_RU.get(quiz.get('cook'), '20–30 минут')}.\n"
+        f"Продукты — из российского магазина. НЕ повторяй эти блюда: {', '.join(avoid) or '—'}.\n"
+        + (f"СТРОГО НЕ используй эти продукты: {quiz.get('exclude')}.\n"
+           if (quiz.get("exclude") or "").strip() else "")
+        + _catalog_block(quiz, avoid)
+        + 'Верни JSON: {"meals":[{"slot":"...","name":"...","kcal":000,"p":00,"f":00,"c":00,'
+          '"ingredients":["продукт 100 г"],"steps":["шаг 1","шаг 2"]}]} — '
+          f"ровно {len(meals)} приёмов, слоты и порядок как в запросе."
+    )
+    body = {"model": TEXT_MODEL, "messages": [{"role": "system", "content": system},
+            {"role": "user", "content": user}],
+            "response_format": {"type": "json_object"}, "temperature": 0.85}
+    got = None
+    for _ in range(2):     # тот же обрубок '{"meals":[' от провайдера, что и в swap_meal
+        req = urllib.request.Request(
+            OPENROUTER_URL, data=json.dumps(body).encode(),
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
+                     "HTTP-Referer": "https://mynutriplan.ru", "X-Title": "NutriPlan"})
+        try:
+            with _urlopen(req, timeout) as r:
+                data = json.loads(r.read())
+            got = json.loads(data["choices"][0]["message"]["content"]).get("meals")
+            if got:
+                break
+        except Exception:  # noqa: BLE001
+            got = None
+    if not isinstance(got, list) or len(got) != len(meals):
+        return None
+    old_names = {n.strip().lower() for n in avoid}
+    allowed = _allowed_by_meal(quiz)
+    from_catalog = {n.strip().lower() for v in allowed.values() for n in v}
+    out = []
+    for i, m in enumerate(got):
+        if not isinstance(m, dict) or not m.get("name"):
+            return None
+        try:
+            if abs(int(m.get("kcal") or 0) - kcals[i]) > max(80, kcals[i] * 0.35):
+                return None
+        except Exception:  # noqa: BLE001
+            return None
+        text = m.get("name", "") + " " + " ".join(str(x) for x in (m.get("ingredients") or []))
+        # То же послабление, что и в swap_meal: у блюда из нашего каталога «котлета» —
+        # это форма подачи, а не мясо (флаг meat уже проверен при отборе каталога).
+        ignore = _MEAT_FORM_WORDS if m["name"].strip().lower() in from_catalog else ()
+        if _violates(text, quiz, None, ignore):
+            return None
+        if m["name"].strip().lower() in old_names:
+            return None          # «замена» тем же блюдом — не замена
+        m["slot"] = slots[i]
+        out.append(m)
+    return out

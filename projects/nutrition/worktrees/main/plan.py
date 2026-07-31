@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import html
+import json
+import re
 from urllib.parse import quote
 
 import dish_photos
@@ -253,6 +255,29 @@ def _meal_card(m: dict, day: int = 0, slot: str = "", idx: int = 0) -> str:
             f"{open_btn}{tick}{hidden}</div>")
 
 
+_QTY_RE = re.compile(
+    r"^(?P<name>.+?)[\s,]+(?P<q>\d+(?:[.,]\d+)?)\s*"
+    r"(?P<u>кг|г|мл|л|шт|ст\.?\s?л\.?|ч\.?\s?л\.?|зубчик\w*|кусоч\w+|пучк\w*|уп\.?)"
+    r"(?P<tail>\b.*)$", re.I)
+
+
+def _split_qty(s: str) -> tuple[str, float | None, str, str]:
+    """«морковь 500 г» → ('морковь', 500.0, 'г', ''). Без количества — (текст, None, '', '')."""
+    m = _QTY_RE.match(str(s).strip())
+    if not m:
+        return str(s).strip(), None, "", ""
+    try:
+        q = float(m.group("q").replace(",", "."))
+    except ValueError:
+        return str(s).strip(), None, "", ""
+    u = re.sub(r"\s+", " ", m.group("u").strip().lower())
+    return m.group("name").strip(), q, u, (m.group("tail") or "").strip()
+
+
+def _fmt_qty(q: float) -> str:
+    return str(int(q)) if abs(q - round(q)) < 1e-6 else f"{q:.1f}".replace(".", ",")
+
+
 def _shopping(sh: list, days: list | None = None) -> str:
     """Список покупок, по которому можно ходить по магазину.
 
@@ -262,28 +287,118 @@ def _shopping(sh: list, days: list | None = None) -> str:
 
     Стало: каждая позиция — переключатель, отметки живут локально по токену
     плана, сверху видно «куплено N из M».
+
+    Количество считаем ПО ДНЯМ, а не берём готовую недельную строку: переключатель
+    «Сегодня / Завтра / На 3 дня / На неделю» обязан менять и цифры тоже. Список
+    «яблоки 7 шт» в режиме «сегодня» — это не фильтр, а враньё.
+    Категорию берём из недельного списка от модели: раскладывать продукты по
+    отделам магазина мы сами не умеем, а она уже разложила.
     """
-    if not sh:
-        sh = _shopping_from_days(days or [])
+    days = days or []
+    # продукт (ключ) → категория, из недельного списка
+    cat_of: dict[str, str] = {}
+    for c in sh or []:
+        for i in c.get("items") or []:
+            nm, _q, _u, _t = _split_qty(i)
+            cat_of.setdefault(nm.strip().lower(), c.get("cat", ""))
+    # продукт → {день: количество}; ключ учитывает единицу, складывать «шт» с «г» нельзя
+    agg: dict[tuple[str, str], dict] = {}
+    for di, d in enumerate(days):
+        for m in d.get("meals") or []:
+            for raw in m.get("ingredients") or []:
+                nm, q, u, tail = _split_qty(raw)
+                if not nm:
+                    continue
+                key = (nm.strip().lower(), u)
+                e = agg.setdefault(key, {"name": nm, "unit": u, "tail": tail, "per": {}})
+                e["per"][di] = e["per"].get(di, 0) + (q if q is not None else 0)
+    if not agg:
+        # У блюд нет ингредиентов (так бывает у банк-заготовки, когда LLM молчала).
+        # Тогда показываем недельный список как есть, без переключателя периодов:
+        # раскладывать его по дням не из чего, а врать про «сегодня» нельзя.
+        return _shopping_flat(sh or _shopping_from_days(days))
+    # раскладываем по категориям недельного списка; чего там нет — в «Остальное»
+    OTHER = "Остальное"
+
+    def _head(s: str) -> str:
+        # Сравниваем по началу главного слова: в списке «морковь», в рецепте
+        # «моркови» — падежи не должны отправлять продукт в «Остальное».
+        w = re.sub(r"[^\w\s]", " ", s).split()
+        return (w[0][:5] if w else "")
+
+    by_cat: dict[str, list] = {}
+    for (nmk, _u), e in agg.items():
+        cat = cat_of.get(nmk)
+        if not cat:
+            h = _head(nmk)
+            cat = next((v for k, v in cat_of.items() if h and _head(k) == h), "")
+        by_cat.setdefault(cat or OTHER, []).append(e)
+    order = [c.get("cat", "") for c in (sh or []) if c.get("cat")] + [OTHER]
+    cats, total = "", 0
+    for cat in order:
+        lst = by_cat.pop(cat, None)
+        if not lst:
+            continue
+        items = ""
+        for e in sorted(lst, key=lambda x: x["name"].lower()):
+            total += 1
+            per = json.dumps({str(k): v for k, v in e["per"].items()}, ensure_ascii=False)
+            # Отметка «куплено» привязана к САМОМУ продукту (имя+единица), а не к
+            # его номеру в категории. Позиционный ключ ci-ii переезжал на чужой
+            # продукт от любой перетасовки списка — новое меню, другой порядок
+            # категорий, — и человек уходил в магазин с галочкой на том, чего не
+            # покупал. Имя+единица — тот же ключ, по которому строка агрегирована,
+            # так что в пределах списка он уникален.
+            sid = f"{e['name'].strip().lower()}|{e['unit']}"
+            items += (f"<li><label class='si' data-q='{_e(per)}' data-u='{_e(e['unit'])}' "
+                      f"data-n='{_e(e['name'])}' data-t='{_e(e['tail'])}'>"
+                      f"<input type='checkbox' data-si='{_e(sid)}'>"
+                      f"<span class='sb'></span><span class='st'></span></label></li>")
+        cats += (f"<div class='cat'><div class='ct'>{_e(cat)}<span></span></div>"
+                 f"<ul>{items}</ul></div>")
+    if not cats:
+        return ""
+    # Периоды: покупают либо «на сегодня по дороге домой», либо закупом на неделю.
+    # «Завтра» отдельно — под «что разморозить с вечера».
+    segs = "".join(
+        f"<button class='pseg{' on' if p == '7' else ''}' data-p='{p}'>{t}</button>"
+        for p, t in (("1", "Сегодня"), ("t", "Завтра"), ("3", "3 дня"), ("7", "Неделя")))
+    return (f"<section class='sec'><div class='shead'><h2>Список покупок</h2>"
+            f"<button class='sclear' id='sclear' type='button'>Снять отметки</button></div>"
+            f"<div class='psegs' id='shopseg'>{segs}</div>"
+            f"<div class='sprog'><span id='sdone'>0</span> из <span id='stot'>{total}</span> — куплено</div>"
+            f"<div class='shop' id='shop' data-total='{total}'>{cats}</div></section>")
+
+
+def _shopping_flat(sh: list) -> str:
+    """Недельный список без разбивки по дням — запасной вид для планов, у блюд
+    которых нет ингредиентов. Раздел обещан на экране оплаты, и пропасть он не
+    имеет права."""
     if not sh:
         return ""
     cats, total = "", 0
-    for ci, c in enumerate(sh):
+    seen: dict[str, int] = {}          # одинаковые строки в разных категориях — чтобы ключи не слиплись
+    for c in sh:
         items = ""
-        for ii, i in enumerate(c.get("items") or []):
+        for i in c.get("items") or []:
             total += 1
-            items += (f"<li><label class='si'><input type='checkbox' data-si='{ci}-{ii}'>"
+            # Ключ — сама строка продукта, а не её номер: см. комментарий в
+            # _shopping_html. Здесь строка приходит от LLM как есть, поэтому
+            # повтор («лимон» в двух категориях) разводим суффиксом.
+            base = str(i).strip().lower()
+            n = seen[base] = seen.get(base, 0) + 1
+            sid = base if n == 1 else f"{base}#{n}"
+            items += (f"<li><label class='si'><input type='checkbox' data-si='{_e(sid)}'>"
                       f"<span class='sb'></span><span class='st'>{_e(i)}</span></label></li>")
         if not items:
             continue
-        n = len(c.get("items") or [])
-        cats += (f"<div class='cat'><div class='ct'>{_e(c.get('cat',''))}<span>{n}</span></div>"
-                 f"<ul>{items}</ul></div>")
+        cats += (f"<div class='cat'><div class='ct'>{_e(c.get('cat',''))}"
+                 f"<span>{len(c.get('items') or [])}</span></div><ul>{items}</ul></div>")
     if not cats:
         return ""
     return (f"<section class='sec'><div class='shead'><h2>Список покупок</h2>"
             f"<button class='sclear' id='sclear' type='button'>Снять отметки</button></div>"
-            f"<div class='sprog'><span id='sdone'>0</span> из {total} — куплено</div>"
+            f"<div class='sprog'><span id='sdone'>0</span> из <span id='stot'>{total}</span> — куплено</div>"
             f"<div class='shop' id='shop' data-total='{total}'>{cats}</div></section>")
 
 
@@ -346,7 +461,7 @@ def _params(pl: dict, goal_code: str, water_goal: int) -> str:
     if al:
         chips = "".join(f"<i>{_e(a)}</i>" for a in al)
         body += f"<div class='prow col'><span>Исключено по анкете</span><div class='chips'>{chips}</div></div>"
-    return (f"<section class='sec'><h2>Параметры плана</h2>"
+    return (f"<section class='sec'><h2>Мой план</h2>"
             f"<div class='prefcard params'>{body}</div></section>")
 
 
@@ -453,6 +568,9 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
     water_goal = max(6, min(12, round(start_w * 30 / 250))) if start_w else 8
     manifest = f"/app.webmanifest?t={token}" if token else "/app.webmanifest"
     acct = _acct_html(sub, token)
+    # Ссылка на подписку — только если подписка есть. Разовому плану нечего там
+    # показывать, а пустое окно раздражает сильнее отсутствующей ссылки.
+    subs_link = "<a href='#' id='subsopen'>Подписка</a>" if acct else ""
     # ver/started пишет app.py при сохранении плана; у планов, созданных раньше, их нет —
     # тогда ведём себя как прежде. Фильтруем символы, потому что ver уезжает в JS-строку.
     ver = "".join(c for c in str(pl.get("ver") or "") if c.isalnum() or c in "-_.")
@@ -461,8 +579,13 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
         age = _days_since(pl.get("started") or "")
         if age is not None and age >= 7:
             week_over = _weekover(len(days), renew_link)
-    tabs = "".join(f"<button class='tab{" on" if i==0 else ""}' data-d='{i}'>{i + 1}</button>"
-                   for i, _ in enumerate(days))
+    # Две кнопки вместо ленты «1…7». Лента дублировала вкладку «Неделя», а на
+    # экране «Сегодня» человек решает две задачи: что ем сейчас и что купить/
+    # разморозить на завтра. Номер дня сам по себе ни о чём не говорит.
+    # data-rel, а не data-d: какой день «сегодняшний», знает только клиент —
+    # он считает его от даты старта плана.
+    tabs = ("<button class='tab on' data-rel='0'>Сегодня</button>"
+            "<button class='tab' data-rel='1' hidden>Завтра</button>")
     # Строки недели: что в этот день, сколько ккал. Обзор без открытия дня.
     week_rows = ""
     for i, d in enumerate(days):
@@ -478,10 +601,11 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
         meals = "".join(_meal_card(m, i, m.get("slot", ""), j)
                         for j, m in enumerate(d.get("meals") or []))
         tot = sum(int(m.get("kcal") or 0) for m in (d.get("meals") or []))
-        panels += (f"<div class='panel{" on" if i==0 else ""}' data-d='{i}'>"
+        # Полоса и «съедено» переехали в карточку нормы наверху — там же, где
+        # число. Две шкалы про одно и то же на одном экране только спорили друг
+        # с другом. data-tot остаётся: по нему карточка считает остаток.
+        panels += (f"<div class='panel{" on" if i==0 else ""}' data-d='{i}' data-tot='{tot}'>"
                    f"<div class='dtitle'>{_day_label(i)} <span>{tot} ккал</span></div>"
-                   f"<div class='calbar'><i class='calfill' data-d='{i}'></i></div>"
-                   f"<div class='caltxt' data-d='{i}' data-tot='{tot}'>Съедено 0 из {tot} ккал</div>"
                    f"{meals}</div>")
     return f"""<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -539,17 +663,17 @@ body{{background:var(--bg);color:var(--ink);font-family:Onest,-apple-system,Blin
   filter:blur(40px)}}
 /* Ощущение стекла даёт не прозрачность, а СВЕТЯЩАЯСЯ КРОМКА сверху: без неё
    выходит просто мутный прямоугольник. */
-.norm,.streakc,.water,.meal,.wcard,.prefcard,.subcard,.si,.drow,.tips li,.wover{{
+.norm,.streakc,.water,.meal,.wcard,.prefcard,.subcard,.si,.drow,.tips li,.wover,.pcell{{
   background:var(--glass)!important;
   -webkit-backdrop-filter:blur(22px) saturate(165%);backdrop-filter:blur(22px) saturate(165%);
   border:1px solid var(--glass-line)!important;
   box-shadow:inset 0 1px 0 var(--glass-edge),inset 0 -1px 0 rgba(30,50,25,.05),var(--sh-2)!important}}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){{
-  .norm,.streakc,.water,.meal,.wcard,.prefcard,.subcard,.si,.drow,.tips li,.wover{{background:var(--card)!important}}
+  .norm,.streakc,.water,.meal,.wcard,.prefcard,.subcard,.si,.drow,.tips li,.wover,.pcell{{background:var(--card)!important}}
 }}
 @media (prefers-reduced-transparency:reduce){{
   .aura{{display:none}}
-  .norm,.streakc,.water,.meal,.wcard,.prefcard,.subcard,.si,.drow,.tips li,.wover{{
+  .norm,.streakc,.water,.meal,.wcard,.prefcard,.subcard,.si,.drow,.tips li,.wover,.pcell{{
     background:var(--card)!important;backdrop-filter:none;-webkit-backdrop-filter:none}}
 }}
 .wrap{{max-width:560px;margin:0 auto;padding:0 18px 60px}}
@@ -564,11 +688,21 @@ header{{position:sticky;top:0;background:color-mix(in srgb,var(--bg) 86%,transpa
 h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;line-height:.98;
   margin:20px 0 8px}}
 .lead{{color:var(--ink-2);font-size:14.5px}}
-.norm{{border-radius:var(--rx);padding:21px;margin-top:16px}}
+.norm{{border-radius:var(--rx);padding:20px 21px 18px;margin-top:16px}}
+.norm .cap{{font-size:11px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--muted)}}
 .norm .big{{font-family:Unbounded;font-weight:800;font-size:54px;color:var(--gd);
-  letter-spacing:-.055em;line-height:.9}}
-.norm .big small{{font-family:Onest;font-size:16px;color:var(--muted);font-weight:600;
+  letter-spacing:-.055em;line-height:.9;margin-top:9px}}
+.norm .big i{{font-style:normal;font-family:Onest;font-size:16px;color:var(--muted);font-weight:600;
   letter-spacing:-.01em;margin-left:9px}}
+.norm .sub{{font-size:13px;color:var(--muted);margin-top:8px}}
+/* Шкала сегментами по приёмам, а не сплошная: в дне пять приёмов, и «сколько
+   осталось» человек считает именно ими, а не процентами. */
+.norm .track{{display:flex;gap:5px;margin-top:16px}}
+.norm .track i{{flex:1;height:6px;border-radius:99px;
+  background:color-mix(in srgb,var(--ink) 8%,transparent)}}
+.norm .track i.on{{background:var(--g)}}
+.norm .track i.over{{background:#E0912B}}
 /* Плитки БЖУ — те же, что на экране оплаты, вместе с рисованными иконками:
    оплата и приложение должны читаться как один продукт. Подложки у плиток нет —
    карточка нормы уже задаёт границу, а место уходит числам. */
@@ -588,9 +722,10 @@ h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;l
 .macros b{{display:block;font-family:Unbounded;font-weight:700;font-size:16px;color:var(--ink);
   letter-spacing:-.045em;line-height:1.05;white-space:nowrap}}
 .macros span{{display:block;font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap}}
-.tabs{{display:flex;gap:6px;overflow-x:auto;margin:22px 0 14px;position:sticky;top:52px;
-  background:color-mix(in srgb,var(--bg) 86%,transparent);
-  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);padding:8px 0;z-index:4}}
+/* Без липкой подложки: она нужна была ленте «1…7», которая при прокрутке
+   уезжала под контент. Двум кнопкам прилипать незачем, а полоса блюра поперёк
+   экрана перебивала свечение. */
+.tabs{{display:flex;gap:8px;margin:22px 0 14px}}
 .tab{{flex:0 0 auto;border:1px solid var(--glass-line);color:var(--muted);font-weight:700;font-size:14px;
   padding:9px 15px;border-radius:99px;cursor:pointer;font-family:inherit;
   background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);
@@ -646,8 +781,17 @@ h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;l
    Отдельный ЭКРАН, а не гармошка в списке: тут фото, КБЖУ, состав, шаги и все
    действия — на телефоне такому нужна вся высота. Возврат кнопкой и системным
    «назад» (экран заводится в историю), иначе жест уводил бы из приложения. */
-.dishv{{position:fixed;inset:0;z-index:60;background:var(--bg);overflow:auto;display:none}}
+/* z-index выше просмотра дня: блюдо открывается ПОВЕРХ него, а не вместо. */
+.dishv{{position:fixed;inset:0;z-index:70;background:var(--bg);overflow:auto;display:none}}
 .dishv.on{{display:block}}
+/* Открыто из чужого дня — «Приготовил» прячем: съеденное отмечают в тот день,
+   когда едят. Заменить блюдо при этом можно, ради этого сюда и заходят. */
+.dishv.fromday .done{{display:none}}
+.dishv.fromday .swap{{flex:1}}
+.swapday{{width:100%;border:1.5px solid var(--line);background:var(--card);color:var(--gd);
+  font-family:inherit;font-weight:700;font-size:15px;padding:14px;border-radius:var(--rl);
+  cursor:pointer;margin-bottom:12px}}
+.swapday:disabled{{opacity:.6}}
 .dvbody .dshot{{border-radius:var(--rx);overflow:hidden;box-shadow:var(--sh-2);cursor:zoom-in;
   display:block;padding:0;border:0;background:none;width:100%}}
 .dvbody .dshot img{{width:100%;height:250px;object-fit:cover;display:block;background:var(--soft)}}
@@ -662,8 +806,12 @@ h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;l
   letter-spacing:0;margin-left:1px}}
 .dkcal span{{display:block;font-size:9.5px;font-weight:700;letter-spacing:.07em;
   text-transform:uppercase;color:var(--muted);margin-top:5px}}
-/* Действия прибиты к низу окна: до них не нужно доскроллить рецепт. */
-.dvbody{{padding-bottom:110px}}
+/* Действия прибиты к низу окна: до них не нужно доскроллить рецепт. Обратная
+   сторона — они закрывают последние строки, поэтому телу нужен запас ровно на
+   высоту панели: длинный рецепт обрывался на «3. Добавить курицу…».
+   Правило именно для .dishv: в просмотре дня панели нет, и лишний экран пустоты
+   там ни к чему. */
+.dishv .dvbody{{padding-bottom:calc(120px + env(safe-area-inset-bottom))}}
 .dact{{position:fixed;left:0;right:0;bottom:0;padding:12px 18px calc(14px + env(safe-area-inset-bottom));
   background:linear-gradient(to top,var(--bg) 68%,transparent);z-index:2}}
 .dact .mact{{max-width:560px;margin:0 auto}}
@@ -693,7 +841,17 @@ h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;l
 .shead{{display:flex;align-items:baseline;justify-content:space-between;gap:12px}}
 .sclear{{border:none;background:none;color:var(--muted);font-size:13px;font-weight:700;
   text-decoration:underline;text-underline-offset:2px;cursor:pointer;padding:0;font-family:inherit}}
-.sprog{{color:var(--muted);font-size:13px;font-weight:700;margin:-6px 0 12px}}
+.sprog{{color:var(--muted);font-size:13px;font-weight:700;margin:-2px 0 12px}}
+/* Период закупки. Сегментами, а не выпадашкой: вариантов четыре, и все они
+   должны быть видны сразу — выбор делают у полки, одной рукой. */
+.psegs{{display:flex;gap:6px;margin:12px 0 10px;overflow-x:auto}}
+.pseg{{flex:1 0 auto;border:1px solid var(--glass-line);background:var(--glass);color:var(--muted);
+  font:inherit;font-weight:700;font-size:13px;padding:9px 12px;border-radius:99px;cursor:pointer;
+  -webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);
+  box-shadow:inset 0 1px 0 var(--glass-edge),var(--sh-1);white-space:nowrap}}
+.pseg.on{{background:var(--g);color:#fff;border-color:var(--g);box-shadow:var(--sh-1)}}
+.si[hidden],.cat[hidden]{{display:none}}
+.snone{{color:var(--muted);font-size:14px;padding:14px 4px}}
 .sprog.all{{color:var(--gd)}}
 .tips{{list-style:none;display:flex;flex-direction:column;gap:12px}}
 .tips li{{display:flex;gap:10px;font-size:14.5px;border-radius:var(--rl);padding:13px 15px}}
@@ -836,10 +994,8 @@ body{{padding-bottom:104px}}
 .dvtop b{{font-family:Unbounded;font-size:15px;font-weight:700;letter-spacing:-.035em}}
 .dvbody{{max-width:560px;margin:0 auto;padding:4px 18px 40px}}
 .dvnote{{font-size:12.5px;color:var(--muted);margin:2px 0 14px}}
-.calbar{{height:7px;background:var(--line);border-radius:99px;overflow:hidden;margin:0 0 6px}}
-.calfill{{display:block;height:100%;width:0;background:var(--g);border-radius:99px;transition:width .35s ease}}
-.calfill.over{{background:#E0912B}}
-.caltxt{{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:14px}}
+/* Отдельной полосы калорий под вкладками больше нет: та же шкала теперь в
+   карточке наверху, рядом с числом. Две шкалы про одно и то же спорили. */
 .water{{border-radius:var(--rl);padding:14px 15px;margin-top:12px}}
 .wtop{{display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:800}}
 .wtop #wnum{{color:var(--muted);font-weight:700;font-size:13px}}
@@ -864,6 +1020,33 @@ body{{padding-bottom:104px}}
 .whint{{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.4}}
 .prefcard{{border-radius:var(--rx);padding:18px}}
 .params{{padding:6px 18px}}
+/* Итог четырьмя плитками: вес, серия, выполненные дни, вода. Числа крупные —
+   на этот экран заходят посмотреть результат, а не читать. */
+.pgrid{{display:grid;grid-template-columns:1fr 1fr;gap:10px}}
+.pcell{{border-radius:var(--rl);padding:14px 15px}}
+.pcell .cap{{display:block;font-size:11px;font-weight:700;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted)}}
+.pcell b{{display:block;font-family:Unbounded;font-weight:700;font-size:26px;letter-spacing:-.045em;
+  color:var(--ink);margin-top:8px}}
+.pcell b small{{font-family:Onest;font-size:12px;font-weight:600;color:var(--muted);
+  letter-spacing:0;margin-left:3px}}
+.pcell.good b{{color:var(--gd)}}
+.pcell.bad b{{color:#B45309}}
+.pcell .psub{{display:block;font-size:12px;color:var(--muted);margin-top:5px}}
+/* Окно подписки */
+.submodal{{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:rgba(20,28,18,.5);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}}
+.submodal[hidden]{{display:none}}
+.subwrap{{position:relative;max-width:420px;width:100%;background:var(--card);
+  border-radius:var(--rx);padding:8px 18px 18px;box-shadow:0 30px 70px -20px rgba(0,0,0,.5);
+  max-height:88vh;overflow:auto}}
+.subwrap .sec{{margin-top:14px}}
+/* Внутри окна карточка подписки — уже не карточка: окно само задаёт границу,
+   а стекло в стекле читается как грязь. */
+.subwrap .subcard{{background:none!important;border:0!important;box-shadow:none!important;padding:0}}
+.subx{{position:absolute;top:10px;right:10px;width:34px;height:34px;border:0;border-radius:12px;
+  background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink-2);font-size:20px;
+  line-height:1;cursor:pointer}}
 .prow{{display:flex;align-items:center;gap:12px;padding:13px 0;font-size:14px;
   border-bottom:1px solid var(--glass-line)}}
 .prow:last-child{{border-bottom:none}}
@@ -918,7 +1101,12 @@ body{{padding-bottom:104px}}
   <section class="scr on" id="sc-today">
     <h1>{title}</h1><p class="lead">Персонально под твою цель, вкусы и ритм</p>
     {week_over}
-    <div class="norm"><div class="big">{pl.get('cal','')}<small> ккал/день</small></div>
+    <!-- Крупно то, что человек спрашивает у экрана: сколько ещё можно съесть.
+         Норма — это цель, а не ответ на вопрос «сколько осталось». -->
+    <div class="norm"><div class="cap">Осталось на день</div>
+      <div class="big"><span id="calLeft">{pl.get('cal','')}</span><i>ккал</i></div>
+      <div class="sub" id="calSub"></div>
+      <div class="track" id="track"></div>
       <!-- «Набрано из нормы», а не одна норма: иначе плитка выглядит как факт
            съеденного и противоречит полосе калорий рядом. Числа проставляет
            paint() по отмеченным приёмам. -->
@@ -961,7 +1149,21 @@ body{{padding-bottom:104px}}
   </section>
 
   <section class="scr" id="sc-me">
-    <h1>Я</h1><p class="lead">Вес, вкусы и подписка</p>
+    <h1>Я</h1><p class="lead">Прогресс, план и вкусы</p>
+  <!-- Сначала итог: где я по весу, держусь ли темпа. Настройки — ниже, их
+       открывают раз в неделю, а результат смотрят каждый день. -->
+  <section class="sec"><h2>Прогресс</h2>
+    <div class="pgrid">
+      <div class="pcell"><span class="cap" id="pgwlab">Изменение веса</span>
+        <b id="pgw">—</b><span class="psub" id="pgwsub">запиши вес</span></div>
+      <div class="pcell"><span class="cap">Серия</span>
+        <b id="pgs">0</b><span class="psub">дней подряд</span></div>
+      <div class="pcell"><span class="cap">Выполнено</span>
+        <b id="pgd">0</b><span class="psub">из {len(days)} дней</span></div>
+      <div class="pcell"><span class="cap">Вода</span>
+        <b id="pgv">0</b><span class="psub">стаканов сегодня</span></div>
+    </div></section>
+  {_params(pl, goal_code, water_goal)}
   <section class="sec" id="weightsec"><h2>Твой вес</h2>
     <div class="wcard">
       <div class="wrow"><div class="wbig"><span id="wcur">—</span><small>кг</small></div>
@@ -976,11 +1178,12 @@ body{{padding-bottom:104px}}
       <button id="savePrefs">Сохранить и пересобрать план</button>
       <div class="pmsg" id="pmsg">Пересобираю план под твои исключения — это займёт до минуты…</div>
     </div></section>
-  {_params(pl, goal_code, water_goal)}
-  {acct}
   {_tips(pl.get('tips') or [])}
   <footer class="plegal">
-    <div class="plinks"><a href="/offer">Оферта</a><a href="/privacy">Политика ПДн</a><a href="/consent">Согласие</a><a href="/login">Войти по почте</a></div>
+    <!-- «Войти по почте» отсюда убрана: страницу открывают уже вошедшими, и
+         ссылка предлагала сделать то, что уже сделано. На её месте — подписка:
+         управляют ею редко, но искать её должно быть очевидно где. -->
+    <div class="plinks"><a href="/offer">Оферта</a><a href="/privacy">Политика ПДн</a><a href="/consent">Согласие</a>{subs_link}</div>
     <!-- Оговорка в подвале, мелким шрифтом: то же, что уже есть в оферте и в
          письмах, но теперь и в самом продукте. Мелким — не значит спрятанным:
          текст читаемый и контрастный. Оговорка, которую суд признает скрытой,
@@ -993,8 +1196,18 @@ body{{padding-bottom:104px}}
   </section>
 </div>
 
+<!-- Подписка живёт в окне, а не блоком в профиле: управляют ею раз в месяц, а
+     место она занимала постоянно — и «Отменить подписку» красной строкой
+     маячила там, где человек просто смотрит свой прогресс. -->
+<div class="submodal" id="submodal" hidden>
+  <div class="subwrap" role="dialog" aria-modal="true" aria-label="Подписка">
+    <button class="subx" id="subclose" type="button" aria-label="Закрыть">&times;</button>
+    {acct}
+  </div>
+</div>
+
 <!-- Просмотр дня недели. Отдельный экран, а не всплывашка: меню дня — это пять
-     карточек с фото, шторка съела бы половину. Действий нет намеренно. -->
+     карточек с фото, шторка съела бы половину. -->
 <section class="dayview" id="dayview" aria-hidden="true">
   <div class="dvtop"><button id="dvback" aria-label="Назад">{_ic_back()}</button><b id="dvtitle"></b></div>
   <div class="dvbody" id="dvbody"></div>
@@ -1031,14 +1244,22 @@ const NDAYS={len(days)};
 // В списке недели помечаем строку открытого дня: без пометки семь одинаковых
 // строк не говорят, где ты сейчас.
 function markToday(){{
-  const cur=document.querySelector('.tab.on');
+  const cur=document.querySelector('#sc-today .panel.on');
   document.querySelectorAll('.drow .dnow').forEach(e=>{{
     e.hidden = !cur || e.closest('.drow').dataset.d !== cur.dataset.d;
   }});
 }}
+// Кнопкам «Сегодня»/«Завтра» день проставляем здесь: сегодняшний день плана
+// знает только клиент. «Завтра» показываем, только если оно в плане есть —
+// иначе кнопка вела бы в пустоту в последний день недели.
+const TODAY=(function(){{let wd=(new Date().getDay()+6)%7; return wd<NDAYS?wd:0;}})();
+document.querySelectorAll('.tab[data-rel]').forEach(t=>{{
+  const d=TODAY+(+t.dataset.rel);
+  if(d>=NDAYS){{t.remove();return;}}
+  t.dataset.d=d; t.hidden=false;
+}});
 (function(){{const m=location.hash.match(/d(\\d+)/);
-  if(m){{activateDay(parseInt(m[1]));markToday();return;}}
-  let wd=(new Date().getDay()+6)%7; if(wd>=NDAYS) wd=0; activateDay(wd); markToday();}})();
+  activateDay(m?parseInt(m[1]):TODAY); markToday();}})();
 // app-loop: отметки «приготовил» + прогресс (localStorage)
 // Версия плана — в ключе отметок: иначе новая неделя открывается с галочками
 // старой, а серверный сброс прогресса тут же перетирается локальным состоянием.
@@ -1064,7 +1285,7 @@ function migrateDone(o){{
   let ch=false;
   Object.keys(o||{{}}).forEach(k=>{{
     const p=k.split(':'); if(p.length!==2) return;
-    const els=[...document.querySelectorAll(".panel[data-d='"+p[0]+"'] .meal")]
+    const els=[...document.querySelectorAll("#sc-today .panel[data-d='"+p[0]+"'] .meal")]
       .filter(el=>(el.dataset.k||'').split(':').slice(2).join(':')===p[1]);
     delete o[k]; ch=true;
     if(els.length===1) o[els[0].dataset.k]=1;
@@ -1073,35 +1294,50 @@ function migrateDone(o){{
 }}
 let done=JSON.parse(localStorage.getItem(DKEY)||'{{}}');
 if(migrateDone(done)) localStorage.setItem(DKEY,JSON.stringify(done));
-function dayComplete(i){{const ks=[...document.querySelectorAll(".panel[data-d='"+i+"'] .meal")].map(el=>el.dataset.k);return ks.length>0 && ks.every(k=>done[k]);}}
+function dayComplete(i){{const ks=[...document.querySelectorAll("#sc-today .panel[data-d='"+i+"'] .meal")].map(el=>el.dataset.k);return ks.length>0 && ks.every(k=>done[k]);}}
 function paint(){{
   document.querySelectorAll('.meal').forEach(el=>el.classList.toggle('on', !!done[el.dataset.k]));
-  const tabs=document.querySelectorAll('.tab'); let comp=0, run=0, best=0;
-  for(let i=0;i<tabs.length;i++){{const c=dayComplete(i); tabs[i].classList.toggle('complete',c);
+  // Серия считается по ВСЕЙ неделе, а не по числу кнопок наверху: кнопок теперь
+  // две («Сегодня»/«Завтра»), и привязка к ним превратила бы серию в «0 / 2».
+  let comp=0, run=0, best=0;
+  for(let i=0;i<NDAYS;i++){{const c=dayComplete(i);
     if(c){{comp++;run++;best=Math.max(best,run);}} else run=0;}}
-  const pr=document.getElementById('prog'); if(pr) pr.textContent=comp+' / '+tabs.length;
+  document.querySelectorAll('.tab[data-d]').forEach(t=>
+    t.classList.toggle('complete',dayComplete(+t.dataset.d)));
+  const pr=document.getElementById('prog'); if(pr) pr.textContent=comp+' / '+NDAYS;
   // Ряд огоньков: закрытые дни цветные. Рисуем по ТЕМ ЖЕ отметкам, что и число,
   // иначе плитка начнёт противоречить сама себе.
   const fl=document.getElementById('flames');
-  if(fl) fl.innerHTML=Array.from({{length:tabs.length}},(_,i)=>
+  if(fl) fl.innerHTML=Array.from({{length:NDAYS}},(_,i)=>
     '<span class="'+(dayComplete(i)?'':'off')+'"><img src="/assets/streak-flame.svg" alt="" loading="lazy"></span>').join('');
   const wo=document.getElementById('woDone'); if(wo) wo.textContent=comp;   // итог недели
   const sm=document.getElementById('streakmsg');
   if(sm) sm.innerHTML = best>=2 ? ('Серия <b>'+best+'</b> дней подряд — так держать!')
     : comp>0 ? 'Отличное начало! Не бросай серию' : 'Отмечай «Приготовил» — собери серию';
-  document.querySelectorAll('.caltxt').forEach(tx=>{{
-    const di=tx.dataset.d, tot=+tx.dataset.tot||0; let eaten=0;
-    document.querySelectorAll(".panel[data-d='"+di+"'] .meal").forEach(el=>{{ if(done[el.dataset.k]) eaten+=(+el.dataset.kc||0); }});
-    tx.textContent='Съедено '+eaten+' из '+tot+' ккал';
-    const f=document.querySelector(".calfill[data-d='"+di+"']");
-    if(f){{ f.style.width=(tot?Math.min(100,Math.round(eaten/tot*100)):0)+'%'; f.classList.toggle('over',eaten>tot*1.05); }}
-  }});
+  // Карточка наверху — про ОТКРЫТЫЙ день: сколько ещё можно съесть, сколько уже
+  // съедено и какими приёмами. Шкала сегментами по приёмам, а не процентами.
+  const panel=document.querySelector('#sc-today .panel.on');
+  if(panel){{
+    const tot=+panel.dataset.tot||0;
+    const meals=[...panel.querySelectorAll('.meal')];
+    let eaten=0; meals.forEach(el=>{{ if(done[el.dataset.k]) eaten+=(+el.dataset.kc||0); }});
+    const left=tot-eaten, over=left<0;
+    const cl=document.getElementById('calLeft');
+    if(cl) cl.textContent=over?('+'+Math.abs(left)):left;
+    const cp=document.querySelector('.norm .cap');
+    if(cp) cp.textContent=over?'Перебор за день':'Осталось на день';
+    const cs=document.getElementById('calSub');
+    if(cs) cs.textContent='Съедено '+eaten+' из '+tot+' ккал';
+    const tr=document.getElementById('track');
+    if(tr) tr.innerHTML=meals.map(el=>
+      '<i class="'+(done[el.dataset.k]?(over?'over':'on'):'')+'"></i>').join('');
+  }}
   // БЖУ: набрано из нормы по ОТКРЫТОМУ дню — по тем же отметкам, что и калории.
   ['P','F','C'].forEach(m=>{{
     const num=document.getElementById('got'+m), bar=document.getElementById('bar'+m);
     if(!num||!bar) return;
     let got=0;
-    document.querySelectorAll('.panel.on .meal').forEach(el=>{{
+    document.querySelectorAll('#sc-today .panel.on .meal').forEach(el=>{{
       if(done[el.dataset.k]) got+=(+el.dataset[m.toLowerCase()]||0);
     }});
     const goal=parseInt(num.parentNode.querySelector('i').textContent.replace(/\\D/g,''),10)||0;
@@ -1111,6 +1347,9 @@ function paint(){{
   // Кнопка «Приготовил» на экране блюда — копия, вынутая из строки. Красим её по
   // ключу, а не по родителю: у копии родителя-.meal нет.
   document.querySelectorAll('.done').forEach(b=>b.classList.toggle('on', !!done[b.dataset.k]));
+  // Плитки прогресса в профиле — из тех же чисел, что и всё остальное на экране.
+  const pgs=document.getElementById('pgs'); if(pgs) pgs.textContent=best;
+  const pgd=document.getElementById('pgd'); if(pgd) pgd.textContent=comp;
 }}
 // Отметка «приготовил» приходит из двух мест сразу: галочка в строке и кнопка на
 // экране блюда (а она ещё и клон). Поэтому делегирование, а не привязка к
@@ -1134,6 +1373,7 @@ function renderWater(){{
     b.onclick=()=>{{let cur=parseInt(localStorage.getItem(WK())||'0');cur=(cur===i)?i-1:i;localStorage.setItem(WK(),cur);renderWater();pushProgress();}};
     c.appendChild(b);}}
   const nn=document.getElementById('wnum'); if(nn)nn.textContent=n+' / '+WGOAL+' ст.';
+  const pv=document.getElementById('pgv'); if(pv)pv.innerHTML=n+'<small>/'+WGOAL+'</small>';
 }}
 renderWater();
 // вес + тренд
@@ -1152,6 +1392,18 @@ function renderWeight(){{
   const h=document.getElementById('whint');
   if(h)h.textContent=a.length?('Записей: '+a.length+' · последняя '+fmtd(a[a.length-1].d)):
     (START_W>0?('Старт из анкеты — '+String(START_W).replace('.',',')+' кг. Записывай раз в неделю — увидишь тренд.'):'Записывай вес раз в неделю — увидишь тренд.');
+  // Плитка веса в «Прогрессе»: то же число, что и в карточке ниже, но с ответом
+  // на вопрос «сколько всего» — от старта из анкеты, а не от прошлой записи.
+  const pw=document.getElementById('pgw'), ps=document.getElementById('pgwsub'),
+        pl=document.getElementById('pgwlab'), cell=pw&&pw.closest('.pcell');
+  if(pw&&cur&&base){{
+    const diff=Math.round((cur-base)*10)/10;
+    pw.innerHTML=(diff>0?'+':diff<0?'−':'±')+String(Math.abs(diff)).replace('.',',')+'<small>кг</small>';
+    if(pl) pl.textContent=a.length>1?'Изменение веса':'Старт';
+    if(ps) ps.textContent=String(base).replace('.',',')+' → '+String(cur).replace('.',',')+' кг';
+    const good=GOAL==='gain'?diff>0:GOAL==='lose'?diff<0:true;
+    if(cell) cell.className='pcell '+(Math.abs(diff)<0.05?'':(good?'good':'bad'));
+  }}else if(pw){{ pw.textContent='—'; if(ps) ps.textContent='запиши вес'; }}
 }}
 const wsv=document.getElementById('wsave');
 if(wsv)wsv.onclick=()=>{{const el=document.getElementById('winput');const v=parseFloat((el.value||'').replace(',','.'));
@@ -1322,16 +1574,74 @@ document.addEventListener('click',async e=>{{
 // данные аккаунта, и синхронизировать их между устройствами незачем.
 (function(){{
   const box=document.getElementById('shop'); if(!box) return;
-  const KEY='np_shop_'+T, out=document.getElementById('sdone');
-  const prog=document.querySelector('.sprog');
-  const total=parseInt(box.dataset.total||'0');
+  // Версия плана — в ключе, как у отметок «приготовил»: крон раз в неделю
+  // пересобирает меню на тот же токен, и старые «куплено» на новом списке —
+  // это чужие галочки, с которыми человек уходит в магазин. Плюс сам ключ
+  // позиции теперь = продукт (см. _shopping_html): версия защищает от новой
+  // недели, продукт — от перестановки категорий внутри одной.
+  const SUF=T+(VER?'_v'+VER:''), KEY='np_shop_'+SUF, PKEY='np_shopp_'+SUF;
+  const out=document.getElementById('sdone');
+  // Подчищаем отметки прошлых версий этого же плана — иначе localStorage растёт
+  // на один мусорный ключ каждую неделю и когда-нибудь упрётся в квоту.
+  try{{
+    const mine=['np_shop_'+T,'np_shopp_'+T];   // старый безверсионный вид + все '_vX'
+    for(let i=localStorage.length-1;i>=0;i--){{
+      const k=localStorage.key(i);
+      if(!k||k===KEY||k===PKEY) continue;
+      if(mine.some(p=>k===p||k.indexOf(p+'_v')===0)) localStorage.removeItem(k);
+    }}
+  }}catch(e){{}}
+  const prog=document.querySelector('.sprog'), tot=document.getElementById('stot');
   let st={{}}; try{{st=JSON.parse(localStorage.getItem(KEY)||'{{}}');}}catch(e){{}}
   const boxes=[...box.querySelectorAll('input[data-si]')];
+  const labels=[...box.querySelectorAll('.si')];
+  let shown=labels.length;
   function paint(){{
-    const n=boxes.filter(b=>b.checked).length;
+    const vis=boxes.filter(b=>!b.closest('.si').hidden);
+    const n=vis.filter(b=>b.checked).length;
     if(out) out.textContent=n;
-    if(prog) prog.classList.toggle('all', total>0 && n===total);
+    if(tot) tot.textContent=vis.length;
+    if(prog) prog.classList.toggle('all', vis.length>0 && n===vis.length);
   }}
+  // Период закупки. Дни считаем от СЕГОДНЯШНЕГО дня плана, а не от первого:
+  // «сегодня» на пятый день недели — это пятый день, а не понедельник.
+  function apply(p){{
+    let from=TODAY, to=TODAY;
+    if(p==='t'){{from=TODAY+1;to=TODAY+1;}}
+    else if(p==='3'){{to=TODAY+2;}}
+    else if(p==='7'){{from=0;to=NDAYS-1;}}
+    shown=0;
+    labels.forEach(l=>{{
+      let per={{}}; try{{per=JSON.parse(l.dataset.q||'{{}}');}}catch(e){{}}
+      let sum=0, any=false;
+      for(let d=from;d<=to;d++){{ if(per[d]!==undefined){{ any=true; sum+=per[d]; }} }}
+      l.hidden=!any; if(any) shown++;
+      if(any){{
+        // Количество пересчитано под период. Ноль — значит в исходной строке
+        // количества не было («соль, перец по вкусу»): печатаем как есть.
+        const u=l.dataset.u||'', t=l.dataset.t||'';
+        const q=sum?(' '+(Math.abs(sum-Math.round(sum))<1e-6?Math.round(sum):sum.toFixed(1).replace('.',','))+(u?' '+u:'')):'';
+        l.querySelector('.st').textContent=l.dataset.n+q+(t?' '+t:'');
+      }}
+    }});
+    // Пустую категорию прячем целиком, иначе остаётся заголовок над пустотой.
+    box.querySelectorAll('.cat').forEach(c=>{{
+      const vis=[...c.querySelectorAll('.si')].filter(x=>!x.hidden);
+      c.hidden=vis.length===0;
+      const cnt=c.querySelector('.ct span'); if(cnt) cnt.textContent=vis.length;
+    }});
+    let none=box.querySelector('.snone');
+    if(!shown){{
+      if(!none){{none=document.createElement('div');none.className='snone';box.appendChild(none);}}
+      none.textContent='На этот период покупать нечего.';
+      none.hidden=false;
+    }} else if(none) none.hidden=true;
+    document.querySelectorAll('#shopseg .pseg').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
+    try{{localStorage.setItem(PKEY,p);}}catch(e){{}}
+    paint();
+  }}
+  document.querySelectorAll('#shopseg .pseg').forEach(b=>
+    b.addEventListener('click',()=>apply(b.dataset.p)));
   boxes.forEach(b=>{{
     b.checked=!!st[b.dataset.si];
     b.addEventListener('change',()=>{{
@@ -1345,7 +1655,15 @@ document.addEventListener('click',async e=>{{
     st={{}}; try{{localStorage.removeItem(KEY);}}catch(e){{}}
     boxes.forEach(b=>b.checked=false); paint();
   }});
-  paint();
+  // Переключателя может не быть: у плана без ингредиентов список недельный и
+  // цельный. Тогда никакой фильтрации — иначе apply() спрятал бы ВЕСЬ список,
+  // не найдя у позиций разбивки по дням.
+  if(document.getElementById('shopseg')){{
+    let p0='7'; try{{p0=localStorage.getItem(PKEY)||'7';}}catch(e){{}}
+    // «Завтра» в последний день недели показывать нечего — откатываемся на неделю.
+    if(p0==='t'&&TODAY+1>=NDAYS) p0='7';
+    apply(p0);
+  }} else paint();
 }})();
 
 // ── вкладки ──────────────────────────────────────────────────────────────
@@ -1356,38 +1674,52 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
   window.scrollTo(0,0);
 }}));
 
-// ── просмотр дня недели (только посмотреть) ───────────────────────────────
-// Карточки берём из уже отрисованных панелей и снимаем всё, чем можно
-// ДЕЙСТВОВАТЬ: отмечать и заменять — только на «Сегодня», иначе человек легко
-// закроет чужой день и собьёт себе прогресс.
+// ── просмотр дня недели ───────────────────────────────────────────────────
+// Карточки берём из уже отрисованных панелей. Отметку «приготовил» из копии
+// убираем — закрывать чужой день человек не собирался, — а замена блюда, замена
+// всего дня и подробности блюда остаются: меню недели правят как раз заранее.
 (function(){{
   const view=document.getElementById('dayview'), body=document.getElementById('dvbody');
   if(!view) return;
   function open(i){{
-    const panel=document.querySelector('.panel[data-d="'+i+'"]');
+    const panel=document.querySelector('#sc-today .panel[data-d="'+i+'"]');
     if(!panel) return;
     const clone=panel.cloneNode(true);
-    // Всё, чем можно ДЕЙСТВОВАТЬ, из копии вон: и галочка в строке, и скрытый
-    // блок с кнопками. data-k снимаем со ВСЕГО, а не только с .meal — иначе
-    // делегированный обработчик поймал бы клик по копии и отметил чужой день.
-    clone.querySelectorAll('.mhide, .tick, .mact, details').forEach(n=>n.remove());
-    clone.querySelectorAll('.calbar, .caltxt').forEach(n=>n.remove());
+    // Галочка — единственное, чего в чужом дне быть не должно: «съедено» ставят
+    // в тот день, когда едят.
+    clone.querySelectorAll('.tick').forEach(n=>n.remove());
     clone.querySelectorAll('[id]').forEach(n=>n.removeAttribute('id'));   // без дублей id
-    clone.querySelectorAll('[data-k]').forEach(n=>n.removeAttribute('data-k'));
-    clone.querySelectorAll('.meal').forEach(n=>n.classList.remove('on'));
-    // Строка перестаёт быть кнопкой: экран блюда несёт «Приготовил» и
-    // «Заменить», а тут обещан просмотр.
-    clone.querySelectorAll('.mopen').forEach(n=>n.disabled=true);
     const title=(clone.querySelector('.dtitle')||{{}}).textContent||('День '+(i+1));
     const t=clone.querySelector('.dtitle'); if(t) t.remove();
     document.getElementById('dvtitle').textContent=title.trim().replace(/\\s+(\\d+\\s*ккал)$/,' · $1');
-    body.innerHTML='<div class="dvnote">Только просмотр. Отмечать и заменять блюда можно на вкладке «Сегодня».</div>';
+    body.innerHTML='<button class="swapday" data-day="'+i+'">Заменить весь день</button>'
+      +'<div class="dvnote">Тап по блюду — состав и рецепт. Отметить «приготовил» можно в тот день, когда готовишь.</div>';
     body.appendChild(clone);
     clone.classList.add('on');
     view.classList.add('on'); view.setAttribute('aria-hidden','false');
     view.scrollTop=0; document.body.style.overflow='hidden';
     history.pushState({{dayview:1}},'');    // системное «назад» закрывает просмотр
   }}
+  // Замена целого дня — одна LLM-генерация и заметное ожидание, поэтому кнопка
+  // сразу говорит, что происходит, и блокирует себя от второго нажатия.
+  document.addEventListener('click',async e=>{{
+    const b=e.target.closest('.swapday'); if(!b) return;
+    const day=+b.dataset.day, o=b.textContent;
+    b.disabled=true; b.textContent='Собираю новый день…';
+    let r=null;
+    try{{
+      r=await fetch('/api/plan/'+T+'/swap-day',{{method:'POST',
+        headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{day}})}});
+      const j=await r.json(); if(!j.meals) throw 0;
+      // Отметки этого дня сняты вместе с блюдами: они были про другую еду.
+      Object.keys(done).forEach(k=>{{ if(k.split(':')[0]===String(day)) delete done[k]; }});
+      localStorage.setItem(DKEY,JSON.stringify(done));
+      try{{await fetch('/api/plan/'+T+'/progress',{{method:'POST',
+        headers:{{'Content-Type':'application/json'}},body:JSON.stringify(collectLocal())}});}}catch(e){{}}
+      location.hash='v'+day; location.reload();   // v = вернуться в просмотр дня
+    }}catch(e){{ b.disabled=false; b.textContent=o;
+      alert(r&&r.status===429?'Слишком много замен за час — попробуй позже':'Не удалось собрать новый день — попробуй ещё раз'); }}
+  }});
   function close(back){{
     view.classList.remove('on'); view.setAttribute('aria-hidden','true');
     document.body.style.overflow='';
@@ -1395,7 +1727,16 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
   }}
   document.querySelectorAll('.drow').forEach(r=>r.addEventListener('click',()=>open(+r.dataset.d)));
   document.getElementById('dvback').addEventListener('click',()=>close(true));
-  addEventListener('popstate',()=>{{ if(view.classList.contains('on')) close(false); }});
+  addEventListener('popstate',()=>{{
+    // Над просмотром дня может лежать экран блюда. «Назад» снимает ОДИН слой:
+    // этот обработчик зарегистрирован раньше, поэтому просто уступает.
+    if(document.getElementById('dishview').classList.contains('on')) return;
+    if(view.classList.contains('on')) close(false);
+  }});
+  // После замены дня страница перезагружается — открываем тот же день снова,
+  // иначе человек оказывался на «Сегодня» и не видел результата нажатия.
+  (function(){{const m=location.hash.match(/^#v(\\d+)/);
+    if(m){{document.querySelector('.bnav button[data-s="week"]').click(); open(+m[1]);}}}})();
   addEventListener('keydown',e=>{{ if(e.key==='Escape'&&view.classList.contains('on')) close(true); }});
 }})();
 
@@ -1436,6 +1777,8 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
     // работает так же, как оригинал, и ключ отметки у неё тот же.
     act.innerHTML=''; act.appendChild(h.querySelector('.mact').cloneNode(true));
     paint();
+    // Из просмотра чужого дня «Приготовил» не показываем (см. CSS .fromday).
+    view.classList.toggle('fromday', !!meal.closest('#dayview'));
     view.classList.add('on'); view.setAttribute('aria-hidden','false');
     view.scrollTop=0; document.body.style.overflow='hidden';
     history.pushState({{dish:1}},'');
@@ -1455,6 +1798,29 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
     // Escape закрывает по одному слою за раз: если сверху открыто фото, оно уже
     // забрало это нажатие себе (см. preventDefault в обработчике фото).
     if(e.key==='Escape'&&!e.defaultPrevented&&view.classList.contains('on')) close(true);
+  }});
+}})();
+
+// ── окно подписки ─────────────────────────────────────────────────────────
+(function(){{
+  const mo=document.getElementById('submodal'), lnk=document.getElementById('subsopen');
+  if(!mo||!lnk) return;
+  function open(){{
+    mo.removeAttribute('hidden'); document.body.style.overflow='hidden';
+    document.getElementById('subclose').focus();
+    history.pushState({{sub:1}},'');
+  }}
+  function close(back){{
+    mo.setAttribute('hidden',''); document.body.style.overflow='';
+    if(back && history.state && history.state.sub) history.back();
+  }}
+  lnk.addEventListener('click',e=>{{e.preventDefault();open();}});
+  document.getElementById('subclose').addEventListener('click',()=>close(true));
+  // Клик по затемнению закрывает, по самому окну — нет.
+  mo.addEventListener('click',e=>{{ if(!e.target.closest('.subwrap')) close(true); }});
+  addEventListener('popstate',()=>{{ if(!mo.hasAttribute('hidden')) close(false); }});
+  addEventListener('keydown',e=>{{
+    if(e.key==='Escape'&&!e.defaultPrevented&&!mo.hasAttribute('hidden')){{close(true);e.preventDefault();}}
   }});
 }})();
 

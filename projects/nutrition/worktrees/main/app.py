@@ -8,11 +8,15 @@ Nutrition — скелет бэкенда под тест 4 лендингов (
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+import threading
+from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote, unquote
 
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -53,11 +57,69 @@ async def _notrack_mw(request: Request, call_next):
         response.set_cookie(NOTRACK_COOKIE, "1", max_age=31_536_000, samesite="lax", path="/")
     elif q == "0":
         response.delete_cookie(NOTRACK_COOKIE, path="/")
+    if not on:
+        # Метки рекламного клика (см. _remember_marks) — тем же проходом, чтобы
+        # ловились на ЛЮБОМ входе: /l/*, /quiz, голый домен с ?utm_source=…
+        _remember_marks(request, response)
     return response
 
 
 def notrack() -> bool:
     return _notrack.get()
+
+
+# ── Потолок тела запроса ─────────────────────────────────────────────────────
+# POST /api/lead был открыт настежь: одно тело на 500 КБ ложилось в leads.jsonl
+# целиком (проверено — файл вырос на 500 148 байт за один запрос), и упереться
+# было не во что. Режем на входе, ДО эндпоинта: pydantic успевает распарсить
+# мегабайты раньше, чем мы что-то решим.
+#
+# Настоящий квиз укладывается в ~1 КБ, вебхук ЮKassa — в единицы килобайт,
+# поэтому 64 КБ живой человек не увидит никогда.
+MAX_BODY_BYTES = 64 * 1024
+
+
+class _BodyLimit:
+    """ASGI-прослойка: тело больше лимита → 413 без разбора."""
+
+    def __init__(self, app, max_bytes: int = MAX_BODY_BYTES):
+        self.app = app
+        self.max = max_bytes
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http" or scope.get("method") not in ("POST", "PUT", "PATCH"):
+            return await self.app(scope, receive, send)
+        for k, v in scope.get("headers") or ():
+            if k == b"content-length":
+                try:
+                    if int(v) > self.max:
+                        return await self._too_big(send)
+                except ValueError:
+                    pass
+        seen = 0
+
+        async def _receive():
+            nonlocal seen
+            msg = await receive()
+            if msg.get("type") == "http.request":
+                seen += len(msg.get("body") or b"")
+                if seen > self.max:
+                    # Chunked без Content-Length: обрываем поток. Тело не соберётся
+                    # в валидный JSON → 422, на диск не попадёт ничего.
+                    return {"type": "http.request", "body": b"", "more_body": False}
+            return msg
+
+        await self.app(scope, _receive, send)
+
+    async def _too_big(self, send):
+        body = b'{"error":"too large"}'
+        await send({"type": "http.response.start", "status": 413,
+                    "headers": [(b"content-type", b"application/json"),
+                                (b"content-length", str(len(body)).encode())]})
+        await send({"type": "http.response.body", "body": body})
+
+
+app.add_middleware(_BodyLimit)
 
 
 STATIC = Path(__file__).parent / "static"
@@ -76,6 +138,9 @@ YOOKASSA_SECRET = os.getenv("YOOKASSA_SECRET_KEY", "").strip()
 PRICE_RUB = os.getenv("NUTRI_PRICE_RUB", "299")          # разовый план
 SUB_PRICE_RUB = os.getenv("NUTRI_SUB_PRICE_RUB", "499")  # подписка / мес
 CRON_SECRET = os.getenv("NUTRI_CRON_SECRET", "").strip() # защита cron-эндпоинта
+# Базовый адрес для ссылок в письмах, когда под рукой нет request (фоновое дозаказывание
+# плана): ссылка на localhost в письме клиенту хуже, чем захардкоженный прод-домен.
+PUBLIC_BASE = os.getenv("NUTRI_BASE_URL", "https://mynutriplan.ru").rstrip("/")
 SUBS = DATA / "subs"                                       # подписки: {sub_id}.json
 
 # Мейлер (Unisender Go). Без NUTRI_MAIL_FROM + ключа отправка просто пропускается.
@@ -124,12 +189,29 @@ def _send_email_raw(key: str, to: str, subject: str, html: str, tag: str = "") -
 _PLAN_STICKY = ("started", "mail_d2", "mail_d6")
 
 
+def _append_jsonl(path: Path, rec: dict, what: str) -> bool:
+    """Дописать строку в jsonl. Сбой НЕ глотаем: молча потерянный лид или заказ —
+    это потерянные деньги, о которых никто никогда не узнает (раньше здесь стоял
+    except: pass, и диск, кончившийся на проде, выглядел бы как «лидов нет»)."""
+    try:
+        DATA.mkdir(parents=True, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        return True
+    except Exception as e:  # noqa: BLE001
+        _bump(f"write_fail_{what}")
+        print(f"[ALERT] не записан {what} в {path}: {e}", flush=True)
+        return False
+
+
 def _write_plan(token: str, pl: dict) -> None:
     try:
         PLANS.mkdir(parents=True, exist_ok=True)
         (PLANS / f"{token}.json").write_text(json.dumps(pl, ensure_ascii=False), encoding="utf-8")
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        # План — это то, за что заплатили. Тихо не сохранить его нельзя.
+        _bump("write_fail_plan")
+        print(f"[ALERT] план {token} НЕ сохранён: {e}", flush=True)
 
 
 def _plan_mark(token: str, fields: dict) -> None:
@@ -328,6 +410,39 @@ def _fulfill_paid(email: str, quiz: dict, oid: str, base: str) -> None:
         print(f"[ALERT] fulfill failed: order={oid} err={e}", flush=True)
 
 
+def _plan_missing(oid: str) -> bool:
+    """Файла плана по заказу нет. Единственный честный признак «оплачено, но не отдано»:
+    отметка об обработке платежа этого не показывает — её ставили ДО генерации."""
+    safe = "".join(c for c in (oid or "") if c.isalnum())
+    return not (safe and (PLANS / f"{safe}.json").exists())
+
+
+def _fulfill_once(email: str, quiz: dict, oid: str, base: str) -> bool:
+    """Идемпотентная доставка оплаченного плана: один план и одно письмо на заказ,
+    но при СБОЕ попытка повторяется.
+
+    Раньше единственной защитой была отметка payment_id, которую ставили ДО генерации:
+    исключение внутри _fulfill_paid (оно глушится) или перезапуск контейнера — и человек
+    оставался без плана навсегда, потому что повторную доставку вебхука отбрасывали как
+    дубль. Теперь «уже сделано» = файл плана существует, а не «мы начинали»; на время
+    самой генерации держим короткую аренду (_claim), чтобы параллельные заходы
+    (вебхук + /pay/success + cron) не собрали два плана и не отправили два письма.
+    Возвращает True, если план в итоге есть."""
+    if not _plan_missing(oid):
+        return True
+    key = f"fulfill:{''.join(c for c in (oid or '') if c.isalnum()) or email}"
+    if not _claim(key, 300):
+        return False  # генерацию уже ведёт другой заход — второй план и второе письмо не нужны
+    _fulfill_paid(email, quiz, oid, base)
+    if _plan_missing(oid):
+        # Аренда нужна только на ВРЕМЯ генерации. Если она закончилась без плана, держать
+        # ключ ещё 5 минут — значит запретить немедленный ретрай (повтор вебхука, заход на
+        # /pay/success) ровно тогда, когда он и нужен.
+        _unclaim(key)
+        return False
+    return True
+
+
 def _pregen_dish_photos(pl: dict) -> None:
     """Прогреть общий кэш фото для всех блюд плана (идемпотентно, best effort)."""
     try:
@@ -380,11 +495,12 @@ def _sub_merge(sid: str, fields: dict, remove: tuple = ()) -> None:
     _save_sub(cur)
 
 
-def _guarded_status(sid: str, new_status: str) -> bool:
-    """Сменить статус подписки ТОЛЬКО если она ещё active (не затираем отмену/завершение,
-    случившиеся параллельно, пока cron думал). Возвращает True, если применено."""
+def _guarded_status(sid: str, new_status: str, only: tuple = ("active",)) -> bool:
+    """Сменить статус подписки ТОЛЬКО если текущий входит в `only` (по умолчанию — active):
+    не затираем отмену/завершение, случившиеся параллельно, пока cron думал.
+    Возвращает True, если применено."""
     cur = _load_sub(sid)
-    if not cur or cur.get("status") != "active":
+    if not cur or cur.get("status") not in only:
         return False
     _sub_merge(sid, {"status": new_status})
     return True
@@ -475,28 +591,130 @@ def _plan_d6_email(base: str, token: str, renews: bool) -> str:
 
 _PROCESSED = DATA / "processed_payments.json"
 
+# Замки на json-файлы, которые читают-меняют-пишут целиком. Тот же механизм, что
+# у счётчиков, но здесь цена гонки другая: не сбитая статистика, а ВТОРОЕ ПИСЬМО
+# и вторая строка выручки. Боевой сценарий буквальный — вебхук ЮKassa и заход
+# покупателя на /pay/success приходят в одну секунду, оба зовут _already_processed,
+# оба читают файл ДО записи друг друга и оба считают себя первыми.
+_JSON_TLOCKS: dict[str, threading.Lock] = {}
+_JSON_TLOCKS_GUARD = threading.Lock()
+
+
+@contextmanager
+def _json_locked(path: Path):
+    """Эксклюзивный доступ к json-файлу — между потоками и между процессами."""
+    DATA.mkdir(parents=True, exist_ok=True)
+    with _JSON_TLOCKS_GUARD:
+        tl = _JSON_TLOCKS.setdefault(path.name, threading.Lock())
+    with tl:
+        fh = open(path.with_suffix(path.suffix + ".lock"), "a+")
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            yield
+        finally:
+            fh.close()  # закрытие снимает flock
+
+
+def _json_read(path: Path) -> dict:
+    """Прочитать словарь. Вызывать только под _json_locked."""
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as e:  # noqa: BLE001
+        # Битый файл идемпотентности молча возвращал {} — то есть КАЖДЫЙ вебхук
+        # снова считался первым: второе письмо, второй прогон LLM, сдвиг даты
+        # списания. Уводим в карантин и кричим, а не делаем вид, что всё хорошо.
+        bad = path.with_name(path.stem + "." +
+                             datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + ".corrupt")
+        try:
+            os.replace(path, bad)
+        except OSError:
+            pass
+        print(f"[ALERT] {path.name} битый ({e}) — отложен в {bad.name}, начат заново", flush=True)
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def _json_write(path: Path, d: dict) -> None:
+    """Записать словарь целиком. Вызывать только под _json_locked."""
+    tmp = path.with_name(f"{path.stem}.{os.getpid()}.tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(d, fh, ensure_ascii=False)
+        fh.flush()
+        os.fsync(fh.fileno())      # без fsync os.replace может опередить данные
+    os.replace(tmp, path)          # атомарно: читатель видит либо старый файл, либо новый
+
 
 def _already_processed(pid: str) -> bool:
     """Идемпотентность вебхука: True если этот payment_id уже обрабатывали (повторная
     доставка от ЮKassa) → второй раз ничего не делаем (не сбрасываем next_charge, не шлём
-    второе письмо, не дублируем LLM). Атомарно помечаем при первом заходе."""
+    второе письмо, не дублируем LLM). Проверка и пометка — под одним замком, иначе
+    двое одновременных объявляют себя первыми."""
     if not pid:
         return False
     try:
-        DATA.mkdir(parents=True, exist_ok=True)
-        seen = json.loads(_PROCESSED.read_text(encoding="utf-8")) if _PROCESSED.exists() else {}
-    except Exception:  # noqa: BLE001
-        seen = {}
-    if pid in seen:
+        with _json_locked(_PROCESSED):
+            seen = _json_read(_PROCESSED)
+            if pid in seen:
+                return True
+            seen[pid] = datetime.now(timezone.utc).isoformat()
+            if len(seen) > 5000:  # не растим бесконечно — режем старые
+                seen = dict(sorted(seen.items(), key=lambda kv: kv[1])[-3000:])
+            _json_write(_PROCESSED, seen)
+        return False
+    except Exception as e:  # noqa: BLE001
+        # Не смогли взять замок или записать. Сказать «уже обрабатывали» безопаснее,
+        # чем «не обрабатывали»: недоставленный план чинят /pay/success и крон-свип,
+        # а второе списание и второе письмо не чинит никто.
+        print(f"[ALERT] идемпотентность недоступна ({e}) — {pid} считаем обработанным", flush=True)
         return True
-    seen[pid] = datetime.now(timezone.utc).isoformat()
-    if len(seen) > 5000:  # не растим бесконечно — режем старые
-        seen = dict(sorted(seen.items(), key=lambda kv: kv[1])[-3000:])
+
+
+_CLAIMS = DATA / "fulfill_claims.json"
+
+
+def _claim(key: str, ttl_sec: int) -> bool:
+    """Захватить работу под ключом: True — захватили (делаем мы), False — её уже делает
+    кто-то другой. В отличие от _already_processed метка ПРОТУХАЕТ через ttl — упавшая
+    (или убитая рестартом) генерация не должна блокировать повтор навсегда, иначе
+    «оплачено, а плана нет» становится вечным состоянием."""
+    now = datetime.now(timezone.utc)
+    # Проверка аренды и её взятие — под одним замком. Без него два параллельных
+    # захода читали файл до записи друг друга, оба видели «аренды нет» и оба
+    # запускали генерацию: два плана, два письма, два прогона LLM.
     try:
-        _PROCESSED.write_text(json.dumps(seen, ensure_ascii=False), encoding="utf-8")
+        with _json_locked(_CLAIMS):
+            d = _json_read(_CLAIMS)
+            prev = d.get(key)
+            if prev:
+                try:
+                    if (now - datetime.fromisoformat(prev)).total_seconds() < ttl_sec:
+                        return False
+                except Exception:  # noqa: BLE001
+                    pass  # битая метка = аренды нет
+            d[key] = now.isoformat()
+            if len(d) > 2000:  # не растим бесконечно
+                d = dict(sorted(d.items(), key=lambda kv: kv[1])[-1000:])
+            _json_write(_CLAIMS, d)
+        return True
+    except Exception as e:  # noqa: BLE001
+        # Замок недоступен. Не захватываем: пропущенная генерация чинится
+        # повтором вебхука, /pay/success и крон-свипом, а вторая — ничем.
+        print(f"[ALERT] аренда недоступна ({e}) — {key} не захвачен", flush=True)
+        return False
+
+
+def _unclaim(key: str) -> None:
+    """Снять аренду досрочно: работа закончилась НЕУДАЧЕЙ, и следующий заход должен иметь
+    право попробовать сразу, а не ждать протухания метки."""
+    try:
+        with _json_locked(_CLAIMS):
+            d = _json_read(_CLAIMS)
+            if d.pop(key, None) is not None:
+                _json_write(_CLAIMS, d)
     except Exception:  # noqa: BLE001
-        pass
-    return False
+        pass   # не сняли аренду — она протухнет по ttl, это и есть страховка
 
 
 def _sub_mail_once(sid: str, key: str, subject: str, html: str, tag: str) -> bool:
@@ -555,6 +773,20 @@ def _all_subs():
             yield json.loads(f.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
             continue
+
+
+def _sub_by_plan_token(token: str) -> str:
+    """sub_id подписки, которой принадлежит план. Обычно sub_id == plan_token (так и создаём),
+    но полагаться только на это нельзя — иначе настройки плана не доехали бы до подписки."""
+    safe = "".join(c for c in (token or "") if c.isalnum())
+    if not safe:
+        return ""
+    if _load_sub(safe):
+        return safe
+    for s in _all_subs():
+        if s.get("plan_token") == safe:
+            return s.get("sub_id", "")
+    return ""
 
 
 def _charge_subscription(sub: dict) -> tuple[str, str]:
@@ -690,23 +922,97 @@ THEME = {
 
 
 # ---------- счётчики (визиты/воронка по лендингу) ----------
+#
+# Схема «прочитал → прибавил → перезаписал файл целиком» без лока и без atomic
+# replace разваливалась на любом всплеске трафика: 60 параллельных заходов
+# доезжали до диска как 11 (потеря 82%), а на 64 файл с первой же попытки
+# превращался в огрызок `{"visit_slim": 3} "visit_slim_organic": 1}`. Дальше
+# было хуже: чтение и запись стояли в одном try/except: pass, поэтому после
+# порчи КАЖДЫЙ _bump падал на чтении и запись не выполнялась — визиты, лиды,
+# pay_ok, sub_ok и возвраты не считались больше никогда, /admin/stats отдавал
+# нули, и ни одной строки в логе об этом не было.
+#
+# Отсюда три требования, а не одно: (1) лок — иначе инкременты затирают друг
+# друга; (2) tmp + os.replace — иначе на диске оказывается полуфайл; (3) битый
+# файл не глотать — уводить в .corrupt и кричать, иначе он молча блокирует счёт
+# до конца жизни сервера.
+_COUNTERS_TLOCK = threading.Lock()      # потоки одного процесса: sync-роуты живут в threadpool
+COUNTERS_LOCK = DATA / "counters.lock"  # процессы: несколько воркеров uvicorn + cron-скрипт
 
-def _bump(name: str) -> None:
+
+@contextmanager
+def _counters_locked():
+    """Эксклюзивный доступ к counters.json — и между потоками, и между процессами."""
+    DATA.mkdir(parents=True, exist_ok=True)
+    with _COUNTERS_TLOCK:
+        fh = open(COUNTERS_LOCK, "a+")
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            yield
+        finally:
+            fh.close()  # закрытие снимает flock
+
+
+def _counters_read() -> dict:
+    """Прочитать счётчики. Вызывать только под _counters_locked."""
+    try:
+        raw = COUNTERS.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {}
+    except OSError as e:  # noqa: BLE001
+        print(f"[ALERT] counters: файл не читается ({e}) — счёт продолжится с нуля", flush=True)
+        return {}
+    if not raw.strip():
+        return {}
+    try:
+        d = json.loads(raw)
+    except ValueError as e:  # битьё, оставшееся от старой схемы записи
+        bad = COUNTERS.with_name(
+            "counters." + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + ".corrupt")
+        try:
+            os.replace(COUNTERS, bad)
+        except OSError:
+            pass
+        print(f"[ALERT] counters.json битый ({e}) — отложен в {bad.name}, счёт начат заново",
+              flush=True)
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def _counters_write(d: dict) -> None:
+    """Записать счётчики целиком. Вызывать только под _counters_locked."""
+    tmp = COUNTERS.with_name(f"counters.{os.getpid()}.tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(d, fh, ensure_ascii=False)
+        fh.flush()
+        os.fsync(fh.fileno())      # без fsync os.replace может опередить данные
+    os.replace(tmp, COUNTERS)      # атомарно: читатель видит либо старый файл, либо новый
+
+
+def _bump(name: str, n: int = 1) -> None:
     if notrack():
         return
     try:
-        DATA.mkdir(parents=True, exist_ok=True)
-        d = json.loads(COUNTERS.read_text()) if COUNTERS.exists() else {}
-        d[name] = int(d.get(name, 0)) + 1
-        COUNTERS.write_text(json.dumps(d, ensure_ascii=False))
-    except Exception:
-        pass
+        with _counters_locked():
+            d = _counters_read()
+            try:
+                cur = int(d.get(name, 0) or 0)
+            except (TypeError, ValueError):
+                cur = 0
+            d[name] = cur + n
+            _counters_write(d)
+    except Exception as e:  # noqa: BLE001
+        # Молчать нельзя: потерянный счётчик — это потерянная строка в /admin/stats,
+        # по которой владелец решает, куда лить деньги.
+        print(f"[ALERT] counters: не учтён {name!r}: {e}", flush=True)
 
 
 def _counters() -> dict:
     try:
-        return json.loads(COUNTERS.read_text()) if COUNTERS.exists() else {}
-    except Exception:
+        with _counters_locked():
+            return _counters_read()
+    except Exception as e:  # noqa: BLE001
+        print(f"[ALERT] counters: не прочитаны ({e})", flush=True)
         return {}
 
 
@@ -841,8 +1147,64 @@ def _lead_token_get(tok: str) -> dict:
     return {}
 
 
-def _detect_src(request: Request) -> str:
+# ── Метки рекламного клика ───────────────────────────────────────────────────
+# Человек приходит по объявлению на /l/slim?utm_source=yandex&…&yclid=…, а на
+# квиз и в оплату метки не доезжали — SRC становился 'organic', и КАЖДАЯ платная
+# покупка ложилась в orders.jsonl как organic. Разрез «сколько денег принёс
+# источник» был физически невозможен.
+#
+# Поэтому метки запоминаются в куке на входе (любой маршрут, см. _notrack_mw) и
+# кладутся СЫРЫМИ в лид и в заказ. Кука — 90 дней: столько живёт окно атрибуции
+# Яндекс.Директа, покупка через месяц после клика должна остаться за источником.
+UTM_COOKIE = "np_utm"
+UTM_COOKIE_AGE = 60 * 60 * 24 * 90
+UTM_KEYS = ("utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+            "yclid", "gclid")
+
+
+def _marks_from_query(request: Request) -> dict:
     q = request.query_params
+    out = {}
+    for k in UTM_KEYS:
+        v = (q.get(k) or "").strip()[:200]
+        if v:
+            out[k] = v
+    return out
+
+
+def _marks_from_cookie(request: Request) -> dict:
+    raw = request.cookies.get(UTM_COOKIE, "")
+    if not raw:
+        return {}
+    try:
+        d = json.loads(unquote(raw))
+    except Exception:  # noqa: BLE001
+        return {}
+    if not isinstance(d, dict):
+        return {}
+    return {k: str(v)[:200] for k, v in d.items() if k in UTM_KEYS and v}
+
+
+def _marks(request: Request) -> dict:
+    """Метки текущего клика, иначе — запомненные с прошлого захода."""
+    return _marks_from_query(request) or _marks_from_cookie(request)
+
+
+def _remember_marks(request: Request, response) -> None:
+    """Положить метки в куку. Перезаписываем последним кликом, а не первым:
+    yclid обязан быть от ТОГО клика, по которому пришли деньги, иначе офлайн-
+    конверсия уедет не на то объявление."""
+    marks = _marks_from_query(request)
+    if not marks:
+        return
+    try:
+        response.set_cookie(UTM_COOKIE, quote(json.dumps(marks, ensure_ascii=False)),
+                            max_age=UTM_COOKIE_AGE, samesite="lax", path="/", httponly=True)
+    except Exception:  # noqa: BLE001
+        pass  # метка полезна, но ронять из-за неё ответ страницы нельзя
+
+
+def _src_of(q: dict) -> str:
     if q.get("yclid") or q.get("gclid"):
         return "ad"
     if (q.get("utm_medium") or "").lower() in ("cpc", "ppc", "paid"):
@@ -850,6 +1212,20 @@ def _detect_src(request: Request) -> str:
     if (q.get("utm_source") or "").lower() in ("yandex", "direct"):
         return "ad"
     return "organic"
+
+
+def _detect_src(request: Request) -> str:
+    """Источник ТЕКУЩЕГО захода — только по адресу. Для счётчика визитов куку
+    брать нельзя: человек, кликнувший объявление месяц назад и пришедший теперь
+    по прямой ссылке, — это органический визит, а не второй платный."""
+    return _src_of(_marks_from_query(request))
+
+
+def _attr_src(request: Request) -> str:
+    """Источник для АТРИБУЦИИ ДЕНЕГ: адрес, а если меток в нём нет — кука.
+    До /api/pay/create метки в адресе не доходят никогда (это POST со страницы
+    квиза), поэтому без куки любая платная покупка оказывалась organic."""
+    return _src_of(_marks(request))
 
 
 # ---------- роуты ----------
@@ -869,26 +1245,59 @@ def root(request: Request) -> RedirectResponse:
 NUTRI_METRIKA_ID = os.getenv("NUTRI_METRIKA_ID", "").strip()
 
 
-def _inject_metrika(html: str) -> str:
+def _inject_metrika(html: str, anon_page: str = "") -> str:
     """Вставить счётчик Я.Метрики перед </head>, ЕСЛИ задан NUTRI_METRIKA_ID (инфра готова —
-    оператору достаточно задать env, код появится на всех лендингах/квизе/плане автоматически)."""
+    оператору достаточно задать env, код появится на всех лендингах/квизе/плане автоматически).
+
+    anon_page — обезличенный адрес хита для страниц, чей АДРЕС СЕКРЕТЕН (в нём
+    лежит токен плана). Тогда: defer:true — автоматический хит с настоящим
+    адресом не уходит, вместо него один обезличенный с пустым referer;
+    clickmap/trackLinks выключены — они шлют page-ref, а это тот же адрес.
+
+    ВАЖНО про границы приёма: одного anon_page МАЛО. Перехват сетевых запросов
+    показал, что при defer:true Метрика всё равно шлёт технический
+    `watch/<id>?page-url=<настоящий адрес>&nohit=1`. Поэтому там, где адрес
+    секретен, счётчик либо не ставится вовсе (/plan/{token}), либо адрес
+    предварительно вычищается из location через history.replaceState
+    (/pay/success), и только тогда anon_page работает как задумано.
+    """
     if notrack() or not (NUTRI_METRIKA_ID and "</head>" in html):
         return html
     cid = NUTRI_METRIKA_ID
+    if anon_page:
+        init = (f"ym({cid},'init',{{defer:true,clickmap:false,trackLinks:false,"
+                f"accurateTrackBounce:true,webvisor:false}});"
+                f"ym({cid},'hit','{anon_page}',{{referer:''}});")
+        pixel = ""  # noscript-пиксель уходит с Referer страницы — на секретном адресе не нужен
+    else:
+        init = f"ym({cid},'init',{{clickmap:true,trackLinks:true,accurateTrackBounce:true,webvisor:false}});"
+        pixel = (f"<noscript><div><img src='https://mc.yandex.ru/watch/{cid}' "
+                 f"style='position:absolute;left:-9999px' alt='' /></div></noscript>")
     snippet = (
         "<script type='text/javascript'>(function(m,e,t,r,i,k,a){m[i]=m[i]||function(){"
         "(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();"
         "for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}"
         "k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})"
         "(window,document,'script','https://mc.yandex.ru/metrika/tag.js','ym');"
-        f"ym({cid},'init',{{clickmap:true,trackLinks:true,accurateTrackBounce:true,webvisor:false}});"
+        + init +
         # Идентификатор наружу: любая страница шлёт цели через window.npGoal(),
         # не зная номера счётчика и не ломаясь, когда счётчик не настроен.
         f"window.NP_METRIKA_ID={cid};"
         "window.npGoal=function(n){try{if(window.ym&&window.NP_METRIKA_ID)"
-        "ym(window.NP_METRIKA_ID,'reachGoal',n);}catch(e){}};</script>"
-        f"<noscript><div><img src='https://mc.yandex.ru/watch/{cid}' style='position:absolute;left:-9999px' alt='' /></div></noscript>")
+        "ym(window.NP_METRIKA_ID,'reachGoal',n);}catch(e){}};</script>" + pixel)
     return html.replace("</head>", snippet + "</head>", 1)
+
+
+def _no_referrer_leak(html: str) -> str:
+    """Запретить браузеру класть адрес страницы в Referer чужих запросов.
+
+    Вторая половина той же дыры: даже без счётчика любой сторонний ресурс на
+    странице (пиксель, шрифт, ссылка наружу) получил бы токен в заголовке
+    Referer. Ставим ДО счётчика и независимо от него — политика должна работать
+    и когда NUTRI_METRIKA_ID не задан."""
+    if "</head>" not in html or "name='referrer'" in html or 'name="referrer"' in html:
+        return html
+    return html.replace("</head>", "<meta name='referrer' content='same-origin'></head>", 1)
 
 
 @app.get("/l/{slug}", response_class=HTMLResponse)
@@ -1191,7 +1600,7 @@ def quiz(request: Request, l: str = DEFAULT_LANDING) -> HTMLResponse:
     )
     html = (html.replace("/*THEMEHOOK*/", theme_css)
                 .replace("__LANDING__", slug)
-                .replace("__SRC__", _detect_src(request))
+                .replace("__SRC__", _attr_src(request))  # на квиз метки могли не доехать — берём и из куки
                 .replace("__DARK__", "1" if t["dark"] else "0")
                 .replace("__PRICE__", str(int(PRICE_RUB)))
                 .replace("__SUB_PRICE__", str(int(SUB_PRICE_RUB))))
@@ -1209,6 +1618,58 @@ class Lead(BaseModel):
     goal: str = ""
     quiz: dict = {}
     src: str = "organic"
+
+
+# ── Квиз: белый список полей ─────────────────────────────────────────────────
+# quiz приходил на сервер как есть — любой словарь любого размера ложился в
+# leads.jsonl и в orders.jsonl. Это и мусор в данных, по которым потом собирают
+# план, и свободный канал «пиши что хочешь ко мне на диск».
+#
+# Форма каждого поля фиксирована: строка / список строк / три числа тела. Всё
+# незнакомое отбрасывается, а факт отбрасывания виден в счётчике — если фронт
+# заведёт новое поле, оно не пропадёт молча.
+_QUIZ_FIELDS = {
+    "goal": "str", "gender": "str", "age": "str", "activity": "str",
+    "meals": "str", "cook": "str", "exclude": "str",
+    "why": "list", "barriers": "list", "diet": "list",
+    "favorites": "list", "disliked": "list",
+    "body": "body",
+}
+
+
+def _clean_quiz(quiz) -> dict:
+    if not isinstance(quiz, dict):
+        return {}
+    out: dict = {}
+    for k, kind in _QUIZ_FIELDS.items():
+        if k not in quiz:
+            continue
+        v = quiz[k]
+        if kind == "str":
+            if isinstance(v, (str, int, float)):
+                s = str(v).strip()[:300]   # exclude («что ещё не ем») — самое длинное поле
+                if s:
+                    out[k] = s
+        elif kind == "list":
+            if isinstance(v, list):
+                vals = [str(x).strip()[:80] for x in v[:40]
+                        if isinstance(x, (str, int, float)) and str(x).strip()]
+                if vals:
+                    out[k] = vals
+        elif kind == "body" and isinstance(v, dict):
+            body = {}
+            for f in ("height", "weight", "target"):
+                try:
+                    n = float(v.get(f))
+                except (TypeError, ValueError):
+                    continue
+                if 0 < n < 500:            # рост/вес человека, а не произвольное число
+                    body[f] = round(n, 1)
+            if body:
+                out["body"] = body
+    if len(quiz) > len(out):
+        _bump("quiz_extra_keys")           # фронт прислал что-то сверх списка — надо посмотреть
+    return out
 
 
 # Блюда для «Примера дня» на экране оплаты.
@@ -1466,9 +1927,58 @@ def preview_day(req: PreviewReq) -> JSONResponse:
     return JSONResponse({"meals": meals})
 
 
+# Предохранитель домена: сколько писем-лидов вообще может уйти за сутки со всего
+# сайта. Лимиты по адресу и по IP не спасают от распределённой заливки, а цена
+# здесь не «спам», а репутация домена в Unisender Go: сгорит она — письма
+# перестанут доходить ОПЛАТИВШИМ. Живому бизнесу потолок не мешает: лидов у нас
+# единицы-десятки в сутки, до 200 не дотягивает даже удачный день.
+LEAD_MAIL_DAILY_CAP = int(os.getenv("NUTRI_LEAD_MAIL_DAILY_CAP", "200"))
+
+
+def _lead_mail_budget_ok() -> bool:
+    day = datetime.now(timezone.utc).strftime("%Y%m%d")
+    key = f"lead_mail_{day}"
+    if int(_counters().get(key, 0) or 0) >= LEAD_MAIL_DAILY_CAP:
+        _bump("lead_mail_capped")
+        print(f"[ALERT] суточный потолок писем-лидов ({LEAD_MAIL_DAILY_CAP}) исчерпан — "
+              f"письмо не отправлено, лид сохранён", flush=True)
+        return False
+    _bump(key)
+    return True
+
+
 @app.post("/api/lead")
 def save_lead(lead: Lead, request: Request, bg: BackgroundTasks) -> JSONResponse:
+    """Лид с квиза: строка в leads.jsonl + письмо с нормой и ссылкой на пейволл.
+
+    Ручка открыта наружу и на КАЖДЫЙ запрос шлёт письмо с нашего домена на любой
+    указанный адрес — то есть без лимитов это бесплатный рассыльщик чужой почты.
+    Проверено: 14 запросов подряд → 14 писем. Цена ошибки не «спам», а блокировка
+    домена в Unisender Go, после которой письма перестают доходить ОПЛАТИВШИМ.
+    Поэтому: лимит по адресу И по IP, обрезка квиза по белому списку.
+
+    Лимиты выбраны так, чтобы живой человек в них не упирался: квиз отправляет
+    лид один раз за прохождение, 5 прохождений в час с одного адреса — это уже
+    не человек. По IP лимит вчетверо шире: за одним адресом сидит и офисный
+    wi-fi, и CGNAT мобильного оператора, а терять лид дороже, чем пропустить
+    два десятка писем.
+    """
+    em = str(lead.email).strip().lower()
+    # Свои прогоны (np_notrack=1) не лимитируем: они и так не пишут лид и не шлют
+    # письмо — ограничивать нечего, а e2e гоняет воронку десятки раз подряд с
+    # одного адреса и одного IP. Обойти защиту этим нельзя ровно поэтому.
+    if not notrack() and not (
+            _rate_ok("lead_email", em, 5, 3600) and _rate_ok("lead_ip", _client_ip(request), 20, 3600)):
+        _bump("lead_rate_limited")
+        # 429 квиз не ломает: он раскрывает план на любом ответе, кроме 422.
+        return JSONResponse({"error": "too many"}, status_code=429)
+    quiz = _clean_quiz(lead.quiz)
+    marks = _marks(request)
     rec = lead.model_dump()
+    rec["quiz"] = quiz
+    rec["src"] = "ad" if _attr_src(request) == "ad" else (lead.src or "organic")
+    if marks:
+        rec["utm"] = marks
     rec["ts"] = datetime.now(timezone.utc).isoformat()
     slug = lead.landing if lead.landing in LANDINGS else "?"
     _bump(f"lead_{slug}")
@@ -1476,19 +1986,15 @@ def save_lead(lead: Lead, request: Request, bg: BackgroundTasks) -> JSONResponse
         # Свой прогон: ни строки в лидах, ни письма. Отвечаем как обычно —
         # фронт должен вести себя ровно так же, иначе тестируется не то.
         return JSONResponse({"ok": True})
-    try:
-        DATA.mkdir(parents=True, exist_ok=True)
-        with open(LEADS, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-    except Exception:
-        pass
+    _append_jsonl(LEADS, rec, "lead")
     # квиз-лид → письмо с готовой нормой + ссылкой СРАЗУ на пейволл (не на старт квиза заново)
-    if lead.quiz and lead.email:
+    if quiz and lead.email:
         base = str(request.base_url).rstrip("/")
         ls = lead.landing if lead.landing in LANDINGS else DEFAULT_LANDING
-        tok = _lead_token_make(str(lead.email), lead.quiz)
+        tok = _lead_token_make(str(lead.email), quiz)
         link = f"{base}/quiz?l={ls}&resume={tok}"  # resume → квиз восстановит норму и покажет пейволл
-        bg.add_task(_send_lead, str(lead.email), lead.quiz, link)
+        if _lead_mail_budget_ok():
+            bg.add_task(_send_lead, str(lead.email), quiz, link)
     return JSONResponse({"ok": True})
 
 
@@ -1502,12 +2008,9 @@ def lead_resume(token: str) -> JSONResponse:
 
 
 def _write_order(rec: dict) -> None:
-    try:
-        DATA.mkdir(parents=True, exist_ok=True)
-        with open(ORDERS, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-    except Exception:
-        pass
+    # Заказ — единственный след платежа на нашей стороне: по нему ищут оплату
+    # вебхук, /pay/success и cron-досдача. Потерять его молча нельзя.
+    _append_jsonl(ORDERS, rec, "order")
 
 
 class PayReq(BaseModel):
@@ -1518,14 +2021,36 @@ class PayReq(BaseModel):
     src: str = "organic"
 
 
+def _order_src(req: PayReq, request: Request) -> str:
+    """Источник заказа. Серверный вывод сильнее присланного телом: src в теле
+    собирает страница квиза, а на квиз метки могли не доехать — ровно из-за
+    этого КАЖДАЯ платная покупка ложилась в orders.jsonl как organic."""
+    return "ad" if _attr_src(request) == "ad" else (req.src or "organic")
+
+
+def _pay_rate_ok(req: PayReq, request: Request) -> bool:
+    """Тот же класс, что и у /api/lead: ручка без авторизации создаёт платежи в
+    ЮKassa и пишет строки на диск. Живой человек оформляет заказ один-два раза
+    (мог передумать с тарифом, мог вернуться после «платёж не прошёл»), поэтому
+    10 в час с адреса и 40 с IP он не увидит."""
+    em = str(req.email).strip().lower()
+    if _rate_ok("pay_email", em, 10, 3600) and _rate_ok("pay_ip", _client_ip(request), 40, 3600):
+        return True
+    _bump("pay_rate_limited")
+    return False
+
+
 @app.post("/api/pay/create")
 def pay_create(req: PayReq, request: Request) -> JSONResponse:
     """Создать платёж в ЮKassa → вернуть URL страницы оплаты."""
     if not (YOOKASSA_SHOP and YOOKASSA_SECRET):
         return JSONResponse({"error": "payments not configured"}, status_code=503)
+    if not _pay_rate_ok(req, request):
+        return JSONResponse({"error": "too many"}, status_code=429)
     import uuid
     import requests
     slug = req.landing if req.landing in LANDINGS else DEFAULT_LANDING
+    src, marks = _order_src(req, request), _marks(request)
     oid = uuid.uuid4().hex
     base = str(request.base_url).rstrip("/")
     val = f"{float(PRICE_RUB):.2f}"
@@ -1557,10 +2082,12 @@ def pay_create(req: PayReq, request: Request) -> JSONResponse:
         # Без него единственным выходом с экрана «платёж обрабатывается» было
         # оформить заказ заново.
         _write_order({"order": oid, "payment_id": j.get("id"), "status": j.get("status"),
-                      "email": req.email, "landing": slug, "goal": req.goal, "quiz": req.quiz,
-                      "src": req.src, "amount": PRICE_RUB, "pay_url": url,
+                      "email": req.email, "landing": slug, "goal": req.goal,
+                      "quiz": _clean_quiz(req.quiz), "src": src, "utm": marks,
+                      "amount": PRICE_RUB, "pay_url": url,
                       "ts": datetime.now(timezone.utc).isoformat()})
         _bump(f"pay_init_{slug}")
+        _bump(f"pay_init_{slug}_{src}")
         return JSONResponse({"url": url}) if url else JSONResponse({"error": "no url"}, status_code=502)
     except Exception:
         return JSONResponse({"error": "yookassa error"}, status_code=502)
@@ -1571,6 +2098,8 @@ def pay_subscribe(req: PayReq, request: Request) -> JSONResponse:
     """Первый платёж подписки — с save_payment_method (сохранить способ для автосписаний)."""
     if not (YOOKASSA_SHOP and YOOKASSA_SECRET):
         return JSONResponse({"error": "payments not configured"}, status_code=503)
+    if not _pay_rate_ok(req, request):
+        return JSONResponse({"error": "too many"}, status_code=429)
     import uuid
     import requests
     # Уже есть активная подписка на этот email → не создаём вторую (иначе вторая невидима
@@ -1582,6 +2111,7 @@ def pay_subscribe(req: PayReq, request: Request) -> JSONResponse:
             base = str(request.base_url).rstrip("/")
             return JSONResponse({"already": True, "plan_url": f"{base}/plan/{s.get('plan_token','')}"})
     slug = req.landing if req.landing in LANDINGS else DEFAULT_LANDING
+    src, marks = _order_src(req, request), _marks(request)
     sid = uuid.uuid4().hex
     base = str(request.base_url).rstrip("/")
     val = f"{float(SUB_PRICE_RUB):.2f}"
@@ -1604,28 +2134,53 @@ def pay_subscribe(req: PayReq, request: Request) -> JSONResponse:
         j = r.json()
         url = (j.get("confirmation") or {}).get("confirmation_url", "")
         _write_order({"order": sid, "type": "subscription", "payment_id": j.get("id"), "status": j.get("status"),
-                      "email": req.email, "landing": slug, "goal": req.goal, "quiz": req.quiz,
-                      "src": req.src, "amount": SUB_PRICE_RUB, "pay_url": url,
+                      "email": req.email, "landing": slug, "goal": req.goal,
+                      "quiz": _clean_quiz(req.quiz), "src": src, "utm": marks,
+                      "amount": SUB_PRICE_RUB, "pay_url": url,
                       "ts": datetime.now(timezone.utc).isoformat()})
         _bump(f"sub_init_{slug}")
+        _bump(f"sub_init_{slug}_{src}")
         return JSONResponse({"url": url}) if url else JSONResponse({"error": "no url"}, status_code=502)
     except Exception:
         return JSONResponse({"error": "yookassa error"}, status_code=502)
 
 
 def _yk_get_payment(pid: str) -> dict:
-    """Перепроверка платежа через API ЮKassa — НЕ доверяем телу вебхука (защита от подделки)."""
+    """Перепроверка платежа через API ЮKassa — НЕ доверяем телу вебхука (защита от подделки).
+
+    При ТЕХНИЧЕСКОМ сбое (сеть, 5xx, нет ключей) возвращает {"_unknown": True}. Это не
+    педантизм: «API ответил, что платёж не succeeded» и «мы не смогли спросить» — разные
+    вещи. Схлопнув их в пустой словарь, вебхук отвечал 200 на моргнувшую сеть, ЮKassa
+    считала уведомление доставленным и больше его не повторяла — оплата навсегда теряла
+    план, письмо и подписку."""
     if not (YOOKASSA_SHOP and YOOKASSA_SECRET and pid):
-        return {}
+        return {"_unknown": True}
     try:
         import requests
         r = requests.get(f"https://api.yookassa.ru/v3/payments/{pid}",
                          auth=(YOOKASSA_SHOP, YOOKASSA_SECRET), timeout=20)
         if r.status_code == 200:
             return r.json()
+        if r.status_code == 404:
+            return {}  # платежа нет — это ОТВЕТ (подделка), повторять уведомление незачем
     except Exception:  # noqa: BLE001
         pass
-    return {}
+    return {"_unknown": True}
+
+
+def _yk_unknown(v: dict) -> bool:
+    """Мы НЕ ЗНАЕМ ответа ЮKassa (в отличие от «ответ отрицательный»). Пустой словарь
+    тоже считаем незнанием: валидный платёж пустым не бывает."""
+    return not v or bool(v.get("_unknown"))
+
+
+def _webhook_retry(event: str, pid: str) -> JSONResponse:
+    """Ответ 5xx на уведомление, которое мы не смогли перепроверить: ЮKassa повторит
+    доставку. 200 здесь означал бы «обработано» — и событие терялось безвозвратно."""
+    _bump("webhook_verify_fail")
+    print(f"[ALERT] webhook {event}: перепроверка платежа {pid or '?'} НЕ УДАЛАСЬ "
+          f"(API недоступен) — отвечаем 503, ждём повтора от ЮKassa", flush=True)
+    return JSONResponse({"ok": False, "retry": True}, status_code=503)
 
 
 @app.post("/api/pay/webhook")
@@ -1654,6 +2209,10 @@ async def pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
         # Проверяем по API: возврат виден в самом платеже как refunded_amount.
         # Без этого поддельное уведомление гасило бы подписку живому плательщику.
         verified = _yk_get_payment(pid)
+        if _yk_unknown(verified):
+            # Спросить не удалось. Ответив 200, мы бы навсегда потеряли возврат: подписка
+            # осталась бы active с картой, и через 30 дней cron списал бы с того, кому вернули.
+            return _webhook_retry("refund.succeeded", pid)
         try:
             refunded = float((verified.get("refunded_amount") or {}).get("value") or 0)
         except Exception:  # noqa: BLE001
@@ -1685,6 +2244,8 @@ async def pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
     if event == "payment.canceled":
         pid = obj.get("id", "")
         verified = _yk_get_payment(pid)
+        if _yk_unknown(verified):
+            return _webhook_retry("payment.canceled", pid)  # не знаем — пусть повторят
         if verified.get("status") != "canceled":
             return JSONResponse({"ok": True, "verified": False})
         obj = verified            # дальше только проверенные данные
@@ -1699,23 +2260,28 @@ async def pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
                       "email": meta.get("email", ""), "landing": slug,
                       "ts": datetime.now(timezone.utc).isoformat(), "event": "payment.canceled"})
         _bump(f"{'sub_fail' if typ in ('subscription', 'sub_renew') else 'pay_fail'}_{slug}")
-        # Регулярное списание не прошло — подписку в past_due, чтобы cron повторил,
-        # а не считал её здоровой.
+        # Регулярное списание не прошло: платёж мёртв, досматривать его больше нечего →
+        # снимаем pending_charge_id. Статус переводим в past_due («идут ретраи», cron
+        # добивает до next_charge+grace и потом завершает) и ТОЛЬКО из active: cron мог
+        # уже увести подписку в ended, а человек — отменить её, и вебхук, ходивший тут
+        # мимо _guarded_status, воскрешал чужое состояние поверх.
         oid = meta.get("order", "")
         if typ == "sub_renew" and oid and _load_sub(oid):
-            _sub_merge(oid, {"status": "past_due"}, remove=("pending_charge_id",))
+            _sub_merge(oid, {}, remove=("pending_charge_id",))
+            _guarded_status(oid, "past_due")
         print(f"[pay] платёж {pid} отклонён ({reason}) тариф={typ}", flush=True)
         return JSONResponse({"ok": True})
 
     if event == "payment.succeeded":
-        verified = _yk_get_payment(obj.get("id", ""))
+        pid = obj.get("id", "")
+        verified = _yk_get_payment(pid)
+        if _yk_unknown(verified):
+            # Раньше здесь молча уходило 200: сеть моргнула → ЮKassa считала уведомление
+            # доставленным и не повторяла его, а плана, письма и подписки так и не было.
+            return _webhook_retry("payment.succeeded", pid)
         if not (verified.get("status") == "succeeded" and verified.get("paid")):
             return JSONResponse({"ok": True, "verified": False})  # подделка/неоплачено — игнор
         obj = verified  # дальше используем ТОЛЬКО проверенные данные ЮKassa
-        # Идемпотентность: повторная доставка того же payment_id → выходим сразу
-        # (иначе сброс next_charge, второе письмо, дубль LLM, воскрешение отмены).
-        if _already_processed(obj.get("id", "")):
-            return JSONResponse({"ok": True, "duplicate": True})
         meta = obj.get("metadata") or {}
         typ = meta.get("type", "once")
         slug = meta.get("landing", "?")
@@ -1733,9 +2299,27 @@ async def pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
             return JSONResponse({"ok": True, "verified": False, "reason": "amount"})  # недоплата
         base = str(request.base_url).rstrip("/")
         now = datetime.now(timezone.utc)
+        quiz = order.get("quiz") or {}
+        # Источник берём ИЗ ЗАКАЗА: вебхук приходит от ЮKassa, ни куки, ни меток
+        # клика в нём нет. Даёт разрез «сколько денег принесла реклама» прямо в
+        # счётчиках, а не только при разборе orders.jsonl.
+        osrc = order.get("src") or "organic"
+        # Идемпотентность: повторная доставка того же payment_id → выходим сразу
+        # (иначе сброс next_charge, второе письмо, дубль LLM, воскрешение отмены).
+        # ИСКЛЮЧЕНИЕ: оплата есть, а файла плана нет — значит генерация не дожила до конца
+        # (исключение внутри _fulfill_paid или рестарт контейнера). Раньше такой повтор
+        # отбрасывался как дубль, и «оплачено, плана нет» становилось вечным; теперь повтор —
+        # это шанс дозвать доставку. _fulfill_once не даст ни второго плана, ни второго письма.
+        if _already_processed(pid):
+            if typ in ("once", "subscription") and _plan_missing(oid):
+                _bump("fulfill_retry_webhook")
+                print(f"[ALERT] повтор вебхука по оплаченному заказу без плана — "
+                      f"дозаказываем: order={oid}", flush=True)
+                bg.add_task(_fulfill_once, email, quiz, oid, base)
+                return JSONResponse({"ok": True, "duplicate": True, "refulfill": True})
+            return JSONResponse({"ok": True, "duplicate": True})
         _write_order({"order": oid, "type": typ, "payment_id": obj.get("id"), "status": "succeeded",
                       "email": email, "landing": slug, "ts": now.isoformat(), "event": "payment.succeeded"})
-        quiz = order.get("quiz") or {}
         if typ == "subscription":
             pm = (obj.get("payment_method") or {}).get("id", "")
             # Если sub уже есть (гонка/повтор) — не сбрасываем счётчики, только гарантируем карту.
@@ -1748,6 +2332,7 @@ async def pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
                            "next_charge": (now + timedelta(days=30)).isoformat(),
                            "next_plan": (now + timedelta(days=7)).isoformat()})
             _bump(f"sub_ok_{slug}")
+            _bump(f"sub_ok_{slug}_{osrc}")
             # Письмо об активации — отдельно от письма с планом: человек должен из почты
             # знать сумму, дату следующего списания и куда идти отменять. В фон, чтобы
             # мейлер не съел таймаут вебхука (иначе ЮKassa начнёт ретраить доставку).
@@ -1755,7 +2340,7 @@ async def pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
             bg.add_task(_sub_mail_once, oid, "mail_started", "Подписка активирована · NutriPlan",
                         _sub_started_email(base, oid, s.get("amount", SUB_PRICE_RUB),
                                            s.get("next_charge", "")), "sub_started")
-            bg.add_task(_fulfill_paid, email, quiz, oid, base)  # даже при пустом quiz → bank-план + письмо
+            bg.add_task(_fulfill_once, email, quiz, oid, base)  # даже при пустом quiz → bank-план + письмо
         elif typ == "sub_renew":
             _bump(f"sub_renew_ok_{slug}")
             # Продление подтверждено. Чистим pending, сдвигаем next_charge (guard в _advance_charge
@@ -1769,7 +2354,8 @@ async def pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
                 bg.add_task(_mail_charged, s, obj.get("id", ""), base)  # с уже сдвинутой датой
         else:
             _bump(f"pay_ok_{slug}")
-            bg.add_task(_fulfill_paid, email, quiz, oid, base)  # даже при пустом quiz
+            _bump(f"pay_ok_{slug}_{osrc}")
+            bg.add_task(_fulfill_once, email, quiz, oid, base)  # даже при пустом quiz
     return JSONResponse({"ok": True})
 
 
@@ -1986,12 +2572,24 @@ def plan_page(token: str) -> HTMLResponse:
     if sub:
         subinfo = {"status": sub.get("status"), "next": sub.get("next_charge", ""),
                    "amount": sub.get("amount", SUB_PRICE_RUB), "has_card": bool(sub.get("payment_method_id"))}
-    return HTMLResponse(_inject_metrika(plan.page_html(pl, token=safe, sub=subinfo)))
+    # Счётчика здесь НЕТ намеренно. Токен в адресе — единственный пароль к плану,
+    # и по нему же работают отмена подписки и отвязка карты; Метрика шлёт page-url
+    # целиком, а отчёт «Популярное» открывается гостевым доступом — счётчик выдавал
+    # готовый список рабочих токенов живых клиентов (проверено перехватом:
+    # watch/<id>?page-url=…/plan/a1b2…secrettoken99).
+    #
+    # Обезличенного хита мало: при defer:true Метрика всё равно отправляет
+    # технический запрос с настоящим адресом (nohit=1) — замерено там же. Целей на
+    # этой странице нет (npGoal никто не зовёт), терять нечего. Вернуть аналитику
+    # можно будет после обмена токена на HttpOnly-куку — тогда секрета в адресе
+    # не станет.
+    return HTMLResponse(_no_referrer_leak(plan.page_html(pl, token=safe, sub=subinfo)))
 
 
 class SwapReq(BaseModel):
     day: int
     slot: str
+    idx: int | None = None      # номер приёма в дне; слоты повторяются («Перекус» ×2)
 
 
 @app.post("/api/plan/{token}/swap")
@@ -2004,7 +2602,13 @@ def plan_swap(token: str, req: SwapReq, request: Request, bg: BackgroundTasks) -
     if not (0 <= req.day < len(days)):
         return JSONResponse({"error": "bad day"}, status_code=400)
     meals = days[req.day].get("meals") or []
-    idx = next((i for i, m in enumerate(meals) if m.get("slot") == req.slot), -1)
+    # Сначала по номеру приёма, и только потом по названию слота: «Перекус» в дне
+    # бывает дважды, и поиск по слоту заменял ПЕРВЫЙ — человек жал «Заменить» на
+    # втором перекусе, а менялся первый.
+    if req.idx is not None and 0 <= req.idx < len(meals) and meals[req.idx].get("slot") == req.slot:
+        idx = req.idx
+    else:
+        idx = next((i for i, m in enumerate(meals) if m.get("slot") == req.slot), -1)
     if idx < 0:
         return JSONResponse({"error": "no meal"}, status_code=404)
     old = meals[idx]
@@ -2016,6 +2620,37 @@ def plan_swap(token: str, req: SwapReq, request: Request, bg: BackgroundTasks) -
     _save_plan("".join(c for c in token if c.isalnum()), pl)
     bg.add_task(dish_photos.generate, dish_photos.slugify(new.get("name", "")), new.get("name", ""))
     return JSONResponse({"meal": new})
+
+
+class SwapDayReq(BaseModel):
+    day: int
+
+
+@app.post("/api/plan/{token}/swap-day")
+def plan_swap_day(token: str, req: SwapDayReq, bg: BackgroundTasks) -> JSONResponse:
+    """Заменить ВЕСЬ день целиком: состав приёмов и калорийность те же, блюда новые.
+
+    Лимит жёстче, чем у замены блюда: один запрос — это целый день генерации, и
+    перебирать дни «пока не понравится» стоило бы дороже самой подписки.
+    """
+    if not _rate_ok("swapday", "".join(c for c in token if c.isalnum())[:40], 8, 3600):
+        return JSONResponse({"error": "too many"}, status_code=429)
+    pl = _load_plan(token)
+    days = pl.get("days") or []
+    if not (0 <= req.day < len(days)):
+        return JSONResponse({"error": "bad day"}, status_code=400)
+    meals = days[req.day].get("meals") or []
+    if not meals:
+        return JSONResponse({"error": "no meals"}, status_code=404)
+    import plan_ai
+    new = plan_ai.swap_day(pl.get("quiz") or {}, meals)
+    if not new:
+        return JSONResponse({"error": "gen failed"}, status_code=502)
+    days[req.day]["meals"] = new
+    _save_plan("".join(c for c in token if c.isalnum()), pl)
+    for m in new:      # фото к моменту, когда человек долистает до дня
+        bg.add_task(dish_photos.generate, dish_photos.slugify(m.get("name", "")), m.get("name", ""))
+    return JSONResponse({"meals": new})
 
 
 class SettingsReq(BaseModel):
@@ -2063,6 +2698,13 @@ def plan_settings(token: str, req: SettingsReq, request: Request, bg: Background
     new["quiz"] = quiz
     safe = "".join(c for c in token if c.isalnum())
     _save_plan(safe, new, reset_progress=True)  # план пересобран → отметки «приготовил» неактуальны
+    # Настройки должны пережить недельную регенерацию: cron собирает следующую неделю по
+    # quiz из файла ПОДПИСКИ, а не из файла плана. Без этой записи через 7 дней возвращались
+    # старый вес, старая цель и пустой exclude — то есть исключённые продукты (для многих это
+    # жёсткий стоп-лист: аллергия) снова оказывались в меню.
+    _sid = _sub_by_plan_token(safe)
+    if _sid:
+        _sub_merge(_sid, {"quiz": quiz})
     bg.add_task(_pregen_dish_photos, new)
     return JSONResponse({"ok": True, "cal": new.get("cal")})
 
@@ -2147,8 +2789,11 @@ def _pay_failed_page(base_url_hint: str = "") -> HTMLResponse:
         status_code=200)
 
 
+PAY_ORDER_COOKIE = "np_o"  # заказ, по которому открыта страница возврата (см. pay_success)
+
+
 @app.get("/pay/success", response_class=HTMLResponse)
-def pay_success(o: str = "") -> HTMLResponse:
+def pay_success(o: str = "", request: Request = None, bg: BackgroundTasks = None) -> HTMLResponse:
     """Возврат с ЮKassa. Экран определяется ПЕРЕПРОВЕРЕННЫМ статусом платежа,
     а не фактом редиректа: ЮKassa возвращает сюда и когда человек просто закрыл
     окно оплаты.
@@ -2164,13 +2809,37 @@ def pay_success(o: str = "") -> HTMLResponse:
                                      дозавершиться), но НЕ утверждаем оплату
       canceled                    → «Оплата не прошла»
       всё остальное               → «Не нашли платёж» — честнее, чем гадать
+
+    Здесь же — второй шанс на доставку: если платёж подтверждён, а плана нет, страница
+    сама запускает фулфилмент. Раньше она видела succeeded, не запускала НИЧЕГО и по
+    таймауту обещала письмо, которого никто не отправлял.
     """
     oid = "".join(c for c in (o or "") if c.isalnum())[:40]
+    # Фолбэк на куку: страница вычищает ?o= из адреса (там тот же токен, что и у
+    # плана, — см. ниже), поэтому после F5 заказ надо чем-то опознать. Кука своя
+    # у каждого браузера, чужой заказ по ней не откроется.
+    if not oid and request is not None:
+        oid = "".join(c for c in request.cookies.get(PAY_ORDER_COOKIE, "") if c.isalnum())[:40]
     order = _find_order(oid) if oid else {}
     pid = order.get("payment_id", "")
     st = _yk_get_payment(pid).get("status", "") if pid else ""
     plan_ready = bool(oid) and (PLANS / f"{oid}.json").exists()
     pay_url = order.get("pay_url", "")
+
+    if st == "succeeded" and oid and not plan_ready and order.get("type") != "sub_renew":
+        # Деньги подтверждены, плана нет — вебхук либо не дошёл, либо упал на генерации.
+        # Человек стоит на этой странице ИМЕННО СЕЙЧАС, ждать часового тика cron незачем.
+        # Повторное открытие страницы дубля не даст: _fulfill_once проверяет файл плана
+        # и держит аренду на время генерации.
+        _bump("fulfill_retry_success_page")
+        print(f"[ALERT] /pay/success: оплачено, плана нет — запускаем доставку order={oid}", flush=True)
+        _base = str(request.base_url).rstrip("/") if request is not None else PUBLIC_BASE
+        _args = (order.get("email", ""), order.get("quiz") or {}, oid, _base)
+        if bg is not None:
+            bg.add_task(_fulfill_once, *_args)
+        else:  # прямой вызов (тесты) — фоновых задач нет, но доставка всё равно должна пойти
+            import threading
+            threading.Thread(target=_fulfill_once, args=_args, daemon=True).start()
 
     if st == "canceled" and not plan_ready:
         return _pay_failed_page()
@@ -2182,14 +2851,25 @@ def pay_success(o: str = "") -> HTMLResponse:
 
     poll = ""
     if oid:
+        # Текст по таймауту раньше утверждал «отправили ссылку на почту». Письмо уходит
+        # ТОЛЬКО вместе с готовым планом, а раз мы досюда дошли — плана нет, значит и
+        # письма не было. Обещать его — врать. Говорим, что доделаем, и даём канал связи.
+        late = ("Сборка затянулась. Мы это видим и доведём до конца — ссылка придёт на почту. "
+                "Если письма не будет в течение часа, напиши: support@mynutriplan.ru"
+                if paid else
+                "Банк всё ещё не подтвердил платёж. Если деньги спишутся, план соберётся сам "
+                "и ссылка придёт на почту. Если списание уже прошло — "
+                "напиши: support@mynutriplan.ru")
         poll = (
             "<script>(function(){var t=0;"
             f"var u='/api/plan/{oid}/ready',p='/plan/{oid}';"
             "function tick(){t+=3;fetch(u).then(function(r){return r.json()}).then(function(j){"
             "if(j.ready){location.href=p;return;}"
             "if(t<240){setTimeout(tick,3000);}else{"
-            "document.getElementById('wait').innerHTML='План почти готов — отправили ссылку на почту. "
-            "Проверь входящие (и \\u00abПромоакции\\u00bb).';}"
+            # textContent, а не innerHTML: текст здесь наш, но подставлять его как разметку
+            # без нужды — лишний способ однажды получить XSS
+            f"document.getElementById('wait').textContent={json.dumps(late, ensure_ascii=False)};"
+            "}"
             "}).catch(function(){setTimeout(tick,5000);});}"
             "setTimeout(tick,3000);})();</script>")
 
@@ -2227,12 +2907,24 @@ def pay_success(o: str = "") -> HTMLResponse:
             "stroke-linecap='round'><path d='M12 7v5l3 2'/><circle cx='12' cy='12' r='9'/></svg>")
     ring_bg = "#16A34A" if paid else "#B98900"
 
-    return HTMLResponse(_inject_metrika(
+    # Вычистить ?o= из адреса ДО того, как загрузится счётчик: в нём тот же токен,
+    # что и в адресе плана (файл плана лежит как {order}.json), а Метрика шлёт
+    # page-url целиком. Скрипт синхронный и стоит выше сниппета Метрики, tag.js
+    # грузится асинхронно — то есть к моменту чтения location адрес уже чистый.
+    # Заказ после этого опознаётся по куке (см. начало функции), поэтому F5 не
+    # выкидывает человека на «не нашли платёж».
+    scrub = ("<script>try{history.replaceState(null,'','/pay/success');}catch(e){}</script>"
+             if oid else "")
+
+    resp = HTMLResponse(_inject_metrika(
         # <head> здесь настоящий, а не для красоты: _inject_metrika вставляет
         # счётчик ПЕРЕД </head>, и без него страница возврата оставалась без
         # аналитики — слепое пятно №1 из доктрины add-payments: деньги дошли,
         # а Метрика и Директ об этом не узнали.
+        # Цели вида «URL содержит /pay/success» продолжают срабатывать.
+        _no_referrer_leak(
         "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
+        + scrub +
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         f"<title>{title} · NutriPlan</title>"
         "<style>html,body{margin:0;background:#FBF8F1}</style>"
@@ -2248,7 +2940,13 @@ def pay_success(o: str = "") -> HTMLResponse:
         "<div style='margin-top:18px;width:34px;height:34px;border:3px solid #DCFCE7;border-top-color:#16A34A;"
         "border-radius:50%;animation:sp 1s linear infinite'></div>"
         "<style>@keyframes sp{to{transform:rotate(360deg)}}</style>"
-        + poll + paid_goal + "</div></body></html>"))
+        + poll + paid_goal + "</div></body></html>"), anon_page="/pay/success"))
+    if oid:
+        # Живёт сутки: страница возврата актуальна минуты, но человек может
+        # вернуться на неё из истории браузера, пока план собирается.
+        resp.set_cookie(PAY_ORDER_COOKIE, oid, max_age=86400, samesite="lax",
+                        path="/pay/success", httponly=True)
+    return resp
 
 
 def _return_mails(token: str, pl: dict, base: str, now: datetime) -> int:
@@ -2298,19 +2996,25 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
     now = datetime.now(timezone.utc)
     base = str(request.base_url).rstrip("/")
     out = {"checked": 0, "replanned": 0, "billed": 0, "pending": 0, "retrying": 0, "past_due": 0,
-           "demo_skipped": 0, "canceled_served": 0, "renew_notified": 0}
-    grace = timedelta(days=3)  # окно ретраев после неудачного списания, потом past_due
+           "ended": 0, "demo_skipped": 0, "canceled_served": 0, "renew_notified": 0}
+    grace = timedelta(days=3)  # окно ретраев после неудачного списания, потом ended
     for sub in _all_subs():
         # демо-подписки (для проверяющих ЮKassa) не биллим и не регенерим — иначе
         # cron спишет с фейковой карты, провалится и покажет демо как past_due
         if (sub.get("sub_id") in DEMO_TOKENS) or (sub.get("plan_token") in DEMO_TOKENS):
             out["demo_skipped"] += 1
             continue
+        st0 = sub.get("status")
+        active = st0 == "active"
+        # past_due — это НЕ «отвалился», а «списание не прошло, идут ретраи». Раньше цикл
+        # брал только active и оплаченный canceled, поэтому подписка, которую вебхук увёл
+        # в past_due, выпадала из обслуживания НАВСЕГДА: ни повторной попытки списать, ни
+        # письма «не удалось продлить», ни новых недель — а человек считал себя подписанным.
+        retry = st0 == "past_due"
         # Отменивший УЖЕ ОПЛАТИЛ период до next_charge — недели ему довозим до конца
-        # этого периода (деньги при этом не трогаем: списание только для active).
-        active = sub.get("status") == "active"
-        served = (not active) and sub.get("status") == "canceled" and _period_paid(sub, now)
-        if not (active or served):
+        # этого периода (деньги при этом не трогаем: списание только для active/past_due).
+        served = (not active) and st0 == "canceled" and _period_paid(sub, now)
+        if not (active or retry or served):
             continue
         out["checked"] += 1
         if served:
@@ -2335,11 +3039,13 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                 out["replanned"] += 1
         except Exception:  # noqa: BLE001
             pass
-        # деньги — только у active: с отменённого не списываем, ему лишь довозим недели
+        # деньги — у active и у past_due (там как раз и идут ретраи); с отменённого не
+        # списываем, ему лишь довозим недели до конца оплаченного периода
+        billable = active or retry
         try:  # месячное списание (pending-aware + grace-ретраи + честная обработка отвязки)
-            pend = sub.get("pending_charge_id") if active else None
+            pend = sub.get("pending_charge_id") if billable else None
             nc = datetime.fromisoformat(sub["next_charge"])
-            due = active and now >= nc
+            due = billable and now >= nc
             # Предупреждение за 3 дня. Только если списание реально произойдёт (карта на
             # месте) и ровно один раз на период — метка хранит тот next_charge, о котором
             # уже предупредили, поэтому в следующем месяце предупредим снова.
@@ -2357,6 +3063,8 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                     if _advance_charge(sub, now):
                         upd["next_charge"] = sub["next_charge"]; out["billed"] += 1
                     rem.append("pending_charge_id")
+                    if retry:  # ретрай дозрел до успеха — возвращаем подписку в строй
+                        _guarded_status(sid, "active", only=("past_due",))
                     _mail_charged(sub, pend, base)
                 elif st == "canceled":
                     rem.append("pending_charge_id")  # провал → grace-логика на след. тике
@@ -2364,8 +3072,8 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
             elif due and not sub.get("payment_method_id"):
                 # Карта отвязана юзером (unbind) — автопродление невозможно. По истечении
                 # периода честно ЗАВЕРШАЕМ подписку. НЕ «банк отклонил», НЕ grace-ретраи.
-                if _guarded_status(sid, "ended"):
-                    out["past_due"] += 1  # (в счётчике «завершённые по отвязке»)
+                if _guarded_status(sid, "ended", only=("active", "past_due")):
+                    out["ended"] += 1
                     _send_email(sub["email"], "Подписка завершена · NutriPlan",
                                 _sub_ended_email(base, unbound=True), "sub_ended")
             elif due:
@@ -2374,16 +3082,24 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                     if _advance_charge(sub, now):
                         upd["next_charge"] = sub["next_charge"]
                     out["billed"] += 1
+                    if retry:  # деньги пришли — подписка снова здорова (но не воскрешаем отменённую)
+                        _guarded_status(sid, "active", only=("past_due",))
                     _mail_charged(sub, pid, base)
                 elif status == "pending":
                     upd["pending_charge_id"] = pid; out["pending"] += 1  # НЕ провал
-                else:  # failed — ретраим до grace, потом past_due + письмо
+                else:  # failed — ретраим до next_charge+grace, по исчерпании окна ended + письмо
                     if now > nc + grace:
-                        if _guarded_status(sid, "past_due"):
-                            out["past_due"] += 1
+                        # Конечное состояние — ended, а НЕ past_due: past_due теперь означает
+                        # «ретраим», и оставлять её в нём значило бы дёргать мёртвую карту вечно.
+                        if _guarded_status(sid, "ended", only=("active", "past_due")):
+                            out["ended"] += 1
                             _send_email(sub["email"], "Не удалось продлить подписку · NutriPlan",
                                         _sub_ended_email(base, unbound=False), "sub_past_due")
                     else:
+                        # Первый провал метим past_due: это видно в ЛК и в данных, а cron
+                        # продолжает ретраить (past_due остаётся в обслуживании).
+                        if _guarded_status(sid, "past_due"):
+                            out["past_due"] += 1
                         out["retrying"] += 1
         except Exception:  # noqa: BLE001
             pass
@@ -2415,7 +3131,58 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                     out["repaired"] += 1
         except Exception:  # noqa: BLE001
             pass
+    out["fulfilled"] = _sweep_unfulfilled(now, base)
     return JSONResponse(out)
+
+
+def _sweep_unfulfilled(now: datetime, base: str, cap: int = 5) -> int:
+    """Сверка журнала заказов с планами: оплата есть, файла плана нет — дозываем доставку.
+
+    Прошлый цикл самолечения ходил по PLANS.glob, то есть чинил только УЖЕ СУЩЕСТВУЮЩИЕ
+    планы. Заказ, у которого плана не появилось вовсе (упавшая генерация, рестарт
+    контейнера, потерянный вебхук), не видел никто: деньги взяли, план не отдали, и в
+    системе об этом не было ни строки.
+
+    Окно: старше 10 минут (иначе догоняем нормальную генерацию, которая ещё идёт) и не
+    старше суток (древние заказы уже разобраны руками, повторная рассылка навредит).
+    Кап на тик — у генерации LLM-цена."""
+    done = 0
+    try:
+        paid: dict[str, str] = {}   # order → время подтверждения оплаты (последняя запись побеждает)
+        for line in ORDERS.read_text(encoding="utf-8").splitlines():
+            try:
+                rec = json.loads(line)
+            except Exception:  # noqa: BLE001
+                continue  # битая строка не должна обрывать сверку
+            oid = rec.get("order") or ""
+            if not oid:
+                continue
+            if rec.get("status") == "succeeded":
+                paid[oid] = rec.get("ts") or ""
+            elif rec.get("status") == "refunded":
+                paid.pop(oid, None)  # деньги вернули — доставлять нечего
+    except Exception:  # noqa: BLE001
+        return 0
+    for oid, ts in paid.items():
+        if done >= cap:
+            break
+        try:
+            t = datetime.fromisoformat(ts)
+            if t.tzinfo is None:
+                t = t.replace(tzinfo=timezone.utc)
+        except Exception:  # noqa: BLE001
+            continue
+        if not (timedelta(minutes=10) <= now - t <= timedelta(days=1)):
+            continue
+        if oid in DEMO_TOKENS or not _plan_missing(oid):
+            continue
+        order = _find_order(oid)
+        _bump("fulfill_rescued")
+        print(f"[ALERT] оплачено без плана — дозаказываем: order={oid} "
+              f"email={order.get('email', '?')}", flush=True)
+        if _fulfill_once(order.get("email", ""), order.get("quiz") or {}, oid, base):
+            done += 1
+    return done
 
 
 @app.get("/sub/cancel", response_class=HTMLResponse)
