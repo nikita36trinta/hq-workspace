@@ -152,14 +152,19 @@ def _norm_card(p: dict) -> str:
 
 
 def _day_block(d: dict) -> str:
+    # Экранируем и приём, и название, и калории: всё это приходит от модели, а
+    # в свободное поле «что не ем» человек пишет что угодно, и оно уезжает в
+    # промпт дословно. На экране плана эту дыру закрыли, а письмо пропустили —
+    # и в теле письма лежала сырая разметка вида <img src=x onerror=…>.
     rows = ""
     for name, dish, kc in d["meals"]:
         rows += (f"<tr><td style='padding:8px 0;border-top:1px solid #EEE7D8'>"
-                 f"<b style='font-size:14px'>{name}</b> — <span style='font-size:14px'>{dish}</span></td>"
+                 f"<b style='font-size:14px'>{_e(name)}</b> — "
+                 f"<span style='font-size:14px'>{_e(dish)}</span></td>"
                  f"<td style='padding:8px 0;border-top:1px solid #EEE7D8;text-align:right;white-space:nowrap;"
-                 f"color:{_MUTED};font-size:13px'>{kc} ккал</td></tr>")
+                 f"color:{_MUTED};font-size:13px'>{_e(kc)} ккал</td></tr>")
     return (f"<div style='margin:0 24px 12px'><div style='font-size:13px;font-weight:800;color:{_MUTED};"
-            f"text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px'>{d['day']}</div>"
+            f"text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px'>{_e(d['day'])}</div>"
             f"<table width='100%' cellspacing='0' cellpadding='0'>{rows}</table></div>")
 
 
@@ -199,6 +204,12 @@ def _meal_card(m: dict, day: int = 0, slot: str = "", idx: int = 0) -> str:
     # и по ключу «день:слот» отметка на одном приёме помечала оба — день считался
     # выполненным раньше времени и калории второго приёма падали в «съедено».
     key = f"{day}:{idx}:{slot}"
+    # В key и slot едет НАЗВАНИЕ ПРИЁМА от модели, а в промпт дословно попадает
+    # свободное поле «что не ем» — то есть текст пользователя. Апостроф в нём
+    # закрывал атрибут: data-k='0:2:Ужин' onmouseover='…' x='' становился
+    # настоящим обработчиком на пяти кнопках строки (хранимый XSS, воспроизведён
+    # в браузере). Поэтому в разметку они идут ТОЛЬКО экранированными.
+    key_a, slot_a = _e(key), _e(slot)
     kc = m.get("kcal", "")
     try:
         kcnum = int(float(m.get("kcal") or 0))
@@ -233,11 +244,11 @@ def _meal_card(m: dict, day: int = 0, slot: str = "", idx: int = 0) -> str:
     # калории и отметка. Всё остальное — на экране блюда.
     img = (f"<span class='mimg'><img loading='lazy' data-slug='{_e(slug)}' alt='' "
            f"src='/dish/{quote(slug)}?t={quote(name)}'></span>")
-    open_btn = (f"<button class='mopen' data-k='{key}' aria-label='Открыть блюдо: {_e(name)}'>{img}"
+    open_btn = (f"<button class='mopen' data-k='{key_a}' aria-label='Открыть блюдо: {_e(name)}'>{img}"
                 f"<span class='mtxt'><b class='mname'>{_e(name)}</b>"
                 f"<span class='mmeta'>{slot_txt}</span></span>"
                 f"<span class='mk'>{_e(kc)}</span></button>")
-    tick = (f"<button class='tick' data-k='{key}' aria-label='Отметить «приготовил»: {_e(name)}'>"
+    tick = (f"<button class='tick' data-k='{key_a}' aria-label='Отметить «приготовил»: {_e(name)}'>"
             f"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' "
             f"stroke-linecap='round' stroke-linejoin='round'><path d='M5 12.5 10 17.5 19 7'/></svg></button>")
     # Подробности лежат в самой строке, но скрыты: экран блюда клонирует их
@@ -245,13 +256,13 @@ def _meal_card(m: dict, day: int = 0, slot: str = "", idx: int = 0) -> str:
     # отдельным запросом и синхронизировать две копии.
     hidden = (f"<div class='mhide' hidden data-slug='{_e(slug)}' data-name='{_e(name)}' "
               f"data-slot='{slot_txt}' data-kcal='{_e(kc)}'>{macros}{details}"
-              f"<div class='mact'><button class='done' data-k='{key}'><span class='dc'></span>Приготовил</button>"
-              f"<button class='swap' data-day='{day}' data-slot='{slot}' data-i='{idx}' data-k='{key}'>Заменить</button>"
+              f"<div class='mact'><button class='done' data-k='{key_a}'><span class='dc'></span>Приготовил</button>"
+              f"<button class='swap' data-day='{day}' data-slot='{slot_a}' data-i='{idx}' data-k='{key_a}'>Заменить</button>"
               f"<button class='dislike' data-name='{_e(name)}' title='Не нравится — убрать из меню'>"
               f"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
               f"<path d='M17 2H7.3a2 2 0 0 0-2 1.7l-1.3 8A2 2 0 0 0 6 14h4l-.7 3.3a2 2 0 0 0 3.5 1.6L17 14'/>"
               f"<path d='M17 2h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2'/></svg></button></div></div>")
-    return (f"<div class='meal' data-k='{key}' data-kc='{kcnum}'{pfc}>"
+    return (f"<div class='meal' data-k='{key_a}' data-kc='{kcnum}'{pfc}>"
             f"{open_btn}{tick}{hidden}</div>")
 
 
@@ -278,6 +289,47 @@ def _fmt_qty(q: float) -> str:
     return str(int(q)) if abs(q - round(q)) < 1e-6 else f"{q:.1f}".replace(".", ",")
 
 
+# Окончания режем от длинных к коротким, иначе «куриные» потеряет только «е».
+_ENDINGS = ("иями", "ами", "ями", "ого", "его", "ому", "ему", "ых", "их", "ые", "ие",
+            "ый", "ий", "ое", "ее", "ая", "яя", "ую", "юю", "ой", "ей", "ом", "ем",
+            "ов", "ев", "ах", "ях", "а", "я", "ы", "и", "о", "е", "у", "ю", "ь", "й")
+
+
+def _root(w: str) -> str:
+    """Грубый корень слова: «яйца» и «яйцо» → «яйц», «огурцы» и «огурец» → «огурц».
+
+    Полноценная лемматизация тут не нужна и не окупается: сравнение шло по первым
+    ПЯТИ буквам, и «яйцо» с «яйца» расходились — один продукт вставал двумя
+    строками в разных категориях. Корень должен быть устойчив к падежу, числу и
+    роду прилагательного, и всё; ошибиться он может только в сторону «не склеил».
+    """
+    w = re.sub(r"[^\w]", "", str(w).lower().replace("ё", "е"))
+    for e in _ENDINGS:
+        if w.endswith(e) and len(w) - len(e) >= 3:
+            w = w[:-len(e)]
+            break
+    # Беглая гласная: «огурец» → «огурц», как во всех остальных формах слова.
+    if w.endswith("ец") and len(w) > 3:
+        w = w[:-2] + "ц"
+    return w
+
+
+def _roots(name: str) -> list[str]:
+    """Корни значимых слов названия, в порядке слов. Первый — главное слово."""
+    return [r for r in (_root(w) for w in re.split(r"[\s,/()]+", str(name))) if len(r) > 2]
+
+
+def _norm_key(name: str) -> tuple:
+    """Ключ продукта: набор корней без учёта порядка слов — «масло оливковое»
+    и «оливковое масло» это один продукт, а не два."""
+    return tuple(sorted(set(_roots(name))))
+
+
+# «соль по вкусу», «перец чёрный по вкусу» — восемь таких строк раздували
+# счётчик «куплено N из M» и вытесняли то, за чем реально идут в магазин.
+_TASTE_RE = re.compile(r"[\s,;—-]*по\s+вкусу\.?\s*$", re.I)
+
+
 def _shopping(sh: list, days: list | None = None) -> str:
     """Список покупок, по которому можно ходить по магазину.
 
@@ -295,24 +347,60 @@ def _shopping(sh: list, days: list | None = None) -> str:
     отделам магазина мы сами не умеем, а она уже разложила.
     """
     days = days or []
-    # продукт (ключ) → категория, из недельного списка
-    cat_of: dict[str, str] = {}
+    # Недельный список от модели — справочник: по нему берём и категорию, и
+    # «магазинное» написание продукта. Ключ у справочника такой же нормализованный,
+    # как у рецептов, иначе «яйца куриные» из списка и «яйцо куриное» из рецепта
+    # не узнают друг друга.
+    cat_of: dict[tuple, str] = {}
+    name_of: dict[tuple, str] = {}
+    root_cat: dict[str, str] = {}      # отдельный корень → категория, для запасного поиска
     for c in sh or []:
         for i in c.get("items") or []:
             nm, _q, _u, _t = _split_qty(i)
-            cat_of.setdefault(nm.strip().lower(), c.get("cat", ""))
+            k = _norm_key(nm)
+            if not k:
+                continue
+            cat_of.setdefault(k, c.get("cat", ""))
+            name_of.setdefault(k, nm.strip())
+            for r in k:
+                root_cat.setdefault(r, c.get("cat", ""))
     # продукт → {день: количество}; ключ учитывает единицу, складывать «шт» с «г» нельзя
-    agg: dict[tuple[str, str], dict] = {}
+    agg: dict[tuple, dict] = {}
+    # «по вкусу» — одной строкой на всех: соль, перец и специи покупают заодно,
+    # а не восемью отдельными пунктами, каждый из которых требует галочки.
+    taste: dict = {"names": {}, "per": {}, "cats": []}
     for di, d in enumerate(days):
         for m in d.get("meals") or []:
             for raw in m.get("ingredients") or []:
-                nm, q, u, tail = _split_qty(raw)
+                s = str(raw).strip()
+                if not s:
+                    continue
+                if _TASTE_RE.search(s):
+                    nm = _TASTE_RE.sub("", s).strip(" ,;.-—")
+                    if not nm:
+                        continue
+                    # Режем на отдельные продукты: рецепты пишут и «соль, перец»,
+                    # и «соль и перец», и просто «соль». Без разбора склеенная
+                    # строка повторяла «соль, перец» столько раз, сколько раз это
+                    # встретилось в меню.
+                    for part in re.split(r"\s*(?:,|;|\bи\b)\s*", nm):
+                        part = part.strip(" .-—")
+                        if part:
+                            taste["names"].setdefault(part.lower(), part)
+                            taste["cats"].append(_norm_key(part))
+                    taste["per"][di] = 0          # количества нет — в строке его и не будет
+                    continue
+                nm, q, u, tail = _split_qty(s)
                 if not nm:
                     continue
-                key = (nm.strip().lower(), u)
-                e = agg.setdefault(key, {"name": nm, "unit": u, "tail": tail, "per": {}})
+                # Пустой ключ бывает у названий из одних цифр и предлогов. Тогда
+                # ключом остаётся сама строка: пропасть из списка покупок позиция
+                # не имеет права, даже если мы её не поняли.
+                key = (_norm_key(nm) or (nm.strip().lower(),), u)
+                e = agg.setdefault(key, {"name": nm.strip(), "roots": _roots(nm),
+                                         "unit": u, "tail": tail, "per": {}})
                 e["per"][di] = e["per"].get(di, 0) + (q if q is not None else 0)
-    if not agg:
+    if not agg and not taste["names"]:
         # У блюд нет ингредиентов (так бывает у банк-заготовки, когда LLM молчала).
         # Тогда показываем недельный список как есть, без переключателя периодов:
         # раскладывать его по дням не из чего, а врать про «сегодня» нельзя.
@@ -320,19 +408,36 @@ def _shopping(sh: list, days: list | None = None) -> str:
     # раскладываем по категориям недельного списка; чего там нет — в «Остальное»
     OTHER = "Остальное"
 
-    def _head(s: str) -> str:
-        # Сравниваем по началу главного слова: в списке «морковь», в рецепте
-        # «моркови» — падежи не должны отправлять продукт в «Остальное».
-        w = re.sub(r"[^\w\s]", " ", s).split()
-        return (w[0][:5] if w else "")
+    def _cat_for(k: tuple, roots: list) -> str:
+        """Категория продукта.
+
+        Совпадение ищем по ГЛАВНОМУ слову, а не по любому общему корню. Поиск по
+        любому корню уносил продукт в чужой отдел: «лимонный сок» и «вода или
+        бульон» оказывались в «Рыбе», «овсяные хлопья» — в «Молочных». Честное
+        «Остальное» лучше уверенно неправильной полки: по неправильной человек
+        просто не найдёт продукт.
+        Корни короче четырёх букв не берём — на них склеивается что угодно.
+        """
+        cat = cat_of.get(k)
+        if cat:
+            return cat
+        head = roots[0] if roots else ""
+        if len(head) >= 4 and head in root_cat:
+            return root_cat[head]
+        return ""
 
     by_cat: dict[str, list] = {}
-    for (nmk, _u), e in agg.items():
-        cat = cat_of.get(nmk)
-        if not cat:
-            h = _head(nmk)
-            cat = next((v for k, v in cat_of.items() if h and _head(k) == h), "")
-        by_cat.setdefault(cat or OTHER, []).append(e)
+    for (k, _u), e in agg.items():
+        # Название берём из недельного списка, если продукт там есть: там оно в
+        # магазинной форме («яйца куриные»), а не в рецептурной («яйцо куриное»).
+        e["name"] = name_of.get(k, e["name"])
+        by_cat.setdefault(_cat_for(k, e["roots"]) or OTHER, []).append(e)
+    if taste["names"]:
+        names = sorted(taste["names"].values(), key=str.lower)
+        cat = next((c for c in (_cat_for(k, list(k)) for k in taste["cats"]) if c), "")
+        by_cat.setdefault(cat or OTHER, []).append(
+            {"name": ", ".join(names), "unit": "", "tail": "— по вкусу",
+             "per": taste["per"], "sid": "по вкусу"})
     order = [c.get("cat", "") for c in (sh or []) if c.get("cat")] + [OTHER]
     cats, total = "", 0
     for cat in order:
@@ -349,7 +454,7 @@ def _shopping(sh: list, days: list | None = None) -> str:
             # категорий, — и человек уходил в магазин с галочкой на том, чего не
             # покупал. Имя+единица — тот же ключ, по которому строка агрегирована,
             # так что в пределах списка он уникален.
-            sid = f"{e['name'].strip().lower()}|{e['unit']}"
+            sid = e.get("sid") or f"{e['name'].strip().lower()}|{e['unit']}"
             items += (f"<li><label class='si' data-q='{_e(per)}' data-u='{_e(e['unit'])}' "
                       f"data-n='{_e(e['name'])}' data-t='{_e(e['tail'])}'>"
                       f"<input type='checkbox' data-si='{_e(sid)}'>"
@@ -499,10 +604,39 @@ def _acct_html(sub, token: str) -> str:
                 f"{unbind}"
                 f"<button class='cancelb' id='cancelSub' data-token='{token}'>Отменить подписку</button>"
                 f"<div class='cmsg' id='cmsg'></div></div></section>")
+    # Всё, что не active, раньше рисовалось как «Отменена · списаний не будет».
+    # После того как крон начал ретраить неудавшееся списание в grace-окне, это
+    # стало враньём про деньги: человек читает «списаний не будет», а мы в эти
+    # три дня реально пытаемся списать — и остановить нас с экрана нечем.
+    st = sub.get("status") or ""
+    nxt = _fmt_ru_date(sub.get("next", ""))
+    amt = _e(sub.get("amount", "499"))
+    has_card = bool(sub.get("payment_method_id") or sub.get("has_card"))
+    if st == "past_due":
+        badge = "<div class='scanceled'>Не удалось списать</div>"
+        sline = (f"Не прошло списание {amt} ₽. Попробуем ещё раз в ближайшие дни — "
+                 f"проверь, что на карте есть деньги.")
+        note = "<span class='cnote'>Ты ничего не отменял: подписка активна, но продление не прошло</span>"
+        # Кнопки обязаны быть: единственный способ остановить ретраи без похода
+        # в банк — отвязать карту или отменить подписку прямо здесь.
+        acts = ((f"<button class='unbindb' id='unbindCard' data-token='{_e(token)}'>Отвязать карту</button>"
+                 if has_card else "")
+                + f"<button class='cancelb' id='cancelSub' data-token='{_e(token)}'>Отменить подписку</button>")
+    elif st == "ended":
+        badge = "<div class='scanceled'>Завершена</div>"
+        sline = "Оплаченный период закончился. Новые недели больше не приходят."
+        note = "<span class='cnote'>Подписку можно оформить заново — план и прогресс останутся на месте</span>"
+        acts = ""
+    else:   # canceled и всё прочее: доступ до конца оплаченного периода
+        badge = "<div class='scanceled'>Отменена</div>"
+        sline = (f"Списаний больше не будет. Доступ сохраняется до <b>{nxt}</b>."
+                 if nxt else "Списаний больше не будет. Доступ сохраняется до конца оплаченного периода.")
+        note = ""
+        acts = ""
     return (f"<section class='sec acct'><h2>Подписка</h2>"
-            f"<div class='subcard'><div class='scanceled'>Отменена</div>"
-            f"<div class='sline'>Списаний больше не будет. Доступ сохраняется до конца оплаченного периода.</div>"
-            f"</div></section>")
+            f"<div class='subcard'>{badge}"
+            f"<div class='sline'>{sline}</div>{note}{acts}"
+            f"<div class='cmsg' id='cmsg'></div></div></section>")
 
 
 def _days_since(iso: str) -> int | None:
@@ -568,9 +702,17 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
     water_goal = max(6, min(12, round(start_w * 30 / 250))) if start_w else 8
     manifest = f"/app.webmanifest?t={token}" if token else "/app.webmanifest"
     acct = _acct_html(sub, token)
-    # Ссылка на подписку — только если подписка есть. Разовому плану нечего там
+    # Вход в подписку — только если подписка есть. Разовому плану нечего там
     # показывать, а пустое окно раздражает сильнее отсутствующей ссылки.
-    subs_link = "<a href='#' id='subsopen'>Подписка</a>" if acct else ""
+    # Это строка-карточка, а не ссылка в подвале: за отменой списаний человек
+    # идёт целенаправленно, и прятать её под полутора тысячами пикселей прокрутки
+    # мелким серым — способ получить не отписку, а возврат через банк.
+    subs_link = ("<a href='#sub' id='subsopen' class='subsbtn'>"
+                 "<span class='sbi'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' "
+                 "stroke-width='1.8' stroke-linecap='round'><rect x='2.5' y='5' width='19' height='14' rx='3'/>"
+                 "<path d='M2.5 10h19'/></svg></span>"
+                 "<span class='sbt'><b>Подписка</b><span>Статус, карта, отмена</span></span>"
+                 "<span class='sbc'>›</span></a>") if acct else ""
     # ver/started пишет app.py при сохранении плана; у планов, созданных раньше, их нет —
     # тогда ведём себя как прежде. Фильтруем символы, потому что ver уезжает в JS-строку.
     ver = "".join(c for c in str(pl.get("ver") or "") if c.isalnum() or c in "-_.")
@@ -866,6 +1008,21 @@ h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;l
 .cancelb{{margin-top:10px;width:100%;border:1.5px solid var(--line);background:var(--card);color:#b91c1c;font-weight:700;font-size:14px;padding:12px;border-radius:12px;cursor:pointer}}
 .cancelb:hover{{border-color:#b91c1c}}.cancelb:disabled{{opacity:.5}}
 .cmsg{{margin-top:12px;font-size:14px;color:var(--gd);font-weight:700;display:none}}.cmsg.s{{display:block}}
+/* Вход в подписку. Был серой ссылкой 13px в самом низу профиля — до неё надо
+   было прокрутить полторы тысячи пикселей, а идут туда за отменой списаний,
+   то есть с раздражением. Теперь это строка-карточка того же размера, что и
+   остальные разделы, и стоит она сразу под параметрами плана. */
+.subsbtn{{display:flex;align-items:center;gap:12px;width:100%;margin-top:12px;
+  border-radius:var(--rl);padding:15px 16px;font:inherit;text-align:left;text-decoration:none;
+  color:var(--ink);border:1px solid var(--glass-line);background:var(--glass);
+  -webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);
+  box-shadow:inset 0 1px 0 var(--glass-edge),var(--sh-1);cursor:pointer}}
+.subsbtn .sbi{{width:22px;height:22px;flex:0 0 auto;color:var(--gd)}}
+.subsbtn .sbi svg{{width:100%;height:100%;display:block}}
+.subsbtn .sbt{{min-width:0}}
+.subsbtn .sbt b{{display:block;font-size:15px;font-weight:700}}
+.subsbtn .sbt span{{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}}
+.subsbtn .sbc{{margin-left:auto;color:var(--muted);font-size:18px;line-height:1}}
 .plegal{{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);text-align:center;font-size:13px;color:var(--muted)}}
 .plegal .plinks a{{color:var(--muted);margin:0 8px;text-decoration:underline;text-underline-offset:2px}}
 .plegal .preq{{margin-top:10px}}.plegal .preq a{{color:var(--muted)}}
@@ -974,6 +1131,10 @@ body{{padding-bottom:104px}}
 .drow .dl b{{display:block;font-size:14.5px;font-weight:600;line-height:1.25}}
 .drow .dnow{{font-style:normal;font-weight:700;color:var(--gd)}}
 .drow .dnow[hidden]{{display:none}}
+/* Открытый сейчас день — рамкой, БЕЗ слова «сегодня»: словами помечен только
+   настоящий сегодняшний день, иначе список врёт про дату (см. markToday). */
+.drow.open{{border-color:color-mix(in srgb,var(--g) 45%,transparent)!important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--g) 30%,transparent),var(--sh-1)!important}}
 .drow .dl span{{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 .drow .dk{{font-family:Unbounded;font-size:13.5px;font-weight:700;letter-spacing:-.035em;
@@ -1164,6 +1325,10 @@ body{{padding-bottom:104px}}
         <b id="pgv">0</b><span class="psub">стаканов сегодня</span></div>
     </div></section>
   {_params(pl, goal_code, water_goal)}
+  <!-- Подписка сразу под параметрами плана, а не серой ссылкой в самом низу:
+       её ищут, когда хотят отменить списание, и не найти её — дороже, чем
+       увидеть лишний раз. Само окно по-прежнему открывается поверх. -->
+  {subs_link}
   <section class="sec" id="weightsec"><h2>Твой вес</h2>
     <div class="wcard">
       <div class="wrow"><div class="wbig"><span id="wcur">—</span><small>кг</small></div>
@@ -1181,9 +1346,10 @@ body{{padding-bottom:104px}}
   {_tips(pl.get('tips') or [])}
   <footer class="plegal">
     <!-- «Войти по почте» отсюда убрана: страницу открывают уже вошедшими, и
-         ссылка предлагала сделать то, что уже сделано. На её месте — подписка:
-         управляют ею редко, но искать её должно быть очевидно где. -->
-    <div class="plinks"><a href="/offer">Оферта</a><a href="/privacy">Политика ПДн</a><a href="/consent">Согласие</a>{subs_link}</div>
+         ссылка предлагала сделать то, что уже сделано. Подписка тоже ушла
+         отсюда наверх, к параметрам плана: серые 13px под полутора тысячами
+         пикселей прокрутки — не то место, где ищут отмену списаний. -->
+    <div class="plinks"><a href="/offer">Оферта</a><a href="/privacy">Политика ПДн</a><a href="/consent">Согласие</a></div>
     <!-- Оговорка в подвале, мелким шрифтом: то же, что уже есть в оферте и в
          письмах, но теперь и в самом продукте. Мелким — не значит спрятанным:
          текст читаемый и контрастный. Оговорка, которую суд признает скрытой,
@@ -1228,6 +1394,13 @@ body{{padding-bottom:104px}}
   <button data-s="me">{_ic_me()}<span>Я</span></button>
 </nav>
 <script>
+// Экранирование для мест, где мы собираем разметку строкой. Серверный _e()
+// защищает только сам HTML: из data-атрибута текст возвращается в JS уже
+// РАСКОДИРОВАННЫМ, и «Салат <img src=x onerror=…>» через innerHTML на экране
+// блюда снова становился тегом. Всё, что пришло от модели или из анкеты,
+// прогоняем здесь.
+const _esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>(
+  {{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));
 function activateDay(i){{
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',+x.dataset.d===i));
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',+p.dataset.d===i));
@@ -1241,25 +1414,36 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{{
   window.scrollTo({{top:0,behavior:'smooth'}});
 }}));
 const NDAYS={len(days)};
-// В списке недели помечаем строку открытого дня: без пометки семь одинаковых
-// строк не говорят, где ты сейчас.
-function markToday(){{
-  const cur=document.querySelector('#sc-today .panel.on');
-  document.querySelectorAll('.drow .dnow').forEach(e=>{{
-    e.hidden = !cur || e.closest('.drow').dataset.d !== cur.dataset.d;
-  }});
-}}
 // Кнопкам «Сегодня»/«Завтра» день проставляем здесь: сегодняшний день плана
 // знает только клиент. «Завтра» показываем, только если оно в плане есть —
 // иначе кнопка вела бы в пустоту в последний день недели.
+// TODAY объявлен ВЫШЕ markToday намеренно: он там единственный источник правды.
 const TODAY=(function(){{let wd=(new Date().getDay()+6)%7; return wd<NDAYS?wd:0;}})();
 document.querySelectorAll('.tab[data-rel]').forEach(t=>{{
   const d=TODAY+(+t.dataset.rel);
   if(d>=NDAYS){{t.remove();return;}}
   t.dataset.d=d; t.hidden=false;
 }});
-(function(){{const m=location.hash.match(/d(\\d+)/);
-  activateDay(m?parseInt(m[1]):TODAY); markToday();}})();
+// В списке недели две РАЗНЫЕ пометки, и раньше они были склеены в одну: ярлык
+// «· сегодня» вешался на ОТКРЫТЫЙ день. Нажал «Завтра» — и неделя уверяла, что
+// сегодня шестой день. «Сегодня» — это только TODAY и ничто другое; открытый
+// день помечаем нейтрально рамкой (.drow.open), без слов.
+function markToday(){{
+  const cur=document.querySelector('#sc-today .panel.on');
+  document.querySelectorAll('.drow').forEach(r=>{{
+    const e=r.querySelector('.dnow');
+    if(e) e.hidden = +r.dataset.d!==TODAY;
+    r.classList.toggle('open', !!cur && r.dataset.d===cur.dataset.d);
+  }});
+}}
+(function(){{const m=location.hash.match(/^#d(\\d+)/);
+  // Открываем только тот день, у которого есть кнопка. Экран «Сегодня» — это
+  // «сегодня/завтра», и чужой номер в хэше давал день без единой подсвеченной
+  // кнопки: «ОСТАЛОСЬ НА ДЕНЬ» считалось по нему, а на первом экране ничто не
+  // говорило, что это не сегодня.
+  let d=m?parseInt(m[1]):TODAY;
+  if(!document.querySelector('.tab[data-d="'+d+'"]')) d=TODAY;
+  activateDay(d); markToday();}})();
 // app-loop: отметки «приготовил» + прогресс (localStorage)
 // Версия плана — в ключе отметок: иначе новая неделя открывается с галочками
 // старой, а серверный сброс прогресса тут же перетирается локальным состоянием.
@@ -1458,6 +1642,12 @@ fetch('/api/plan/'+T+'/progress').then(r=>r.json()).then(srv=>{{
 document.addEventListener('click',async e=>{{
   const b=e.target.closest('.swap'); if(!b) return;
   const day=+b.dataset.day, slot=b.dataset.slot, idx=+b.dataset.i, o=b.textContent; b.disabled=true; b.textContent='Подбираю…';
+  // Откуда пришли, туда и вернёмся. Кнопка на экране блюда — это КЛОН, лежащий
+  // в #dishview, так что «из просмотра дня» узнаём по метке .fromday, которую
+  // экран блюда ставит себе при открытии из дня. Иначе замена блюда в чужом дне
+  // выбрасывала на «Сегодня» с открытым чужим днём — ровно как в дефекте 27.
+  const dv=document.getElementById('dishview');
+  const fromDay=!!b.closest('#dayview')||(!!b.closest('#dishview')&&dv.classList.contains('fromday'));
   try{{
     // idx — номер приёма в дне. Слоты повторяются («Перекус» ×2), и по одному
     // slot сервер не отличит второй перекус от первого. Лишнее поле сервер
@@ -1466,9 +1656,24 @@ document.addEventListener('click',async e=>{{
     const j=await r.json(); if(!j.meal) throw 0;
     delete done[b.dataset.k]; localStorage.setItem(DKEY,JSON.stringify(done));  // новое блюдо — сбрасываем «съедено»
     try{{await fetch('/api/plan/'+T+'/progress',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(collectLocal())}});}}catch(e){{}}
-    location.hash='d'+day; location.reload();
+    location.hash=(fromDay?'v':'d')+day; location.reload();   // v = вернуться в просмотр дня, как у «Заменить весь день»
   }}catch(e){{ b.disabled=false; b.textContent=o; alert('Не удалось заменить — попробуй ещё раз'); }}
 }});
+// Карточка подписки после отмены/отвязки. Раньше JS трогал только бейдж и
+// #cmsg, а строку .sline не переписывал вовсе — и на одном экране одновременно
+// жили «ОТМЕНЕНА» и «Следующее списание: 30 августа · 499 ₽/мес». Правим по
+// КЛАССАМ (.sline/.cnote), а дату вынимаем из уже отрисованного <b>: конкретные
+// серверные формулировки живут в app.py и меняются без нас.
+function subTill(){{
+  const b=document.querySelector('.subcard .sline b');
+  return b?b.textContent.trim():'';
+}}
+function setSubLine(html){{
+  const l=document.querySelector('.subcard .sline'); if(l) l.innerHTML=html;
+}}
+function setCardNote(txt){{
+  const n=document.querySelector('.subcard .cnote'); if(n) n.textContent=txt;
+}}
 // отвязка карты (без отмены подписки) — двойное подтверждение
 const ub=document.getElementById('unbindCard');
 if(ub){{let a2=false;ub.addEventListener('click',async()=>{{
@@ -1480,7 +1685,10 @@ if(ub){{let a2=false;ub.addEventListener('click',async()=>{{
     const m=document.getElementById('cmsg');
     m.textContent='Карта отвязана — автосписаний больше не будет. Подписка активна до конца оплаченного периода.';
     m.classList.add('s');ub.style.display='none';
-    const note=document.querySelector('.subcard .cnote');if(note)note.textContent='Карта не привязана — автосписаний не будет';
+    const till=subTill();
+    setSubLine(till?('Автопродления не будет · доступ до <b>'+_esc(till)+'</b>')
+                   :'Автопродления не будет · доступ до конца оплаченного периода');
+    setCardNote('Карта не привязана — автосписаний не будет');
   }}catch(e){{ub.disabled=false;ub.textContent='Отвязать карту';alert('Не удалось отвязать карту. Напиши на support@mynutriplan.ru');}}
 }});}}
 // отмена подписки — двойное подтверждение
@@ -1495,6 +1703,10 @@ if(cb){{let armed=false;cb.addEventListener('click',async()=>{{
     m.textContent='Подписка отменена, карта отвязана. Автосписаний больше не будет — доступ сохраняется до конца оплаченного периода.';
     m.classList.add('s');cb.style.display='none';
     if(ub)ub.style.display='none';
+    const till=subTill();
+    setSubLine(till?('Списаний больше не будет. Доступ сохраняется до <b>'+_esc(till)+'</b>.')
+                   :'Списаний больше не будет. Доступ сохраняется до конца оплаченного периода.');
+    setCardNote('Карта отвязана — автосписаний не будет');
     const a=document.querySelector('.sactive');if(a)a.outerHTML="<div class='scanceled'>Отменена</div>";
   }}catch(e){{cb.disabled=false;cb.textContent='Отменить подписку';alert('Не удалось отменить. Напиши на support@mynutriplan.ru');}}
 }});}}
@@ -1543,14 +1755,20 @@ document.addEventListener('click',async e=>{{
     lb.removeAttribute('hidden'); lb.classList.add('on');
     document.body.style.overflow='hidden';       // фон не должен ехать под открытым фото
     lb.querySelector('.x').focus();
+    // Фото — такой же слой, как просмотр дня и экран блюда, и в историю оно
+    // заводится так же. Без этого системное «Назад» на Android снимало ЭКРАН
+    // БЛЮДА под фото (фото оставалось висеть), а второе «Назад» уводило со
+    // страницы плана вообще.
+    history.pushState({{lb:1}},'');
   }}
-  function close(){{
+  function close(back){{
     lb.classList.remove('on'); lb.setAttribute('hidden','');
     // Фото открывается ПОВЕРХ экрана блюда, и тот тоже держит фон. Снимать
     // блокировку безусловно нельзя: закрыв фото, человек оставался бы на экране
     // блюда, под которым едет страница.
     document.body.style.overflow=document.querySelector('.dishv.on, .dayview.on')?'hidden':'';
     if(opener){{opener.focus();opener=null;}}     // возвращаем фокус туда, откуда открыли
+    if(back && history.state && history.state.lb) history.back();
   }}
   document.addEventListener('click',e=>{{
     // Открывает только большое фото НА ЭКРАНЕ БЛЮДА. В списке фото — часть
@@ -1559,13 +1777,14 @@ document.addEventListener('click',async e=>{{
     const b=e.target.closest('.dshot[data-zoom]');
     if(b){{open(b.dataset.zoom,b.dataset.name,b);return;}}
     // Клик по фону и по кресту закрывают; по самой картинке — нет.
-    if(lb.classList.contains('on') && !e.target.closest('figure')) close();
+    if(lb.classList.contains('on') && !e.target.closest('figure')) close(true);
   }});
+  addEventListener('popstate',()=>{{ if(lb.classList.contains('on')) close(false); }});
   // preventDefault — сигнал экранам под фото, что Escape уже израсходован. Без
   // него один Escape закрывал И фото, И экран блюда: человек хотел вернуться к
   // рецепту, а его выбрасывало в список.
   document.addEventListener('keydown',e=>{{
-    if(e.key==='Escape'&&lb.classList.contains('on')){{close();e.preventDefault();}}}});
+    if(e.key==='Escape'&&lb.classList.contains('on')){{close(true);e.preventDefault();}}}});
 }})();
 
 // Список покупок: отметки купленного. Раньше это была стена текста без единого
@@ -1762,13 +1981,13 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
       if(st)  blocks+='<div class="dh">Как готовить</div><ol class="steps">'+st.innerHTML+'</ol>';
     }}
     body.innerHTML=
-      '<button class="dshot" data-zoom="'+slug+'" data-name="'+name.replace(/"/g,'&quot;')+'" '
+      '<button class="dshot" data-zoom="'+_esc(slug)+'" data-name="'+_esc(name)+'" '
         +'aria-label="Открыть фото">'
         +'<img alt="" src="/dish/'+encodeURIComponent(slug)+'?t='+encodeURIComponent(name)+'"></button>'
-      +'<h2>'+name+'</h2>'
-      +'<div class="dmeta">'+(day&&day.d!==undefined?('День '+(+day.d+1)+' · '):'')+slot.toLowerCase()+'</div>'
+      +'<h2>'+_esc(name)+'</h2>'
+      +'<div class="dmeta">'+(day&&day.d!==undefined?('День '+(+day.d+1)+' · '):'')+_esc(slot.toLowerCase())+'</div>'
       +'<div class="dkcal">'
-        +'<div><b>'+kcal+'</b><span>ккал</span></div>'
+        +'<div><b>'+_esc(kcal)+'</b><span>ккал</span></div>'
         +'<div><b>'+p+'<i>г</i></b><span>белки</span></div>'
         +'<div><b>'+f+'<i>г</i></b><span>жиры</span></div>'
         +'<div><b>'+c+'<i>г</i></b><span>углеводы</span></div>'
@@ -1793,7 +2012,15 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
     const meal=b.closest('.meal'); if(meal) open(meal);
   }});
   document.getElementById('dishback').addEventListener('click',()=>close(true));
-  addEventListener('popstate',()=>{{ if(view.classList.contains('on')) close(false); }});
+  addEventListener('popstate',()=>{{
+    // «Назад» снимает РОВНО ОДИН слой. Поверх блюда может лежать фото, и его
+    // обработчик срабатывает раньше нашего (он зарегистрирован выше) — на момент
+    // проверки лайтбокс уже закрыт, по классу его не увидеть. Зато мы вернулись
+    // на СВОЮ запись истории: state.dish=1 значит «сняли слой над блюдом», а
+    // само блюдо должно остаться.
+    if(history.state && history.state.dish) return;
+    if(view.classList.contains('on')) close(false);
+  }});
   addEventListener('keydown',e=>{{
     // Escape закрывает по одному слою за раз: если сверху открыто фото, оно уже
     // забрало это нажатие себе (см. preventDefault в обработчике фото).
@@ -1822,6 +2049,11 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
   addEventListener('keydown',e=>{{
     if(e.key==='Escape'&&!e.defaultPrevented&&!mo.hasAttribute('hidden')){{close(true);e.preventDefault();}}
   }});
+  // Ссылка из письма («нужна подписка») ведёт сюда с «#sub» или «?sub=1».
+  // Разбора адреса не было вовсе — единственный, что тут есть, ищет /^#d(\\d+)/,
+  // — и письмо открывало обычный план: человек приходил управлять подпиской и
+  // не находил ни окна, ни объяснения.
+  if(/(^|[#&])sub(=|&|$)/.test(location.hash)||/[?&]sub=1(&|$)/.test(location.search)) open();
 }})();
 
 // PWA: service worker + install prompt

@@ -35,6 +35,27 @@ FAV_RU = {"meat": "мясо и птица", "fish": "рыба", "veg": "овощ
 BARR_RU = {"time": "нет времени готовить", "sweet": "срывы на сладкое", "what": "не знает что есть",
            "run": "ест на бегу", "count": "сложно считать калории", "yoyo": "вес возвращается"}
 
+# Раскладка дня по ответу «сколько приёмов пищи удобно»: подпись, раздел каталога,
+# доля дневной нормы. Одна таблица на весь сервер — по ней собирается пример дня на
+# пейволле, банк-заготовка и проверка ответа модели. Раньше приёмы были захардкожены
+# завтраком, обедом и ужином в трёх разных местах, и человеку с ответом «3 + перекусы»
+# экран оплаты обещал 5 приёмов, а тут же показывал три строки.
+# Доли совпадают с раскладкой на пейволле (quiz.html, DAY_LAYOUT) — иначе калории в
+# примере дня разъедутся с калориями в плане.
+MEAL_LAYOUT = {
+    "2":  [("Завтрак", "breakfast", 0.45), ("Ужин", "dinner", 0.55)],
+    "3":  [("Завтрак", "breakfast", 0.30), ("Обед", "lunch", 0.40), ("Ужин", "dinner", 0.30)],
+    "3s": [("Завтрак", "breakfast", 0.25), ("Перекус", "snack", 0.10), ("Обед", "lunch", 0.30),
+           ("Перекус", "snack", 0.10), ("Ужин", "dinner", 0.25)],
+    # Интервальное окно 8 часов: завтрака в нём нет по определению.
+    "if": [("Обед", "lunch", 0.5), ("Ужин", "dinner", 0.5)],
+}
+
+
+def meal_layout(quiz: dict | None) -> list[tuple[str, str, float]]:
+    """Приёмы дня под ответ квиза; неизвестный ответ — обычные три приёма."""
+    return MEAL_LAYOUT.get(str((quiz or {}).get("meals") or ""), MEAL_LAYOUT["3"])
+
 
 def _key() -> str:
     if os.getenv("OPENROUTER_API_KEY"):
@@ -298,6 +319,11 @@ def _catalog_block(quiz: dict, avoid: list[str] | None = None) -> str:
 
 def _prompt(quiz: dict, p: dict, avoid: list[str] | None = None) -> tuple[str, str]:
     meals = MEALS_RU.get(quiz.get("meals"), "3 приёма пищи")
+    # Число и порядок приёмов говорим цифрой и списком: словами «3 приёма + перекусы»
+    # модель понимала как три приёма, и человек получал не тот план, который купил.
+    layout = meal_layout(quiz)
+    meals = (f"{meals} — РОВНО {len(layout)} приёма(ов) в КАЖДОМ дне, "
+             f"в порядке: {', '.join(lbl for lbl, _, _ in layout)}")
     system = ("Ты опытный нутрициолог. Составляешь персональные, реалистичные и вкусные планы питания "
               "из продуктов, доступных в обычном российском супермаркете. Отвечаешь ТОЛЬКО валидным JSON "
               "по заданной схеме — без markdown, без комментариев.")
@@ -365,10 +391,14 @@ def _plan_problems(days, cal: int, quiz: dict | None = None,
     # Блюда, которые каталог сам предложил под эти ограничения (там мясо/рыба/лактоза
     # определены точным флагом): по ним словарные «котлет/стейк/фарш» не считаем.
     from_catalog = {t.lower() for names in _allowed_by_meal(quiz or {}).values() for t in names}
+    # Сколько приёмов человек ЗАКАЗАЛ. День из трёх строк у выбравшего «3 + перекусы» —
+    # это не «кривой план», а не тот товар: пейволл продавал 5 приёмов и 35 блюд.
+    # Требуем только когда ответ есть: без ответа порог прежний (день без еды).
+    want = len(meal_layout(quiz)) if (quiz or {}).get("meals") else 2
     prev_by_slot: dict[str, str] = {}
     for idx, d in enumerate(days):
         meals = (d or {}).get("meals") or []
-        if len(meals) < 2 or any(not (m.get("name") or "").strip() for m in meals):
+        if len(meals) < want or any(not (m.get("name") or "").strip() for m in meals):
             hard.append(f"meals:{idx}")
             continue
         try:
@@ -402,7 +432,7 @@ def _plan_ok(days, cal: int, quiz: dict | None = None, shopping=None) -> bool:
     return not hard and not soft
 
 
-def _fix_note(hard: list[str], soft: list[str]) -> str:
+def _fix_note(hard: list[str], soft: list[str], quiz: dict | None = None) -> str:
     """Приписка к промпту на ретрай: что именно было не так в прошлой попытке."""
     bad = [i.split(":", 1)[1] for i in hard + soft if i.startswith(("diet:", "repeat:")) and ":" in i]
     parts = []
@@ -416,7 +446,9 @@ def _fix_note(hard: list[str], soft: list[str]) -> str:
     if any(i.startswith("kcal:") for i in soft):
         parts.append("сумма ккал каждого дня должна укладываться в норму ±7%")
     if any(i in ("days", "meals") or i.startswith("meals:") for i in hard):
-        parts.append("ровно 7 дней, в каждом дне все приёмы пищи с названиями")
+        lay = meal_layout(quiz)
+        parts.append(f"ровно 7 дней, в каждом дне {len(lay)} приёма(ов) "
+                     f"({', '.join(lbl for lbl, _, _ in lay)}) с названиями")
     return ("\n\nПрошлая попытка забракована: " + "; ".join(parts) + ".") if parts else ""
 
 
@@ -457,7 +489,7 @@ def generate_plan(quiz: dict, timeout: int = 90, attempts: int = 2,
         hard, soft = _plan_problems(days, p["cal"], quiz, shopping)
         # Ретрай с тем же промптом обычно ломается на том же месте, поэтому претензию
         # передаём модели: одно плохое блюдо из 35 иначе стоит всего плана (уход в банк).
-        fix_note = _fix_note(hard, soft)
+        fix_note = _fix_note(hard, soft, quiz)
         if hard:
             continue  # аллерген/нет 7 дней — отдавать нельзя ни при каких условиях
         result = {**base, "source": "ai", "days": days,
@@ -504,16 +536,22 @@ def _bank_shape(quiz: dict, avoid: list[str] | None = None) -> dict:
     # Сдвиг считаем от прошлой недели, а не от random: план должен быть воспроизводим.
     # hash() не годится — он рандомизирован между процессами (PYTHONHASHSEED).
     shift = int(hashlib.blake2s("|".join(sorted(used)).encode()).hexdigest()[:8], 16) if used else 0
-    # приёмы: завтрак/обед/ужин (+перекус если каталог есть) с долями ккал
-    slots = [("Завтрак", "breakfast", 0.30), ("Обед", "lunch", 0.40), ("Ужин", "dinner", 0.30)]
+    # Приёмы — по ответу квиза, а не всегда завтрак/обед/ужин: заготовка уходит
+    # оплатившему, и три строки вместо пяти — та же недодача, что и на пейволле.
+    slots = meal_layout(quiz)
     pools = {k: _reorder_pool(groups.get(k) or groups.get("lunch") or ["Сбалансированное блюдо"],
                               used, shift) for _, k, _ in slots}
     days = []
     for i in range(7):
         meals = []
+        seen: dict[str, int] = {}
         for label, key, share in slots:
             pool = pools[key]
-            name = pool[i % len(pool)] if pool else "Сбалансированное блюдо"
+            # Один раздел может встретиться в дне дважды (два перекуса) — второй
+            # берёт следующее блюдо, иначе оба перекуса одинаковые.
+            n = seen.get(key, 0)
+            seen[key] = n + 1
+            name = pool[(i + n) % len(pool)] if pool else "Сбалансированное блюдо"
             meals.append({"slot": label, "name": name, "kcal": int(round(cal * share / 10) * 10),
                           "ingredients": [], "steps": []})
         days.append({"day": _DAYS_RU[i], "meals": meals})

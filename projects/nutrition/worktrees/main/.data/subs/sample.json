@@ -1,0 +1,1 @@
+{"sub_id": "sample", "status": "active", "payment_method_id": "demo-card-pm", "amount": "499", "email": "demo@mynutriplan.ru", "landing": "slim", "plan_token": "sample", "has_card": true, "next": "2026-08-30T19:59:00.672411+00:00", "next_charge": "2026-08-30T19:59:00.672411+00:00", "created": "2026-07-31T19:59:00.672411+00:00"}

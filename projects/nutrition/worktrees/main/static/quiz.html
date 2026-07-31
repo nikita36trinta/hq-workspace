@@ -39,6 +39,11 @@
      заголовком — на мобильном это почти четверть первого экрана, съеденная
      ничем. */
   .top.hide{display:none}
+  /* Кнопка «Назад» на экране плана живёт В САМОМ экране, а не в шапке: шапку
+     здесь пришлось бы показывать целиком, а она открывала план полосой в 99px
+     пустоты над заголовком (тот самый dead band, который уже чинили). Здесь
+     кнопка стоит в одной строке с плашкой «Твой план готов» и места не ест. */
+  .planhead{display:flex;align-items:center;gap:10px}
   .back{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--field);
     color:var(--ink);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;transition:.15s}
   .back:hover{border-color:var(--accent)}
@@ -370,6 +375,39 @@
     align-items:center;justify-content:center;color:var(--accent-d);flex:0 0 auto}
   .lockic svg{width:14px;height:14px}
   .lockhint{color:var(--muted);font-size:14px;margin-top:16px}
+  /* Гейт почты: поле ввода стоит В ЛИПКОМ ПОДВАЛЕ, над кнопкой.
+     Раньше поле лежало в карточке (703px при экране высотой 664 — то есть за
+     сгибом), а липкая кнопка висела посреди карточки поверх размытых цифр:
+     единственное, что человек видел на первом экране, была кнопка, и слепой тап
+     по ней отвечал «кажется, есть опечатка» тому, кто ничего не вводил.
+     В подвале поле видно при любой прокрутке и на любой высоте экрана, а кнопка
+     всегда под ним — вслепую нажать её раньше поля уже нельзя. */
+  .card.gate{margin-top:12px;padding:18px}
+  .card.gate .lockrow{margin-top:10px}
+  .card.gate .lockhint{margin-top:12px;font-size:13.5px}
+  .foot.gatefoot .email{margin:0 0 9px}
+  .foot.gatefoot .inp{padding:13px 16px}
+  /* Подсказка про согласие мелким и в одну-две строки: подвал закрывает нижнюю
+     часть экрана, и каждый его лишний десяток пикселей отъедает норму. */
+  .foot.gatefoot .trust{margin-top:9px;font-size:11.5px;line-height:1.35}
+  .foot.gatefoot .err{margin-top:7px}
+  /* Заливка под подвалом рассчитана на одну кнопку (150px). С полем, ошибкой и
+     строкой согласия подвал выше — и сквозь его верх просвечивали подписи
+     «ккал в день / белки» из карточки: поле для почты читалось поверх чужого
+     текста. Растягиваем заливку на всю высоту подвала. */
+  .foot.gatefoot::before{height:260px;
+    background:linear-gradient(180deg,transparent,var(--bg) 26%)}
+  /* Экран гейта тянется на всю высоту окна, а подвал прижат к его низу. На
+     широком экране контента меньше вьюпорта, и подвал с полем вставал посреди
+     пустой страницы: липнуть там не к чему, а поле оказывалось не «внизу под
+     рукой», а где придётся. */
+  .step.plan.gatestep{flex:1;display:flex;flex-direction:column}
+  .step.plan.gatestep .foot.gatefoot{margin-top:auto}
+  /* Выход из пейволла: заметил ошибку в весе или аллергии — можно пройти
+     заново, не зная про ?reset=1 и не дожидаясь, пока состояние протухнет
+     через сутки. */
+  .restart{display:block;margin:20px auto 4px;background:none;border:none;color:var(--muted);
+    font-size:14px;font-weight:600;text-decoration:underline;text-underline-offset:3px}
 
   /* Связка между личным результатом и покупкой. Раньше карточка нормы просто
      обрывалась и следом шла коробка с ценой — переход читался как «а теперь
@@ -735,8 +773,10 @@ function render(){
   if(idx===0) track('quiz_start');
   if(st.type==='metrics') track('quiz_metrics');
   if(st.type==='plan') track(planRevealed ? 'quiz_norm_shown' : 'quiz_email_screen');
-  // топ-бар (с кнопкой «Назад») виден везде, КРОМЕ intro/build/plan — иначе на note-экранах
-  // юзер не мог вернуться и поправить ответ (кнопка была спрятана вместе с баром).
+  // топ-бар (с кнопкой «Назад») виден везде, КРОМЕ intro/build/plan — иначе на
+  // note-экранах юзер не мог вернуться и поправить ответ (кнопка была спрятана
+  // вместе с баром). На плане бар не показываем — он открывал экран пустой
+  // полосой; вместо него в самом экране стоит своя кнопка «Назад» (renderPlan).
   topEl.classList.toggle('hide', st.type==='intro' || st.type==='build' || st.type==='plan');
   back.hidden = idx===0 || st.type==='build' || st.type==='plan';
   if(st.q){ const n=qNum(idx); fill.style.width=(n/QTOTAL*100)+'%'; count.textContent=n+'/'+QTOTAL; }
@@ -870,8 +910,12 @@ const SKEY='np_quiz_v2';
 // по ключам, а не по номерам), место в списке — только при совпадении подписи.
 const SSIG=STEPS.map(s=>s.key||s.type).join('|');
 function saveState(){ try{ localStorage.setItem(SKEY, JSON.stringify(
-  {answers, idx, planRevealed, leadEmail, sig:SSIG, t:Date.now()})); }catch(e){} }
+  {answers, idx, planRevealed, leadEmail, sig:SSIG, l:L, t:Date.now()})); }catch(e){} }
 function loadState(){ try{ const s=JSON.parse(localStorage.getItem(SKEY)||'null');
+  // Клик по рекламе на ДРУГОЙ лендинг — это новый заход, а не продолжение
+  // вчерашнего: раньше человек попадал на вчерашний пейволл со вчерашними
+  // ответами, даже не увидев ни одного вопроса нового лендинга.
+  if(s && s.l && s.l!==L){ clearState(); return false; }
   if(s && s.answers && (Date.now()-(s.t||0) < 864e5)){ // не старше суток
     Object.assign(answers, s.answers);
     planRevealed=!!s.planRevealed; leadEmail=s.leadEmail||'';
@@ -884,7 +928,28 @@ function loadState(){ try{ const s=JSON.parse(localStorage.getItem(SKEY)||'null'
     return true; } }catch(e){} return false; }
 function clearState(){ try{ localStorage.removeItem(SKEY); }catch(e){} }
 function nextStep(){ idx++; saveState(); render(); window.scrollTo(0,0); }
-back.addEventListener('click', ()=>{ if(idx>0){ idx--; saveState(); render(); window.scrollTo(0,0);} });
+// Явный выход из пейволла для того, кто ошибся в ответах. ?reset=1 знает только
+// тот, кто читал исходники; кнопка — то же самое, но её видно.
+// Спрашиваем подтверждение: случайный тап стирает одиннадцать шагов.
+function restartQuiz(){
+  if(!confirm('Начать квиз заново? Ответы не сохранятся.')) return;
+  clearState();
+  Object.keys(answers).forEach(k=>delete answers[k]);
+  planRevealed=false; leadEmail=''; idx=0;
+  render(); window.scrollTo(0,0);
+}
+// Шаг назад зовут две кнопки: та, что в шапке на вопросах, и та, что в самом
+// экране плана.
+function prevStep(){
+  if(idx<=0) return;
+  idx--;
+  // Перед планом стоит лоадер, а он транзиентный: шаг назад с пейволла попадал
+  // на него, тот досчитывал до 100% и через полсекунды снова уводил вперёд —
+  // «Назад» зацикливался и выхода с пейволла по-прежнему не было.
+  if(STEPS[idx] && STEPS[idx].type==='build') idx=Math.max(0, idx-1);
+  saveState(); render(); window.scrollTo(0,0);
+}
+back.addEventListener('click', prevStep);
 
 function renderBuild(){
   const R=80, C=2*Math.PI*R;
@@ -976,10 +1041,19 @@ function prognosis(w,target,goal,h){
       dir='flat';
       note=`Для роста ${Math.round(h)} см твой вес уже спокойный. План не про снижение, а про то, что есть каждый день.`;
     }
-  } else if(dir==='flat' && target && Math.abs(target-w)>=1){
-    // Желаемый вес человек ввёл, а цель выбрал не про вес. Молча его выкинуть —
+  } else if(target && Math.abs(target-w)>=1){
+    // Желаемый вес человек ввёл, а цель с ним не сходится. Молча его выкинуть —
     // значит оставить вопрос «а куда делась моя цифра».
-    note='Цель выбрана без снижения веса, поэтому прогноз ровный: план про то, что есть каждый день.';
+    //
+    // Ветка была написана только под dir==='flat', и связка «набрать массу» +
+    // желаемый вес МЕНЬШЕ текущего (как и «сбросить» + вес больше) уходила в
+    // тишину: кривая шла в одну сторону, введённое число не упоминалось нигде.
+    const t=Math.round(target);
+    note = dir==='flat'
+      ? 'Цель выбрана без снижения веса, поэтому прогноз ровный: план про то, что есть каждый день.'
+      : (dir==='up'
+          ? `Желаемые ${t} кг меньше текущего веса, а цель — набор массы: прогноз построен на набор. Если хочешь снижать вес, вернись и поменяй цель.`
+          : `Желаемые ${t} кг больше текущего веса, а цель — снижение: прогноз построен на снижение. Если хочешь набирать, вернись и поменяй цель.`);
   }
   const d=new Date(); d.setDate(d.getDate()+weeks*7);
   const dateStr=d.toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
@@ -991,13 +1065,25 @@ function prognosis(w,target,goal,h){
   return {headline, dir, dateStr, endLabel, weeks, note};
 }
 
+// Замок на последней строке дня: «здесь заперто», а не «здесь пусто».
+// Вынесен в функцию, потому что вешать его приходится дважды — при отрисовке и
+// после ответа сервера, который пересобирает строки: замок на исчезнувшей
+// строке уходил вместе с ней, и последний приём оставался открытым.
+function lockLastMeal(box){
+  const rows = box.querySelectorAll('.meal');
+  const last = rows[rows.length - 1];
+  if(!last) return;
+  const mi = last.querySelector('.mi');
+  if(mi){ mi.classList.add('lock'); mi.innerHTML = IC.lock; last.classList.remove('hasphoto'); }
+}
+
 // Настоящий первый день плана + фото блюд.
 //
-// В вёрстке лежит запасной вариант (овсянка/курица/рыба) — он рисуется сразу,
-// чтобы экран не мигал пустотой и не сломался при отвалившейся сети. Но
-// показывать его ВСЕМ было ошибкой: человек, ответивший «без мяса», читал
-// «Собран под твои вкусы», а под этим — курицу и рыбу. Сервер считает день по
-// тем же правилам, что и бесплатное письмо, так что экран и письмо совпадают.
+// В вёрстке лежит запасной день — он рисуется сразу, чтобы экран не мигал
+// пустотой и не сломался при отвалившейся сети. Но показывать его ВСЕМ было
+// ошибкой: человек, ответивший «без мяса», читал «Собран под твои вкусы», а под
+// этим — курицу и рыбу. Сервер считает день по тем же правилам, что и
+// бесплатное письмо, так что экран и письмо совпадают.
 async function loadRealDay(){
   const box = document.getElementById('dayBlock');
   if(!box) return;
@@ -1009,38 +1095,53 @@ async function loadRealDay(){
   }catch(e){ return; }                    // сеть отвалилась — остаётся запасной день
   const meals = (data && data.meals) || [];
   if(!meals.length) return;
-  const rows = box.querySelectorAll('.meal');
-  meals.slice(0, rows.length).forEach((m, i) => {
-    const row = rows[i];
-    const mi = row.querySelector('.mi');
+  // День пересобираем ПО ОТВЕТУ СЕРВЕРА: сколько приёмов прислал, столько строк
+  // и в том же порядке. Раньше ответ раскладывался по готовым строкам разметки,
+  // и любое расхождение в числе приёмов било по цифрам: лишние строки оставались
+  // с запасными калориями и день выходил толще нормы (1660 ккал в заголовке
+  // против 1992 в столбце), лишние приёмы сервера — выбрасывались, и день
+  // выходил худее. Раскладка приёмов — ответственность сервера, он же считает
+  // оплаченный план и письмо.
+  const ICON_BY_MEAL = {'завтрак':'cup','обед':'plate','ужин':'bowl','перекус':'bowl'};
+  const esc = v => String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  box.querySelectorAll('.meal').forEach(r => r.remove());
+  meals.forEach(m => {
+    const row = document.createElement('div');
+    row.className = 'meal';
+    row.dataset.meal = m.meal || '';
+
+    const mi = document.createElement('span');
+    mi.className = 'mi';
     // Фото ставим ТОЛЬКО когда оно реально есть: заглушка-кружок на месте
     // иконки выглядит как сломанная картинка, иконка честнее.
-    // И никогда — в закрытую строку: там стоит замок, и ответ сервера приходит
-    // асинхронно, то есть спокойно затирал бы его фотографией еды.
-    if(m.photo && m.slug && mi && !mi.classList.contains('lock')){
+    if(m.photo && m.slug){
       const img = document.createElement('img');
       img.src = '/dish/' + encodeURIComponent(m.slug);
-      img.alt = m.title; img.loading = 'lazy';
-      mi.innerHTML = ''; mi.appendChild(img); row.classList.add('hasphoto');
+      img.alt = m.title || ''; img.loading = 'lazy';
+      mi.appendChild(img); row.classList.add('hasphoto');
+    } else {
+      mi.innerHTML = IC[ICON_BY_MEAL[String(m.meal||'').trim().toLowerCase()] || 'plate'];
     }
-    const t = row.querySelector('.mt');
-    if(t){
-      // Крупным — НАЗВАНИЕ блюда, а не «Завтрак». Раньше жирным стоял приём
-      // пищи, и человек видел «Завтрак · Яйца, помидоры, зелень», не понимая,
-      // что ему предлагают омлет. Название блюда — это и есть то, что продаём.
-      // Состав нужен рядом: по одному названию не понять, что в тарелке.
-      const esc = v => String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-      t.innerHTML = '<b>' + esc(m.title) + '</b><span>' + esc(m.desc || '') + '</span>';
-    }
-    // Правая колонка: приём пищи мелким над калориями. Собираем разметкой, а не
-    // textContent — присваивание текстом стирало подпись «Завтрак» вместе с
-    // тегом, и приём пищи пропадал с экрана совсем.
-    const kc = row.querySelector('.kc');
-    if(kc){
-      const esc2 = v => String(v).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-      kc.innerHTML = (m.meal ? '<i>' + esc2(m.meal) + '</i>' : '') + esc2(m.kcal) + ' ккал';
-    }
+
+    // Крупным — НАЗВАНИЕ блюда, а не «Завтрак». Раньше жирным стоял приём пищи,
+    // и человек видел «Завтрак · Яйца, помидоры, зелень», не понимая, что ему
+    // предлагают омлет. Название блюда — это и есть то, что продаём. Состав
+    // нужен рядом: по одному названию не понять, что в тарелке.
+    const t = document.createElement('span');
+    t.className = 'mt';
+    t.innerHTML = '<b>' + esc(m.title || '') + '</b><span>' + esc(m.desc || '') + '</span>';
+
+    // Правая колонка: приём пищи мелким над калориями.
+    const kc = document.createElement('span');
+    kc.className = 'kc';
+    kc.innerHTML = (m.meal ? '<i>' + esc(m.meal) + '</i>' : '') + esc(m.kcal) + ' ккал';
+
+    row.append(mi, t, kc);
+    box.appendChild(row);
   });
+  // Замок перевешиваем: строки пересобраны, и тот, что стоял до запроса, ушёл
+  // вместе со старой последней строкой.
+  lockLastMeal(box);
 }
 
 let planRevealed=false, leadEmail='';
@@ -1048,7 +1149,6 @@ function renderPlan(){
   const {cal,P,F,C,w,h,target}=calcPlan();
   const goal=GOAL_TXT[answers.goal]||'твоей цели';
   const pg=prognosis(w,target,answers.goal,h);
-  const m1=Math.round(cal*0.30), m2=Math.round(cal*0.40), m3=Math.round(cal*0.30);
 
   // Числа для оффера — считаются из ответов и из цен, пришедших с сервера.
   // Никаких «обычно 2990₽» и прочих зачёркиваний: сравнивать можно только то,
@@ -1065,6 +1165,36 @@ function renderPlan(){
     return many;
   };
   const dishWord = plural(dishCount, "блюдо", "блюда", "блюд");
+  // «Пример дня» строится по ТОМУ ЖЕ ответу про число приёмов, что и оффер.
+  // Раньше строк было ровно три, всегда: человеку с ответом «3 + перекусы»
+  // пейволл обещал 5 приёмов и 35 блюд, а показывал завтрак, обед и ужин —
+  // то есть опровергал собственное обещание на том же экране.
+  const DAY_LAYOUT = {
+    2: [['Завтрак',0.45], ['Ужин',0.55]],
+    3: [['Завтрак',0.30], ['Обед',0.40], ['Ужин',0.30]],
+    5: [['Завтрак',0.25], ['Перекус',0.10], ['Обед',0.30], ['Перекус',0.10], ['Ужин',0.25]],
+  };
+  // Интервальное окно — те же два приёма, но завтрака в нём нет по определению.
+  const layout = answers.meals==='if'
+    ? [['Обед',0.5], ['Ужин',0.5]]
+    : (DAY_LAYOUT[mealsN] || DAY_LAYOUT[3]);
+  // Запасные блюда на случай, если сервер не ответил. Перекусы намеренно без
+  // молочного и орехов: запасной день видят и те, кто отметил аллергию, а
+  // отфильтровать его тут нечем — фильтрация живёт на сервере.
+  const DAY_FALLBACK = {
+    'Завтрак': {ic:'cup',   t:'Омлет с овощами',           d:'Яйца, помидоры, зелень'},
+    'Обед':    {ic:'plate', t:'Рыба запеченная с овощами', d:'Белая рыба и овощи'},
+    'Ужин':    {ic:'bowl',  t:'Куриное филе с овощами',    d:'Куриное филе и брокколи'},
+    'Перекус': {ic:'cup',   t:'Фрукты и ягоды',            d:'Яблоко, груша, горсть ягод'},
+  };
+  const dayRows = layout.map(([label, share]) => {
+    const f = DAY_FALLBACK[label] || DAY_FALLBACK['Перекус'];
+    // data-meal нужен loadRealDay: ответ сервера кладётся в строку с той же
+    // подписью приёма, а не по порядковому номеру.
+    return `<div class="meal" data-meal="${label}"><span class="mi">${IC[f.ic]}</span>` +
+      `<span class="mt"><b>${f.t}</b><span>${f.d}</span></span>` +
+      `<span class="kc"><i>${label}</i>${Math.round(cal*share)} ккал</span></div>`;
+  }).join('');
   // Подписка — новый план каждую неделю, то есть ~4 плана в месяц. Отсюда
   // честная цена за план, которая и объясняет бейдж вместо голого «выгодно».
   const perPlan = Math.round(SUB_PRICE / 4);
@@ -1164,8 +1294,17 @@ function renderPlan(){
       ${pg.note ? `<p class="gnote">${pg.note}</p>` : ''}
     </div>`;
 
+  // Единственный шаг, где человек отдаёт контакт, — и поле для контакта было за
+  // сгибом (703px при экране 664), а липкая кнопка лежала посреди карточки
+  // поверх размытых цифр. Слепой тап по ней ронял красную «опечатку» тому, кто
+  // ещё ничего не вводил.
+  //
+  // Поэтому поле переехало в липкий подвал, прямо НАД кнопкой: подвал виден при
+  // любой прокрутке, значит поле человек видит раньше, чем кнопку, и вслепую
+  // нажать «Показать норму» с пустым полем больше не выходит. В карточке
+  // остались только размытые цифры — то, что покупается за почту.
   const locked = `
-    <div class="card">
+    <div class="card gate">
       <div class="lockhead"><div class="dh2">Твоя дневная норма</div><span class="lockic">${IC.lock}</span></div>
       <div class="lockrow">
         <div class="lockcell main"><div class="n">${cal}</div><div class="c">ккал в день</div></div>
@@ -1174,10 +1313,11 @@ function renderPlan(){
         <div class="lockcell"><div class="n">${C}</div><div class="c">углеводы</div></div>
       </div>
       <p class="lockhint">Норма уже посчитана под твои ответы. Почта — чтобы открыть её и первый день меню.</p>
-      <div class="email"><div class="inp"><input type="email" id="mail" placeholder="твой@email.ru" autocomplete="email" inputmode="email"></div>
-        <div class="err" id="err">Проверь адрес — кажется, есть опечатка</div></div>
     </div>
-    <div class="foot"><button class="cta" id="send">Показать мою норму →</button>
+    <div class="foot gatefoot">
+      <div class="email"><div class="inp"><input type="email" id="mail" placeholder="твой@email.ru" autocomplete="email" inputmode="email"></div>
+        <div class="err" id="err"></div></div>
+      <button class="cta" id="send">Показать мою норму →</button>
       <div class="trust">Оставляя email, ты принимаешь <a href="/consent" target="_blank">Согласие</a> и <a href="/privacy" target="_blank">Политику ПДн</a></div></div>`;
 
   const revealed = `
@@ -1197,9 +1337,7 @@ function renderPlan(){
         <!-- Запасной день = ровно то, что сервер отдаёт без ограничений. Так
              экран не дёргается при подмене на настоящий ответ, а при отвалившейся
              сети человек видит не выдумку, а дефолтное меню каталога. -->
-        <div class="meal"><span class="mi">${IC.cup}</span><span class="mt"><b>Омлет с овощами</b><span>Яйца, помидоры, зелень</span></span><span class="kc"><i>Завтрак</i>${m1} ккал</span></div>
-        <div class="meal"><span class="mi">${IC.plate}</span><span class="mt"><b>Рыба запеченная с овощами</b><span>Белая рыба и овощи</span></span><span class="kc"><i>Обед</i>${m2} ккал</span></div>
-        <div class="meal"><span class="mi">${IC.bowl}</span><span class="mt"><b>Куриное филе с овощами</b><span>Куриное филе и брокколи</span></span><span class="kc"><i>Ужин</i>${m3} ккал</span></div>
+        ${dayRows}
       </div>
       <div class="daygo"><button class="go" id="toPw" type="button">Перейти к полному плану
         <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
@@ -1236,26 +1374,30 @@ function renderPlan(){
       <div class="trust" style="margin-top:10px">Нажимая, принимаешь <a href="/offer" target="_blank">Оферту</a></div>
     </div>`;
 
-  stage.innerHTML = `<div class="step plan">
+  stage.innerHTML = `<div class="step plan${planRevealed ? '' : ' gatestep'}">
     <div class="food a" aria-hidden="true" style="background-image:url('/dish/grecheskiy-salat')"></div>
     <div class="food b" aria-hidden="true" style="background-image:url('/dish/fruktovyy-salat')"></div>
-    <span class="kick">Твой план готов</span>
+    <div class="planhead">
+      <button class="back" id="planBack" type="button" aria-label="Назад">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <span class="kick">Твой план готов</span>
+    </div>
     <h2>${pg.headline}</h2>
     <p class="lead">Мягкий темп без голода — под твоё тело и вкусы</p>
     ${graph}
     ${planRevealed ? revealed : locked}
+    <button class="restart" id="restart" type="button">Пройти заново</button>
   </div>`;
   playAll();
+  $('#restart').addEventListener('click', restartQuiz);
+  $('#planBack').addEventListener('click', prevStep);
   if(planRevealed){
     // Замок ставим ДО загрузки настоящего дня: loadRealDay асинхронный, и
     // порядок «сначала загрузка, потом замок» означал бы, что пришедший ответ
     // затирает замок фотографией.
-    const rows = document.querySelectorAll('#dayBlock .meal');
-    const last = rows[rows.length - 1];
-    if(last){
-      const mi = last.querySelector('.mi');
-      if(mi){ mi.classList.add('lock'); mi.innerHTML = IC.lock; }
-    }
+    const dayBox = document.getElementById('dayBlock');
+    if(dayBox) lockLastMeal(dayBox);
     loadRealDay();
     // Кнопка под карточкой дня ведёт к тарифам. Скроллим сами, а не якорем:
     // якорь оставил бы #hash в адресе и сломал бы возврат «назад».
@@ -1269,18 +1411,24 @@ function renderPlan(){
   if(!planRevealed){
     const send=$('#send'), mail=$('#mail'), err=$('#err');
     const ok=v=>/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+    // Пустое поле и опечатка — разные вещи. Один текст на оба случая обвинял в
+    // опечатке того, кто ещё ничего не набрал, и не подсказывал, что делать.
+    const ERR_EMPTY='Введи почту, чтобы открыть норму';
+    const ERR_TYPO='Проверь адрес — кажется, есть опечатка';
+    const fail=(t)=>{ err.textContent=t; err.classList.add('show'); mail.focus(); };
     mail.addEventListener('input', ()=>err.classList.remove('show'));
     send.addEventListener('click', async ()=>{
       const v=mail.value.trim();
-      if(!ok(v)){ err.classList.add('show'); mail.focus(); return; }
+      if(!v){ fail(ERR_EMPTY); return; }
+      if(!ok(v)){ fail(ERR_TYPO); return; }
       send.disabled=true; send.textContent='Открываю…';
       // Проверяем ответ сервера: если email отклонён (422) — НЕ раскрываем план, показываем ошибку.
       let good=true;
       try{ const r=await fetch('/api/lead',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({email:v,landing:L,goal:answers.goal||'',quiz:answers,src:SRC})});
         if(r.status===422){ good=false; } }catch(e){ /* сеть — не блокируем раскрытие */ }
-      if(!good){ err.textContent='Проверь адрес почты'; err.classList.add('show'); mail.focus();
-        send.disabled=false; send.textContent='Показать мой план'; return; }
+      if(!good){ fail('Проверь адрес почты');
+        send.disabled=false; send.textContent='Показать мою норму →'; return; }
       track("lead");
       leadEmail=v; planRevealed=true; saveState(); render(); window.scrollTo(0,0);
     });

@@ -52,7 +52,10 @@
   section[id]{scroll-margin-top:80px}
 
   /* hero */
-  .hero{position:relative}
+  /* overflow:hidden обязателен: декоративный градиент ниже вылезает вправо на
+     right:-10% и раздвигает вьюпорт — на 390 px браузер отзумливал страницу до
+     429 px, всё показывалось на 9% мельче. Так же сделано в reset.html */
+  .hero{position:relative;overflow:hidden}
   .hero .g{display:grid;grid-template-columns:1.06fr .94fr;align-items:center;gap:26px;min-height:calc(100vh - 66px)}
   .hero::before{content:"";position:absolute;top:-10%;right:-10%;width:60%;height:80%;z-index:0;
     background:radial-gradient(closest-side,rgba(199,249,78,.14),transparent 70%)}
