@@ -205,6 +205,15 @@ def _meal_card(m: dict, day: int = 0, slot: str = "", idx: int = 0) -> str:
     macros = ""
     if m.get("p") or m.get("c") or m.get("f"):
         macros = (f"<span class='mm'>Б {_e(m.get('p','?'))} · Ж {_e(m.get('f','?'))} · У {_e(m.get('c','?'))}</span>")
+
+    def _num(v) -> int:
+        try:
+            return int(float(v or 0))
+        except Exception:
+            return 0
+    # Числа БЖУ едут в data-атрибутах: плитка «набрано из нормы» складывает их по
+    # ОТМЕЧЕННЫМ приёмам. Иначе она показывала бы норму как факт — то есть врала.
+    pfc = f" data-p='{_num(m.get('p'))}' data-f='{_num(m.get('f'))}' data-c='{_num(m.get('c'))}'"
     ing = "".join(f"<li>{_e(i)}</li>" for i in (m.get("ingredients") or []))
     steps = "".join(f"<li>{_e(s)}</li>" for s in (m.get("steps") or []))
     details = ""
@@ -221,7 +230,7 @@ def _meal_card(m: dict, day: int = 0, slot: str = "", idx: int = 0) -> str:
            f"aria-label='Посмотреть фото: {_e(name)}'>"
            f"<img loading='lazy' data-slug='{_e(slug)}' alt='' "
            f"src='/dish/{quote(slug)}?t={quote(name)}'></button>")
-    return (f"<div class='meal' data-k='{key}' data-kc='{kcnum}'><div class='mrow'>{img}"
+    return (f"<div class='meal' data-k='{key}' data-kc='{kcnum}'{pfc}><div class='mrow'>{img}"
             f"<div class='minfo'><span class='slot'>{_e(m.get('slot',''))}</span>"
             f"<div class='mname'>{_e(name)}</div>{macros}</div>"
             f"<div class='kc'>{_e(kc)}<small>ккал</small></div></div>{details}"
@@ -256,7 +265,9 @@ def _shopping(sh: list, days: list | None = None) -> str:
                       f"<span class='sb'></span><span class='st'>{_e(i)}</span></label></li>")
         if not items:
             continue
-        cats += f"<div class='cat'><div class='ct'>{_e(c.get('cat',''))}</div><ul>{items}</ul></div>"
+        n = len(c.get("items") or [])
+        cats += (f"<div class='cat'><div class='ct'>{_e(c.get('cat',''))}<span>{n}</span></div>"
+                 f"<ul>{items}</ul></div>")
     if not cats:
         return ""
     return (f"<section class='sec'><div class='shead'><h2>Список покупок</h2>"
@@ -293,6 +304,39 @@ def _tips(tips: list) -> str:
         return ""
     li = "".join(f"<li><span class='c'></span><span>{_e(t)}</span></li>" for t in tips)
     return f"<section class='sec'><h2>Советы под тебя</h2><ul class='tips'>{li}</ul></section>"
+
+
+_GOALS = {"lose": "Снижение веса", "keep": "Удержание веса", "gain": "Набор массы",
+          "health": "Здоровое питание"}
+# Коды из анкеты — те же, что читает фильтр в plan_ai._ALLERGEN_WORDS.
+_DIET_RU = {"nuts": "без орехов", "nogluten": "без глютена", "nomeat": "без мяса",
+            "nofish": "без рыбы", "nolact": "без лактозы"}
+
+
+def _params(pl: dict, goal_code: str, water_goal: int) -> str:
+    """Под что собран план. Раньше эти цифры были только на экране «Сегодня»,
+    и человек не мог свериться, ту ли цель он вообще указал в анкете."""
+    q = pl.get("quiz") or {}
+    rows = []
+    goal = _GOALS.get(goal_code)
+    if goal:
+        rows.append(("Цель", goal))
+    if pl.get("cal"):
+        rows.append(("Норма", f"{_e(pl.get('cal'))} ккал/день"))
+    if pl.get("P") or pl.get("F") or pl.get("C"):
+        rows.append(("БЖУ", f"{_e(pl.get('P','—'))} · {_e(pl.get('F','—'))} · {_e(pl.get('C','—'))} г"))
+    rows.append(("Вода", f"{water_goal} стаканов в день"))
+    if pl.get("days"):
+        rows.append(("Приёмов в день", str(len((pl['days'][0].get('meals') or [])))))
+    body = "".join(f"<div class='prow'><span>{k}</span><b>{v}</b></div>" for k, v in rows)
+    # Аллергии и диета — отдельной строкой чипами: это единственный параметр,
+    # который влияет на безопасность, и прятать его в общий список нельзя.
+    al = [_DIET_RU.get(c, c) for c in (q.get("diet") or []) if c]
+    if al:
+        chips = "".join(f"<i>{_e(a)}</i>" for a in al)
+        body += f"<div class='prow col'><span>Исключено по анкете</span><div class='chips'>{chips}</div></div>"
+    return (f"<section class='sec'><h2>Параметры плана</h2>"
+            f"<div class='prefcard params'>{body}</div></section>")
 
 
 _MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля",
@@ -415,7 +459,8 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
         names = " · ".join(_e(m.get("name", "")) for m in ms[:3])
         tot = sum(int(m.get("kcal") or 0) for m in ms)
         week_rows += (f"<button class='drow' data-d='{i}'>"
-                      f"<span class='dl'><b>{_day_label(i)}</b><span>{names}</span></span>"
+                      f"<span class='dl'><b>{_day_label(i)}<em class='dnow' hidden> · сегодня</em></b>"
+                      f"<span>{names}</span></span>"
                       f"<span class='dk'>{tot} ккал</span></button>")
     panels = ""
     for i, d in enumerate(days):
@@ -439,33 +484,112 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
 <style>
 /* --wtr — вода. Отдельный токен, а не разовый цвет в правиле: вода отмечается
    в двух местах (стаканы и полоса прогресса дня), и они обязаны совпадать. */
-:root{{--g:#16A34A;--gd:#0E7A36;--soft:#E7F8EC;--ink:#20321F;--muted:#6B7566;--bg:#FBF8F1;--line:#EEE7D8;--card:#fff;
-  --wtr:#38BDF8;--wtr-soft:#E0F2FE}}
+/* ═══ Оформление ═══════════════════════════════════════════════════════════
+   Приложение приведено к виду прототипа v5 «светлое стекло»: свои шрифты с
+   кириллицей, крупная типографика, полупрозрачные карточки со светящейся
+   кромкой поверх цветного свечения, всё скруглено.
+
+   Системный шрифт и белые карточки одного размера — главная причина, по которой
+   интерфейс выглядел черновиком, как ни расставляй блоки. Onest на текст,
+   Unbounded на числа; самохостятся, только подмножества cyrillic+latin.        */
+@font-face{{font-family:Onest;font-style:normal;font-weight:400 800;font-display:swap;
+  src:url(/assets/onest-cyrillic.woff2) format('woff2');
+  unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}}
+@font-face{{font-family:Onest;font-style:normal;font-weight:400 800;font-display:swap;
+  src:url(/assets/onest-latin.woff2) format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+2000-206F,U+2070-209F,U+20AC,U+2122,U+2212}}
+@font-face{{font-family:Unbounded;font-style:normal;font-weight:600 900;font-display:swap;
+  src:url(/assets/unbounded-cyrillic.woff2) format('woff2');
+  unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}}
+@font-face{{font-family:Unbounded;font-style:normal;font-weight:600 900;font-display:swap;
+  src:url(/assets/unbounded-latin.woff2) format('woff2');
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+2000-206F,U+20AC,U+2122,U+2212}}
+
+:root{{--g:#1E9150;--gd:#136B39;--soft:#DFF3E5;--ink:#1B2A17;--ink-2:#4C5C46;
+  --muted:#8B9584;--bg:#F7F2E8;--line:#E6DECD;--card:#FFFDF8;
+  --accent:#E9682F;--wtr:#3FBEF0;--wtr-soft:#E0F2FE;
+  --glass:color-mix(in srgb,#fff 62%,transparent);
+  --glass-edge:color-mix(in srgb,#fff 92%,transparent);
+  --glass-line:color-mix(in srgb,var(--ink) 9%,transparent);
+  --sh-1:0 2px 6px -2px rgba(30,50,25,.10);
+  --sh-2:0 18px 36px -26px rgba(30,50,25,.42);
+  --rx:30px;--rl:22px;--rm:16px;--rs:12px}}
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}}
+body{{background:var(--bg);color:var(--ink);font-family:Onest,-apple-system,BlinkMacSystemFont,sans-serif;
+  -webkit-font-smoothing:antialiased}}
+/* Свечение под контентом — четыре пятна, не больше: каждое это большой размытый
+   слой, и на телефоне за него платят батареей. */
+.aura{{position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(38% 26% at 12% 6%,  color-mix(in srgb,var(--g) 24%,transparent), transparent 70%),
+    radial-gradient(42% 28% at 94% 18%, color-mix(in srgb,var(--accent) 16%,transparent), transparent 72%),
+    radial-gradient(48% 30% at 4% 62%,  color-mix(in srgb,var(--soft) 90%,transparent), transparent 74%),
+    radial-gradient(56% 34% at 84% 92%, color-mix(in srgb,var(--wtr) 14%,transparent), transparent 72%);
+  filter:blur(40px)}}
+/* Ощущение стекла даёт не прозрачность, а СВЕТЯЩАЯСЯ КРОМКА сверху: без неё
+   выходит просто мутный прямоугольник. */
+.norm,.streakc,.water,.meal,.wcard,.prefcard,.subcard,.si,.drow,.tips li,.wover{{
+  background:var(--glass)!important;
+  -webkit-backdrop-filter:blur(22px) saturate(165%);backdrop-filter:blur(22px) saturate(165%);
+  border:1px solid var(--glass-line)!important;
+  box-shadow:inset 0 1px 0 var(--glass-edge),inset 0 -1px 0 rgba(30,50,25,.05),var(--sh-2)!important}}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){{
+  .norm,.streakc,.water,.meal,.wcard,.prefcard,.subcard,.si,.drow,.tips li,.wover{{background:var(--card)!important}}
+}}
+@media (prefers-reduced-transparency:reduce){{
+  .aura{{display:none}}
+  .norm,.streakc,.water,.meal,.wcard,.prefcard,.subcard,.si,.drow,.tips li,.wover{{
+    background:var(--card)!important;backdrop-filter:none;-webkit-backdrop-filter:none}}
+}}
 .wrap{{max-width:560px;margin:0 auto;padding:0 18px 60px}}
-header{{position:sticky;top:0;background:rgba(251,248,241,.9);backdrop-filter:blur(10px);padding:14px 0;z-index:5;border-bottom:1px solid var(--line)}}
+header{{position:sticky;top:0;background:color-mix(in srgb,var(--bg) 86%,transparent);
+  -webkit-backdrop-filter:blur(14px) saturate(150%);backdrop-filter:blur(14px) saturate(150%);
+  padding:14px 0;z-index:5;border-bottom:1px solid var(--glass-line)}}
 .brand{{max-width:560px;margin:0 auto;padding:0 18px;font-weight:800;font-size:19px;display:flex;align-items:center}}
 .brand .dot{{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--g);margin-right:8px}}
 .ins{{margin-left:auto;border:none;background:var(--g);color:#fff;font-weight:700;font-size:13px;padding:8px 14px;border-radius:99px;cursor:pointer}}
 .ins[hidden]{{display:none}}
-h1{{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:22px 0 4px}}
-.lead{{color:var(--muted);font-size:15px}}
-.norm{{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;margin-top:16px}}
-.norm .big{{font-size:40px;font-weight:800;color:var(--gd);letter-spacing:-.02em}}
-.norm .big small{{font-size:14px;color:var(--muted);font-weight:600}}
-.macros{{display:flex;gap:10px;margin-top:14px}}
-.macros div{{flex:1;background:var(--soft);border-radius:12px;padding:10px;text-align:center}}
-.macros b{{display:block;font-size:18px;color:var(--gd)}}.macros span{{font-size:12px;color:var(--muted)}}
-.tabs{{display:flex;gap:6px;overflow-x:auto;margin:22px 0 14px;position:sticky;top:52px;background:var(--bg);padding:6px 0;z-index:4}}
-.tab{{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--muted);font-weight:700;font-size:14px;
-  padding:9px 15px;border-radius:99px;cursor:pointer}}
-.tab.on{{background:var(--g);color:#fff;border-color:var(--g)}}
+.brand{{font-family:Unbounded;font-weight:700;letter-spacing:-.03em}}
+h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;line-height:.98;
+  margin:20px 0 8px}}
+.lead{{color:var(--ink-2);font-size:14.5px}}
+.norm{{border-radius:var(--rx);padding:21px;margin-top:16px}}
+.norm .big{{font-family:Unbounded;font-weight:800;font-size:54px;color:var(--gd);
+  letter-spacing:-.055em;line-height:.9}}
+.norm .big small{{font-family:Onest;font-size:16px;color:var(--muted);font-weight:600;
+  letter-spacing:-.01em;margin-left:9px}}
+/* Плитки БЖУ — те же, что на экране оплаты, вместе с рисованными иконками:
+   оплата и приложение должны читаться как один продукт. Подложки у плиток нет —
+   карточка нормы уже задаёт границу, а место уходит числам. */
+.macros{{display:flex;gap:14px;margin-top:16px;padding-top:14px;border-top:1px solid var(--glass-line)}}
+.macros > div{{flex:1;min-width:0;background:none;border:0;padding:0;text-align:left}}
+.macros .mrow{{display:flex;align-items:center;gap:8px;justify-content:flex-start}}
+.macros .mbar{{height:4px;border-radius:99px;margin-top:9px;
+  background:color-mix(in srgb,var(--ink) 8%,transparent)}}
+.macros .mbar i{{display:block;height:100%;width:0;border-radius:99px;background:var(--g);
+  transition:width .35s ease}}
+.macros b u{{text-decoration:none}}
+.macros .mic{{width:30px;height:30px;flex:0 0 auto}}
+.macros .mic img{{width:100%;height:100%;display:block}}
+.macros .mtx{{min-width:0}}
+.macros b i{{font-style:normal;font-family:Onest;font-size:11.5px;font-weight:700;
+  color:var(--muted);margin-left:1px;letter-spacing:0}}
+.macros b{{display:block;font-family:Unbounded;font-weight:700;font-size:16px;color:var(--ink);
+  letter-spacing:-.045em;line-height:1.05;white-space:nowrap}}
+.macros span{{display:block;font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap}}
+.tabs{{display:flex;gap:6px;overflow-x:auto;margin:22px 0 14px;position:sticky;top:52px;
+  background:color-mix(in srgb,var(--bg) 86%,transparent);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);padding:8px 0;z-index:4}}
+.tab{{flex:0 0 auto;border:1px solid var(--glass-line);color:var(--muted);font-weight:700;font-size:14px;
+  padding:9px 15px;border-radius:99px;cursor:pointer;font-family:inherit;
+  background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);
+  box-shadow:inset 0 1px 0 var(--glass-edge),var(--sh-1)}}
+.tab.on{{background:var(--g);color:#fff;border-color:var(--g);box-shadow:var(--sh-1)}}
 .panel{{display:none}}.panel.on{{display:block;animation:in .3s ease}}
 @keyframes in{{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:none}}}}
-.dtitle{{font-weight:800;font-size:15px;margin:4px 0 12px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}}
+.dtitle{{font-weight:700;font-size:11px;margin:6px 4px 12px;text-transform:uppercase;letter-spacing:.11em;color:var(--muted)}}
 .dtitle span{{color:var(--gd)}}
-.meal{{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px;margin-bottom:11px}}
+.meal{{border-radius:var(--rl);padding:14px;margin-bottom:10px}}
 .mrow{{display:flex;justify-content:space-between;gap:12px;align-items:center}}
 .mimg{{width:64px;height:64px;flex:0 0 auto;border-radius:13px;background:var(--soft);display:block;
   padding:0;border:none;overflow:hidden;cursor:zoom-in;position:relative}}
@@ -495,15 +619,21 @@ details{{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}}
 summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 .dh{{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;margin:10px 0 4px}}
 .ing,.steps{{padding-left:18px;font-size:14px;line-height:1.6}}.steps li{{margin-bottom:4px}}
-.sec{{margin-top:30px}}.sec h2{{font-size:20px;font-weight:800;letter-spacing:-.01em;margin-bottom:12px}}
-.shop{{display:flex;flex-direction:column;gap:12px}}
-.cat{{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}}
-.ct{{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}}
-.cat ul{{list-style:none;padding:0;font-size:14px}}
+.sec{{margin-top:30px}}
+.sec h2{{font-family:Unbounded;font-size:20px;font-weight:700;letter-spacing:-.035em;margin-bottom:12px}}
+.shop{{display:flex;flex-direction:column;gap:6px}}
+/* Категория — не карточка внутри карточки: заголовок группы и под ним пилюли.
+   Вложенное стекло в стекле читалось как грязь. */
+.cat{{background:none;border:0;padding:0}}
+.ct{{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.06em;margin:14px 4px 9px}}
+.ct span{{margin-left:auto;letter-spacing:0;font-size:11.5px}}
+.cat ul{{list-style:none;padding:0;font-size:14px;display:flex;flex-direction:column;gap:8px}}
 /* Позиция — переключатель, а не строчка текста: список нужен в магазине, где
    единственное действие — отметить купленное. Цель нажатия во всю ширину, чтобы
    попадать пальцем не глядя. */
-.si{{display:flex;align-items:flex-start;gap:11px;padding:8px 2px;cursor:pointer;line-height:1.35}}
+.si{{display:flex;align-items:center;gap:12px;padding:13px 15px;cursor:pointer;line-height:1.35;
+  border-radius:var(--rl)}}
 .si input{{position:absolute;opacity:0;width:0;height:0}}
 .si .sb{{width:21px;height:21px;flex:0 0 auto;border:2px solid var(--line);border-radius:6px;
   margin-top:1px;position:relative;transition:.14s}}
@@ -518,9 +648,9 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 .sprog{{color:var(--muted);font-size:13px;font-weight:700;margin:-6px 0 12px}}
 .sprog.all{{color:var(--gd)}}
 .tips{{list-style:none;display:flex;flex-direction:column;gap:12px}}
-.tips li{{display:flex;gap:10px;font-size:15px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px}}
+.tips li{{display:flex;gap:10px;font-size:14.5px;border-radius:var(--rl);padding:13px 15px}}
 .tips .c{{width:8px;height:8px;border-radius:50%;background:var(--g);flex:0 0 auto;margin-top:7px}}
-.subcard{{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}}
+.subcard{{border-radius:var(--rx);padding:18px}}
 .sactive{{display:inline-block;background:var(--soft);color:var(--gd);font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:5px 12px;border-radius:99px}}
 .scanceled{{display:inline-block;background:#f3f4f6;color:#6b7280;font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:5px 12px;border-radius:99px}}
 .sline{{margin-top:12px;font-size:15px}}
@@ -539,7 +669,7 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
   margin-left:auto;margin-right:auto;color:var(--muted)}}
 /* «Неделя пройдена». Спокойный блок, а не перекрывающее окно: план под ним
    остаётся рабочим, человек имеет право просто готовить дальше. */
-.wover{{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;margin-top:18px}}
+.wover{{border-radius:var(--rx);padding:20px;margin-top:18px}}
 .wobadge{{display:inline-block;background:var(--soft);color:var(--gd);font-weight:800;font-size:12px;
   text-transform:uppercase;letter-spacing:.04em;padding:5px 12px;border-radius:99px}}
 .wover h2{{font-size:21px;font-weight:800;letter-spacing:-.01em;margin:12px 0 6px}}
@@ -548,12 +678,8 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 .wocta{{display:block;text-align:center;margin-top:16px;background:var(--g);color:#fff;text-decoration:none;
   font-weight:800;font-size:15px;padding:14px;border-radius:14px}}
 .wonote{{font-size:13px;color:var(--muted);line-height:1.45;margin-top:10px;text-align:center}}
-.streakc{{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 15px;margin-top:16px}}
-.sm{{width:56px;height:56px;border-radius:14px;overflow:hidden;background:var(--soft);flex:0 0 auto}}
-.sm video,.sm img{{width:100%;height:100%;object-fit:cover;display:block}}
-.st .sbig{{font-size:22px;font-weight:800;color:var(--gd);letter-spacing:-.01em}}
-.st .sbig small{{font-size:13px;color:var(--muted);font-weight:600;margin-left:4px}}
-.st .ssub{{font-size:13px;color:var(--muted);margin-top:1px}}
+.streakc{{border-radius:var(--rl);padding:14px 15px;margin-top:16px}}
+.ssub{{font-size:13px;color:var(--muted);margin-top:1px}}
 .tab.complete:not(.on){{border-color:var(--g);color:var(--gd)}}
 .tab.complete::before{{content:"✓ "}}
 .mact{{display:flex;gap:8px;margin-top:12px}}
@@ -591,16 +717,19 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 .scr{{display:none}}
 .scr.on{{display:block}}
 body{{padding-bottom:104px}}
-.bnav{{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:40;
-  max-width:536px;margin:0 auto;display:flex;padding:7px 6px;border-radius:24px;
-  background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--line);
-  -webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);
-  box-shadow:0 18px 36px -22px rgba(30,50,25,.45)}}
+.bnav{{position:fixed;left:14px;right:14px;bottom:calc(13px + env(safe-area-inset-bottom));z-index:40;
+  max-width:536px;margin:0 auto;display:flex;padding:8px 7px;border-radius:26px;
+  background:var(--glass);border:1px solid var(--glass-line);
+  -webkit-backdrop-filter:blur(24px) saturate(170%);backdrop-filter:blur(24px) saturate(170%);
+  box-shadow:inset 0 1px 0 var(--glass-edge),0 22px 44px -24px rgba(30,50,25,.5)}}
 .bnav button{{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:none;
-  background:none;color:var(--muted);font:inherit;font-size:10.5px;font-weight:700;
-  padding:7px 0 5px;border-radius:17px;cursor:pointer}}
+  background:none;color:var(--muted);font:inherit;font-size:10px;font-weight:700;
+  padding:8px 0 6px;border-radius:19px;cursor:pointer}}
 .bnav button svg{{width:22px;height:22px;display:block}}
 .bnav button.on{{color:var(--gd);background:var(--soft)}}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){{
+  .bnav,.tab{{background:var(--card)}}
+}}
 /* Две плитки в ряд: серия и вода — про одно и то же (привычки), и по одной на
    строку они занимали пол-экрана. */
 .tiles{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}}
@@ -609,28 +738,36 @@ body{{padding-bottom:104px}}
    четыре строки, «Вода сегодня» на две, стаканы в три ряда. Ужимаем именно то,
    что можно ужать без потери смысла. */
 .tiles .streakc{{display:block}}
-.tiles .streakc .sm{{width:34px;height:34px;margin-bottom:8px}}
-.tiles .streakc .sbig{{font-size:26px}}
-.tiles .streakc .sbig small{{font-size:11.5px}}
 .tiles .streakc .ssub{{display:none}}          /* подсказку даёт онбординг */
-.tiles .water .wtop{{display:block;font-size:13px}}
-.tiles .water .wtop b{{display:block;font-size:11px;font-weight:800;letter-spacing:.08em;
+/* Обе плитки — одна сетка: подпись / ряд значков / число. Без неё ряды в
+   соседних плитках вставали на разной высоте. */
+.tiles .streakc,.tiles .water{{display:grid;grid-template-rows:auto 26px;gap:10px;align-content:start}}
+.tiles .wtop{{display:block;font-size:13px}}
+.tiles .wtop b{{display:block;font-size:11px;font-weight:800;letter-spacing:.08em;
   text-transform:uppercase;color:var(--muted)}}
-.tiles .water .wtop #wnum{{display:block;font-family:inherit;font-size:26px;font-weight:800;
-  color:var(--ink);margin-top:6px}}
-.tiles .water .wcups{{flex-wrap:nowrap;gap:3px;margin-top:9px}}
-.tiles .water .cup{{width:auto;flex:1;min-width:0;height:24px}}
+.tiles .wtop #wnum,.tiles .wtop #prog{{display:block;font-family:Unbounded;font-size:24px;
+  font-weight:700;letter-spacing:-.045em;color:var(--ink);margin-top:6px}}
+.tiles .water .wcups{{flex-wrap:nowrap;gap:4px;margin-top:0;align-items:flex-end}}
+.tiles .water .cup{{width:auto;flex:1;min-width:0;height:22px}}
+/* Огонёк многоцветный, перекрасить через currentColor нельзя — незакрытые дни
+   гасим фильтром. */
+.flames{{display:flex;gap:3px;align-items:flex-end}}
+.flames span{{height:22px;display:block;flex:0 0 auto}}
+.flames img{{height:100%;width:auto;display:block}}
+.flames span.off img{{filter:grayscale(1) opacity(.28)}}
 
 /* Неделя */
 .days{{display:flex;flex-direction:column;gap:9px;margin-top:16px}}
 .drow{{display:flex;align-items:center;gap:12px;width:100%;text-align:left;font:inherit;
-  background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px 15px;
-  cursor:pointer;color:inherit}}
+  border-radius:var(--rl);padding:13px 15px;cursor:pointer;color:inherit}}
 .drow .dl{{flex:1;min-width:0}}
-.drow .dl b{{display:block;font-size:15px;font-weight:700}}
-.drow .dl span{{display:block;font-size:12px;color:var(--muted);margin-top:3px;
+.drow .dl b{{display:block;font-size:14.5px;font-weight:600;line-height:1.25}}
+.drow .dnow{{font-style:normal;font-weight:700;color:var(--gd)}}
+.drow .dnow[hidden]{{display:none}}
+.drow .dl span{{display:block;font-size:11.5px;color:var(--muted);margin-top:2px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
-.drow .dk{{font-size:13px;font-weight:800;color:var(--muted);white-space:nowrap}}
+.drow .dk{{font-family:Unbounded;font-size:13.5px;font-weight:700;letter-spacing:-.035em;
+  color:var(--ink-2);white-space:nowrap}}
 
 /* Просмотр дня */
 .dayview{{position:fixed;inset:0;z-index:60;background:var(--bg);overflow:auto;display:none}}
@@ -638,18 +775,20 @@ body{{padding-bottom:104px}}
 .dvtop{{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:12px;padding:12px 18px;
   background:color-mix(in srgb,var(--bg) 88%,transparent);
   -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}}
-.dvtop button{{width:38px;height:38px;border-radius:13px;border:1px solid var(--line);
-  background:var(--card);color:var(--ink);display:flex;align-items:center;justify-content:center;
-  cursor:pointer;flex:0 0 auto}}
+.dvtop button{{width:38px;height:38px;border-radius:14px;border:1px solid var(--glass-line);
+  background:var(--glass);color:var(--ink);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex:0 0 auto;
+  -webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);
+  box-shadow:inset 0 1px 0 var(--glass-edge),var(--sh-1)}}
 .dvtop button svg{{width:19px;height:19px;display:block}}
-.dvtop b{{font-size:16px;font-weight:800}}
+.dvtop b{{font-family:Unbounded;font-size:15px;font-weight:700;letter-spacing:-.035em}}
 .dvbody{{max-width:560px;margin:0 auto;padding:4px 18px 40px}}
 .dvnote{{font-size:12.5px;color:var(--muted);margin:2px 0 14px}}
 .calbar{{height:7px;background:var(--line);border-radius:99px;overflow:hidden;margin:0 0 6px}}
 .calfill{{display:block;height:100%;width:0;background:var(--g);border-radius:99px;transition:width .35s ease}}
 .calfill.over{{background:#E0912B}}
 .caltxt{{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:14px}}
-.water{{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 15px;margin-top:12px}}
+.water{{border-radius:var(--rl);padding:14px 15px;margin-top:12px}}
 .wtop{{display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:800}}
 .wtop #wnum{{color:var(--muted);font-weight:700;font-size:13px}}
 .wcups{{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px}}
@@ -659,10 +798,10 @@ body{{padding-bottom:104px}}
    выполненное по еде («Приготовил», серия дней), и вода в том же цвете сливалась
    с ним в одну шкалу. Синий читается как вода без подписи. */
 .cup.f{{color:var(--wtr)}}
-.wcard{{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}}
+.wcard{{border-radius:var(--rx);padding:18px}}
 .wrow{{display:flex;justify-content:space-between;align-items:flex-end}}
-.wbig{{font-size:34px;font-weight:800;color:var(--gd);letter-spacing:-.02em}}
-.wbig small{{font-size:14px;color:var(--muted);font-weight:600;margin-left:4px}}
+.wbig{{font-family:Unbounded;font-size:32px;font-weight:700;color:var(--gd);letter-spacing:-.05em}}
+.wbig small{{font-family:Onest;font-size:14px;color:var(--muted);font-weight:600;margin-left:4px;letter-spacing:0}}
 .wdelta{{font-weight:800;font-size:15px;color:var(--muted)}}
 .wdelta.g{{color:var(--gd)}}.wdelta.b{{color:#B45309}}
 .wspark{{width:100%;height:80px;margin:14px 0 4px;display:block}}
@@ -672,7 +811,18 @@ body{{padding-bottom:104px}}
 .wadd input{{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font-size:16px;background:var(--bg);color:var(--ink)}}
 .wadd button{{border:none;border-radius:12px;background:var(--g);color:#fff;font-weight:700;font-size:15px;padding:0 18px;cursor:pointer;white-space:nowrap}}
 .whint{{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.4}}
-.prefcard{{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}}
+.prefcard{{border-radius:var(--rx);padding:18px}}
+.params{{padding:6px 18px}}
+.prow{{display:flex;align-items:center;gap:12px;padding:13px 0;font-size:14px;
+  border-bottom:1px solid var(--glass-line)}}
+.prow:last-child{{border-bottom:none}}
+.prow span{{color:var(--muted);flex:1 1 auto;min-width:0}}
+.prow b{{font-weight:600;text-align:right}}
+.prow.col{{display:block}}
+.prow.col span{{display:block;margin-bottom:9px}}
+.chips{{display:flex;flex-wrap:wrap;gap:7px}}
+.chips i{{font-style:normal;background:color-mix(in srgb,var(--ink) 5%,transparent);
+  border-radius:var(--rs);padding:7px 11px;font-size:12.5px}}
 .phint{{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:12px}}
 .prefcard textarea{{width:100%;min-height:60px;resize:vertical;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px;font-family:inherit;background:var(--bg);color:var(--ink)}}
 .prefcard textarea:focus{{outline:none;border-color:var(--g)}}
@@ -681,7 +831,12 @@ body{{padding-bottom:104px}}
 .pmsg{{display:none;margin-top:12px;font-size:14px;color:var(--gd);font-weight:700}}.pmsg.s{{display:block}}
 .welcome{{position:fixed;inset:0;z-index:50;background:rgba(20,50,31,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px}}
 .welcome[hidden]{{display:none}}
-.wcard{{background:var(--card);border-radius:24px;padding:26px 24px 20px;max-width:360px;width:100%;text-align:center;box-shadow:0 30px 70px -20px rgba(0,0,0,.5);animation:in .35s ease}}
+/* Приветственное окно стоит на затемнении — стекло тут не к месту, нужен
+   непрозрачный лист. Селектор длиннее, чем у общего стеклянного правила,
+   поэтому перебивает его без гонки !important. */
+.welcome .wcard{{background:var(--card)!important;border:1px solid var(--glass-line)!important;
+  border-radius:var(--rx);padding:26px 24px 20px;max-width:360px;width:100%;text-align:center;
+  box-shadow:0 30px 70px -20px rgba(0,0,0,.5)!important;animation:in .35s ease}}
 .wmasc{{width:104px;height:104px;border-radius:26px;overflow:hidden;background:var(--soft);margin:0 auto 18px}}
 .wmasc video{{width:100%;height:100%;object-fit:cover;display:block}}
 .wstep h3{{font-size:21px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}}
@@ -692,6 +847,7 @@ body{{padding-bottom:104px}}
 .wnext{{width:100%;border:none;border-radius:14px;background:var(--g);color:#fff;font-weight:800;font-size:16px;padding:15px;cursor:pointer}}
 .wskip{{margin-top:10px;border:none;background:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer}}
 </style></head><body>
+<div class="aura" aria-hidden="true"></div>
 <header><div class="brand"><span class="dot"></span>NutriPlan<button id="install" class="ins" hidden>Установить</button></div></header>
 <div class="welcome" id="welcome" hidden>
   <div class="wcard">
@@ -712,13 +868,27 @@ body{{padding-bottom:104px}}
     <h1>{title}</h1><p class="lead">Персонально под твою цель, вкусы и ритм</p>
     {week_over}
     <div class="norm"><div class="big">{pl.get('cal','')}<small> ккал/день</small></div>
-      <div class="macros"><div><b>{pl.get('P','')}</b><span>белки, г</span></div>
-        <div><b>{pl.get('F','')}</b><span>жиры, г</span></div><div><b>{pl.get('C','')}</b><span>углеводы, г</span></div></div></div>
+      <!-- «Набрано из нормы», а не одна норма: иначе плитка выглядит как факт
+           съеденного и противоречит полосе калорий рядом. Числа проставляет
+           paint() по отмеченным приёмам. -->
+      <div class="macros">
+        <div><div class="mrow"><span class="mic"><img src="/assets/macro-prot.svg" alt="" loading="lazy"></span>
+          <span class="mtx"><b><u id="gotP">0</u><i>/{pl.get('P','')}</i></b><span>белки, г</span></span></div>
+          <div class="mbar"><i id="barP"></i></div></div>
+        <div><div class="mrow"><span class="mic"><img src="/assets/macro-fat.svg" alt="" loading="lazy"></span>
+          <span class="mtx"><b><u id="gotF">0</u><i>/{pl.get('F','')}</i></b><span>жиры, г</span></span></div>
+          <div class="mbar"><i id="barF"></i></div></div>
+        <div><div class="mrow"><span class="mic"><img src="/assets/macro-carb.svg" alt="" loading="lazy"></span>
+          <span class="mtx"><b><u id="gotC">0</u><i>/{pl.get('C','')}</i></b><span>углеводы, г</span></span></div>
+          <div class="mbar"><i id="barC"></i></div></div>
+      </div></div>
     <div class="tiles">
+      <!-- Серия — ряд дней плана: закрытые цветные, остальные серые. Одинокое
+           число показывало достижение и молчало о том, сколько ещё идти. -->
       <div class="streakc">
-        <div class="sm"><video autoplay loop muted playsinline poster="/assets/avocado_celebrate_sm.png"><source src="/assets/avocado_celebrate_sm.mp4" type="video/mp4"></video></div>
-        <div class="st"><div class="sbig"><span id="prog">0</span><small>/{len(days)} дней выполнено</small></div>
-          <div class="ssub" id="streakmsg">Отмечай «Приготовил» — собери серию</div></div>
+        <div class="wtop"><b>Серия</b><span id="prog">0</span></div>
+        <div class="flames" id="flames"></div>
+        <div class="ssub" id="streakmsg">Отмечай «Приготовил» — собери серию</div>
       </div>
       <div class="water"><div class="wtop"><b>Вода сегодня</b><span id="wnum">0 / {water_goal} ст.</span></div>
         <div class="wcups" id="wcups"></div></div>
@@ -741,7 +911,6 @@ body{{padding-bottom:104px}}
 
   <section class="scr" id="sc-me">
     <h1>Я</h1><p class="lead">Вес, вкусы и подписка</p>
-  {_tips(pl.get('tips') or [])}
   <section class="sec" id="weightsec"><h2>Твой вес</h2>
     <div class="wcard">
       <div class="wrow"><div class="wbig"><span id="wcur">—</span><small>кг</small></div>
@@ -757,7 +926,9 @@ body{{padding-bottom:104px}}
       <button id="savePrefs">Сохранить и пересобрать план</button>
       <div class="pmsg" id="pmsg">Пересобираю план под твои исключения — это займёт до минуты…</div>
     </div></section>
+  {_params(pl, goal_code, water_goal)}
   {acct}
+  {_tips(pl.get('tips') or [])}
   <footer class="plegal">
     <div class="plinks"><a href="/offer">Оферта</a><a href="/privacy">Политика ПДн</a><a href="/consent">Согласие</a><a href="/login">Войти по почте</a></div>
     <!-- Оговорка в подвале, мелким шрифтом: то же, что уже есть в оферте и в
@@ -791,13 +962,25 @@ function activateDay(i){{
   document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',+p.dataset.d===i));
 }}
 document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{{
-  const i=+t.dataset.d; activateDay(i); history.replaceState(null,'','#d'+i);
+  // БЖУ считается по ОТКРЫТОМУ дню, поэтому смена вкладки его пересчитывает.
+  // Пересчёт живёт здесь, а не в activateDay: тот вызывается при загрузке, когда
+  // хранилище отметок ещё не объявлено, и paint() падал бы в мёртвой зоне —
+  // ровно это и случилось: обработчики ниже переставали навешиваться целиком.
+  const i=+t.dataset.d; activateDay(i); paint(); markToday(); history.replaceState(null,'','#d'+i);
   window.scrollTo({{top:0,behavior:'smooth'}});
 }}));
 const NDAYS={len(days)};
+// В списке недели помечаем строку открытого дня: без пометки семь одинаковых
+// строк не говорят, где ты сейчас.
+function markToday(){{
+  const cur=document.querySelector('.tab.on');
+  document.querySelectorAll('.drow .dnow').forEach(e=>{{
+    e.hidden = !cur || e.closest('.drow').dataset.d !== cur.dataset.d;
+  }});
+}}
 (function(){{const m=location.hash.match(/d(\\d+)/);
-  if(m){{activateDay(parseInt(m[1]));return;}}
-  let wd=(new Date().getDay()+6)%7; if(wd>=NDAYS) wd=0; activateDay(wd);}})();
+  if(m){{activateDay(parseInt(m[1]));markToday();return;}}
+  let wd=(new Date().getDay()+6)%7; if(wd>=NDAYS) wd=0; activateDay(wd); markToday();}})();
 // app-loop: отметки «приготовил» + прогресс (localStorage)
 // Версия плана — в ключе отметок: иначе новая неделя открывается с галочками
 // старой, а серверный сброс прогресса тут же перетирается локальным состоянием.
@@ -838,7 +1021,12 @@ function paint(){{
   const tabs=document.querySelectorAll('.tab'); let comp=0, run=0, best=0;
   for(let i=0;i<tabs.length;i++){{const c=dayComplete(i); tabs[i].classList.toggle('complete',c);
     if(c){{comp++;run++;best=Math.max(best,run);}} else run=0;}}
-  const pr=document.getElementById('prog'); if(pr) pr.textContent=comp;
+  const pr=document.getElementById('prog'); if(pr) pr.textContent=comp+' / '+tabs.length;
+  // Ряд огоньков: закрытые дни цветные. Рисуем по ТЕМ ЖЕ отметкам, что и число,
+  // иначе плитка начнёт противоречить сама себе.
+  const fl=document.getElementById('flames');
+  if(fl) fl.innerHTML=Array.from({{length:tabs.length}},(_,i)=>
+    '<span class="'+(dayComplete(i)?'':'off')+'"><img src="/assets/streak-flame.svg" alt="" loading="lazy"></span>').join('');
   const wo=document.getElementById('woDone'); if(wo) wo.textContent=comp;   // итог недели
   const sm=document.getElementById('streakmsg');
   if(sm) sm.innerHTML = best>=2 ? ('Серия <b>'+best+'</b> дней подряд — так держать!')
@@ -850,6 +1038,18 @@ function paint(){{
     const f=document.querySelector(".calfill[data-d='"+di+"']");
     if(f){{ f.style.width=(tot?Math.min(100,Math.round(eaten/tot*100)):0)+'%'; f.classList.toggle('over',eaten>tot*1.05); }}
   }});
+  // БЖУ: набрано из нормы по ОТКРЫТОМУ дню — по тем же отметкам, что и калории.
+  ['P','F','C'].forEach(m=>{{
+    const num=document.getElementById('got'+m), bar=document.getElementById('bar'+m);
+    if(!num||!bar) return;
+    let got=0;
+    document.querySelectorAll('.panel.on .meal').forEach(el=>{{
+      if(done[el.dataset.k]) got+=(+el.dataset[m.toLowerCase()]||0);
+    }});
+    const goal=parseInt(num.parentNode.querySelector('i').textContent.replace(/\\D/g,''),10)||0;
+    num.textContent=got;
+    bar.style.width=(goal?Math.min(100,Math.round(got/goal*100)):0)+'%';
+  }});
 }}
 document.querySelectorAll('.done').forEach(b=>b.addEventListener('click',()=>{{
   const k=b.dataset.k; if(done[k])delete done[k]; else done[k]=1;
@@ -858,7 +1058,9 @@ document.querySelectorAll('.done').forEach(b=>b.addEventListener('click',()=>{{
 paint();
 // трекер воды (сброс по дню)
 const WK=()=>'np_water_'+T+'_'+new Date().toISOString().slice(0,10);
-const CUP="<svg viewBox='0 0 24 24'><path d='M5 3h14l-1.4 16.2a2 2 0 0 1-2 1.8H8.4a2 2 0 0 1-2-1.8L5 3Z' fill='currentColor'/></svg>";
+// Стакан силуэтом: сужается книзу и скруглён по дну. Прежний прямоугольник со
+// скруглением читался как индикатор заряда, а не как стакан воды.
+const CUP="<svg viewBox='0 0 20 26' fill='currentColor'><path d='M3.4 1h13.2a1.3 1.3 0 0 1 1.29 1.44l-1.72 20.3A3.2 3.2 0 0 1 12.98 25.6H7.02a3.2 3.2 0 0 1-3.19-2.86L2.11 2.44A1.3 1.3 0 0 1 3.4 1Z'/></svg>";
 function renderWater(){{
   const c=document.getElementById('wcups'); if(!c)return;
   const n=parseInt(localStorage.getItem(WK())||'0'); c.innerHTML='';
@@ -1102,7 +1304,7 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
     clone.querySelectorAll('.meal').forEach(n=>{{n.classList.remove('on');n.removeAttribute('data-k');}});
     const title=(clone.querySelector('.dtitle')||{{}}).textContent||('День '+(i+1));
     const t=clone.querySelector('.dtitle'); if(t) t.remove();
-    document.getElementById('dvtitle').textContent=title.trim();
+    document.getElementById('dvtitle').textContent=title.trim().replace(/\\s+(\\d+\\s*ккал)$/,' · $1');
     body.innerHTML='<div class="dvnote">Только просмотр. Отмечать и заменять блюда можно на вкладке «Сегодня».</div>';
     body.appendChild(clone);
     clone.classList.add('on');

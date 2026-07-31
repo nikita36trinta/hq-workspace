@@ -6,6 +6,11 @@
 # контейнера не доходит, и --reload молча не срабатывает — правишь файл, а в
 # браузере старая страница.
 #
+# Монтируем КАТАЛОГ, а не отдельные файлы. Пофайловый bind привязан к иноде, а
+# редакторы сохраняют через «временный файл + rename» — инода меняется, и
+# контейнер до конца жизни показывает исходную версию файла. Я на это уже
+# попался: правки были в файле, но не на экране.
+#
 # Раньше я гонял каждую итерацию через scp на боевой сервер: 12 секунд на
 # перезапуск и, что важнее, каждое промежуточное состояние висело на живом
 # сайте. Здесь ни того, ни другого.
@@ -20,18 +25,14 @@ docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker build -q -t nutriplan-dev-img . >/dev/null
 mkdir -p .devdata
 docker run -d --name "$NAME" -p 8790:8790 \
-  -v "$PWD/app.py:/app/app.py:ro" \
-  -v "$PWD/plan.py:/app/plan.py:ro" \
-  -v "$PWD/plan_ai.py:/app/plan_ai.py:ro" \
-  -v "$PWD/dish_photos.py:/app/dish_photos.py:ro" \
-  -v "$PWD/dishes.json:/app/dishes.json:ro" \
-  -v "$PWD/static:/app/static:ro" \
+  -v "$PWD:/src:ro" \
   -v "$PWD/.devdata:/app/data" \
+  -w /src \
   -e DATA_DIR=/app/data \
   -e WATCHFILES_FORCE_POLLING=1 \
   nutriplan-dev-img \
   uvicorn app:app --host 0.0.0.0 --port 8790 --reload \
-    --reload-dir /app --reload-include '*.py' >/dev/null
+    --reload-dir /src --reload-include '*.py' >/dev/null
 for i in $(seq 1 40); do
   if curl -fsS -o /dev/null http://localhost:8790/api/health 2>/dev/null; then
     echo "http://localhost:8790 готов"; exit 0
