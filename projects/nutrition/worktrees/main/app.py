@@ -132,6 +132,15 @@ COUNTERS = DATA / "counters.json"
 ORDERS = DATA / "orders.jsonl"  # PII — только в DATA (gitignore), не коммитить
 PLANS = DATA / "plans"          # сгенерированные планы: {token}.json
 
+# Аккаунты, пароли и сессии — в SQLite, а не в json рядом с остальным.
+# Причина в auth.py: на json-хранилищах уже сгорели счётчики и идемпотентность
+# платежей, а сессии пишутся чаще всего остального вместе взятого.
+import auth as _auth                                                  # noqa: E402
+AUTH = _auth.Auth(os.getenv("NUTRI_DB_PATH", str(DATA / "nutriplan.sqlite3")))
+SESSION_COOKIE = _auth.COOKIE_NAME
+COOKIE_SECURE = os.getenv("NUTRI_COOKIE_SECURE", "1") != "0"   # 0 для локального http
+PAY_ORDER_COOKIE = "np_o"  # заказ, по которому открыта страница возврата (см. pay_success)
+
 # ЮKassa (ключи только из .env боевого сервера; без них — оплата отдаёт 503)
 YOOKASSA_SHOP = os.getenv("YOOKASSA_SHOP_ID", "").strip()
 YOOKASSA_SECRET = os.getenv("YOOKASSA_SECRET_KEY", "").strip()
@@ -402,6 +411,17 @@ def _fulfill_paid(email: str, quiz: dict, oid: str, base: str) -> None:
                   f"source={pl.get('source')!r}", flush=True)
         if oid:
             _save_plan(oid, pl)
+        # Аккаунт заводится молча, в момент доставки оплаченного. Человек ничего
+        # для этого не делает и никакого экрана не видит: почта уже известна из
+        # квиза, а новое обязательное поле на пути к оплаченному товару — прямая
+        # потеря тех, кто уже заплатил.
+        try:
+            if _auth.valid_email(email):
+                AUTH.ensure_account(email)
+        except Exception as e:  # noqa: BLE001
+            # Не даём этому уронить доставку: план и письмо важнее аккаунта,
+            # а завести его можно и позже, при первом входе.
+            print(f"[ALERT] не удалось завести аккаунт для {email}: {e}", flush=True)
         link = f"{base}/plan/{oid}" if oid else ""
         _send_email(email, "Твой план на 7 дней · NutriPlan", plan.menu_email_html(pl, link), "plan_paid")
         _pregen_dish_photos(pl)  # фото блюд заранее — к открытию плана уже готовы (общий кэш)
@@ -2425,6 +2445,229 @@ class LoginReq(BaseModel):
     consent_version: str = ""
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# Пароль и сессии
+#
+# Аккаунт заводится САМ в момент оплаты — человек для этого ничего не делает.
+# Пароль предлагается сразу после оплаты, но НЕ является замком на оплаченном:
+# закрыл вкладку на этом шаге — ссылка из письма всё равно откроет план, а
+# экран пароля покажется в следующий раз. Иначе севший телефон между оплатой
+# и паролем означал бы «заплатил и не получил», то есть возврат.
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _set_session_cookie(resp, sid: str) -> None:
+    """SameSite=Lax, не Strict: возврат с ЮKassa на /pay/success — это кросс-сайтовая
+    навигация, и при Strict кука не отправилась бы, показав разлогиненного человека
+    сразу после оплаты."""
+    resp.set_cookie(SESSION_COOKIE, sid, max_age=_auth.SESSION_DAYS * 86400,
+                    httponly=True, secure=COOKIE_SECURE, samesite="lax", path="/")
+
+
+def _current_account(request: Request):
+    try:
+        return AUTH.session_account(request.cookies.get(SESSION_COOKIE, ""))
+    except Exception as e:  # noqa: BLE001
+        print(f"[ALERT] сессия недоступна: {e}", flush=True)
+        return None
+
+
+def _same_origin(request: Request) -> bool:
+    """Мутирующие ручки не должны исполняться по запросу с чужого сайта. Кука у нас
+    Lax, то есть на кросс-сайтовый POST браузер её и так не пришлёт, но это второй
+    слой — на случай, если кто-то однажды поставит SameSite=None."""
+    site = request.headers.get("sec-fetch-site", "")
+    if site:
+        return site in ("same-origin", "same-site", "none")
+    origin = request.headers.get("origin", "")
+    if not origin:
+        return True                       # не браузер (curl, вебхук) — не наш случай
+    return origin.rstrip("/") == str(request.base_url).rstrip("/")
+
+
+class PwReq(BaseModel):
+    password: str
+    password2: str = ""
+
+
+@app.post("/api/auth/password")
+def auth_set_password(req: PwReq, request: Request) -> JSONResponse:
+    """Задать пароль сразу после оплаты.
+
+    Доказательством права служит кука заказа (её ставит /pay/success) либо уже
+    открытая сессия. Почту с клиента НЕ принимаем: иначе любой мог бы задать
+    пароль к чужому аккаунту, просто прислав чужой адрес.
+    """
+    if not _same_origin(request):
+        return JSONResponse({"ok": False, "error": "Обнови страницу и попробуй ещё раз"}, status_code=403)
+    acc = _current_account(request)
+    email = acc["email"] if acc else ""
+    if not email:
+        oid = "".join(c for c in request.cookies.get(PAY_ORDER_COOKIE, "") if c.isalnum())[:40]
+        order = _find_order(oid) if oid else {}
+        # Заказ должен быть настоящим и оплаченным: сама кука ничего не доказывает.
+        if not order or not (PLANS / f"{oid}.json").exists():
+            pid = order.get("payment_id", "")
+            if not pid or _yk_get_payment(pid).get("status") != "succeeded":
+                return JSONResponse({"ok": False, "error": "Не видим оплаченного заказа"}, status_code=403)
+        email = order.get("email", "")
+    if not _auth.valid_email(email):
+        return JSONResponse({"ok": False, "error": "Не видим оплаченного заказа"}, status_code=403)
+    pw, pw2 = req.password or "", req.password2 or ""
+    if pw2 and pw != pw2:
+        return JSONResponse({"ok": False, "error": "Пароли не совпадают"}, status_code=422)
+    why = _auth.Auth.password_problem(pw, email)
+    if why:
+        return JSONResponse({"ok": False, "error": why}, status_code=422)
+    aid = AUTH.ensure_account(email)
+    AUTH.set_password(email, pw)
+    AUTH.close_all_sessions(aid)   # смена пароля выкидывает старые входы — это и есть её смысл
+    resp = JSONResponse({"ok": True})
+    _set_session_cookie(resp, AUTH.open_session(aid))
+    _bump("pw_set")
+    return resp
+
+
+class AuthLoginReq(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/api/auth/login")
+def auth_login(req: AuthLoginReq, request: Request) -> JSONResponse:
+    if not _same_origin(request):
+        return JSONResponse({"ok": False, "error": "Обнови страницу и попробуй ещё раз"}, status_code=403)
+    email = _auth.norm_email(req.email)
+    ip = _client_ip(request)
+    # Блокируем ФОРМУ ПАРОЛЯ, а не аккаунт: вход кодом из письма продолжает
+    # работать. Иначе любой желающий выключал бы чужой вход пятью попытками.
+    if not AUTH.rate_ok("pw_try_email", email, _auth.PW_TRIES, _auth.PW_TRIES_WINDOW):
+        _bump("pw_try_blocked")
+        return JSONResponse({"ok": False, "code_hint": True,
+                             "error": "Слишком много попыток. Войди по коду из письма "
+                                      "или попробуй через 15 минут"}, status_code=429)
+    if not AUTH.rate_ok("pw_try_ip", ip, 30, 3600):
+        return JSONResponse({"ok": False, "error": "Слишком много попыток"}, status_code=429)
+    if not AUTH.check_password(email, req.password or ""):
+        # Один и тот же текст для «нет аккаунта» и «неверный пароль»: иначе форма
+        # входа превращается в способ узнать, кто у нас покупал.
+        return JSONResponse({"ok": False, "error": "Неверная почта или пароль"}, status_code=401)
+    acc = AUTH.account(email)
+    resp = JSONResponse({"ok": True})
+    _set_session_cookie(resp, AUTH.open_session(int(acc["id"])))
+    _bump("pw_login")
+    return resp
+
+
+class EmailOnlyReq(BaseModel):
+    email: str
+
+
+@app.post("/api/auth/forgot")
+def auth_forgot(req: EmailOnlyReq, request: Request, bg: BackgroundTasks) -> JSONResponse:
+    """Код для сброса пароля.
+
+    Защита от рассылки писем чужим адресам построена так, что вектор исчезает,
+    а не ограничивается: письмо уходит ТОЛЬКО на адрес, у которого уже есть
+    аккаунт. Ответ при этом всегда одинаковый — иначе форма становится способом
+    перебором выяснить, кто у нас покупал.
+    """
+    if not _same_origin(request):
+        return JSONResponse({"ok": False, "error": "Обнови страницу"}, status_code=403)
+    email = _auth.norm_email(req.email)
+    ip = _client_ip(request)
+    neutral = JSONResponse({"ok": True})
+    if not _auth.valid_email(email):
+        return neutral
+    # Лимиты живут в базе, а не в памяти процесса: память обнуляется деплоем,
+    # то есть лимит обходился бы ожиданием выкладки.
+    if not (AUTH.rate_ok("forgot_email_h", email, _auth.FORGOT_PER_EMAIL_HOUR, 3600)
+            and AUTH.rate_ok("forgot_email_d", email, _auth.FORGOT_PER_EMAIL_DAY, 86400)
+            and AUTH.rate_ok("forgot_ip", ip, _auth.FORGOT_PER_IP_HOUR, 3600)):
+        _bump("forgot_rate_limited")
+        return neutral
+    # Общий суточный потолок — защита не от одного злоумышленника, а от репутации
+    # домена: заблокируют отправку, и письма перестанут доходить ОПЛАТИВШИМ.
+    if not AUTH.rate_ok("forgot_global", "all", _auth.FORGOT_GLOBAL_DAY, 86400):
+        _bump("forgot_global_capped")
+        print("[ALERT] суточный потолок писем восстановления исчерпан", flush=True)
+        return neutral
+    if not AUTH.account(email):
+        _bump("forgot_no_account")
+        return neutral                     # письма нет — и вектора рассылки нет
+    code, wait = AUTH.issue_code(email, "reset")
+    if not code:
+        # Живой код уже выдан. Второго письма НЕ шлём: иначе кнопка «отправить
+        # ещё раз» становится усилителем — один нажимающий, сколько угодно писем.
+        return JSONResponse({"ok": True, "wait": wait})
+    bg.add_task(_send_code_email, email, code)
+    _bump("forgot_sent")
+    return neutral
+
+
+class ResetReq(BaseModel):
+    email: str
+    code: str
+    password: str
+    password2: str = ""
+
+
+@app.post("/api/auth/reset")
+def auth_reset(req: ResetReq, request: Request) -> JSONResponse:
+    if not _same_origin(request):
+        return JSONResponse({"ok": False, "error": "Обнови страницу"}, status_code=403)
+    email = _auth.norm_email(req.email)
+    if not AUTH.rate_ok("reset_ip", _client_ip(request), 30, 3600):
+        return JSONResponse({"ok": False, "error": "Слишком много попыток"}, status_code=429)
+    why = AUTH.check_code(email, req.code or "", "reset")
+    if why:
+        return JSONResponse({"ok": False, "error": why}, status_code=422)
+    pw, pw2 = req.password or "", req.password2 or ""
+    if pw2 and pw != pw2:
+        return JSONResponse({"ok": False, "error": "Пароли не совпадают"}, status_code=422)
+    bad = _auth.Auth.password_problem(pw, email)
+    if bad:
+        # Код уже погашен проверкой выше — вернуть его нельзя, поэтому честно
+        # говорим, что нужен новый. Иначе человек будет вводить сгоревший код.
+        return JSONResponse({"ok": False, "error": bad + ". Запроси новый код и попробуй ещё раз"},
+                            status_code=422)
+    aid = AUTH.ensure_account(email)
+    AUTH.set_password(email, pw)
+    AUTH.close_all_sessions(aid)   # сброс пароля выкидывает того, кто мог войти раньше
+    resp = JSONResponse({"ok": True})
+    _set_session_cookie(resp, AUTH.open_session(aid))
+    _bump("pw_reset")
+    return resp
+
+
+@app.post("/api/auth/logout")
+def auth_logout(request: Request) -> JSONResponse:
+    sid = request.cookies.get(SESSION_COOKIE, "")
+    if sid:
+        AUTH.close_session(sid)
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(SESSION_COOKIE, path="/")
+    return resp
+
+
+def _send_code_email(email: str, code: str) -> None:
+    """Письмо с кодом. Формулировка буквальная: нетехническая аудитория путает
+    код входа с кодом банка, а этим пользуются телефонные мошенники."""
+    pretty = f"{code[:3]} {code[3:]}"
+    html = (
+        "<div style='font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;"
+        "margin:0 auto;padding:32px;color:#20321F'>"
+        "<h2 style='margin:0 0 12px'>Код для входа в NutriPlan</h2>"
+        "<p style='color:#6B7566;margin:0 0 18px'>Введи его на странице входа, чтобы задать новый пароль:</p>"
+        f"<div style='font-size:34px;font-weight:800;letter-spacing:.12em;background:#F1F7EE;"
+        f"border-radius:16px;padding:18px;text-align:center'>{pretty}</div>"
+        "<p style='color:#6B7566;font-size:14px;margin:18px 0 0'>Код действует 10 минут.</p>"
+        "<p style='color:#6B7566;font-size:14px;margin:10px 0 0'><b>Мы никогда не спросим этот код "
+        "по телефону или в переписке.</b> Если ты не запрашивал вход — просто удали письмо, "
+        "пароль останется прежним.</p></div>")
+    _send_email(email, f"Код для входа: {pretty}", html, "login_code")
+
+
 @app.post("/api/login/request")
 def login_request(req: LoginReq, request: Request, bg: BackgroundTasks) -> JSONResponse:
     # Rate-limit: не даём перебирать аккаунты и бомбить почту письмами.
@@ -2489,27 +2732,116 @@ def login_page() -> HTMLResponse:
         ".cns{font-size:13px;color:#6B7566;line-height:1.45;margin-top:14px;text-align:left}"
         ".cns a{color:#0E7A36}"
         "footer{margin-top:28px;font-size:12.5px;color:#8A9384}footer a{color:#8A9384;margin:0 7px}"
+        # .lnk перебивает общее правило button{} выше: «Забыли пароль» — это
+        # ссылка-действие, а не вторая зелёная кнопка рядом с «Войти».
+        ".lnk{background:none;border:0;color:#0E7A36;font-size:14px;text-decoration:underline;"
+        "text-underline-offset:3px;cursor:pointer;margin-top:14px;padding:0;width:auto;font-weight:600}"
+        ".sub{color:#8A9384;font-size:13px;margin-top:10px}"
+        "[hidden]{display:none!important}"
         "</style></head>"
         "<body><div class='c'><div class='b'><span class='dot'></span>NutriPlan</div>"
-        "<h1>Вход в приложение</h1><p>Уже есть план? Введи почту — пришлём ссылку для входа.</p>"
+
+        # ── шаг 1: почта и пароль ───────────────────────────────────────────
+        "<div id='st-pw'>"
+        "<h1>Вход в приложение</h1><p>Почта и пароль от твоего плана.</p>"
         "<input type='email' id='m' placeholder='твой@email.ru' autocomplete='email' inputmode='email'>"
-        "<div class='err' id='e'>Проверь адрес почты</div>"
-        # Вариант B доктрины: согласие действием. Стоит НЕПОСРЕДСТВЕННО над
-        # кнопкой — отдельная галочка, уезжающая из поля зрения, хуже: человек
-        # жмёт кнопку, ничего не происходит, и он уходит.
+        "<input type='password' id='p' placeholder='Пароль' autocomplete='current-password' "
+        "style='margin-top:8px'>"
+        "<div class='err' id='e'></div>"
+        # Согласие — НЕПОСРЕДСТВЕННО над кнопкой, и так в каждом шаге. Экранов
+        # стало два, и подпись, оставленная внизу страницы, оказалась под
+        # кнопкой: формально она на странице есть, а как «согласие действием»
+        # уже не работает.
         f"<div class='cns'>{CONSENT_HTML}</div>"
-        "<button id='s'>Прислать ссылку для входа</button>"
-        "<div class='ok' id='o'>Если на эту почту есть план — письмо со ссылкой для входа уже летит. "
-        "Проверь входящие (и «Промоакции»).</div>"
+        "<button id='s'>Войти</button>"
+        "<button class='lnk' id='forgot' type='button'>Забыли пароль?</button>"
+        "<div class='sub'>Ещё не задавал пароль? Нажми «Забыли пароль» — пришлём код.</div>"
+        "</div>"
+
+        # ── шаг 2: код из письма ────────────────────────────────────────────
+        "<div id='st-code' hidden>"
+        "<h1>Код из письма</h1>"
+        "<p id='codehint'>Если на эту почту есть план — код уже летит. "
+        "Проверь входящие и «Промоакции».</p>"
+        "<input id='code' inputmode='numeric' autocomplete='one-time-code' maxlength='6' "
+        "placeholder='6 цифр' style='text-align:center;letter-spacing:.3em;font-size:22px'>"
+        "<input type='password' id='np1' placeholder='Новый пароль' autocomplete='new-password' "
+        "style='margin-top:8px'>"
+        "<input type='password' id='np2' placeholder='Повтори пароль' autocomplete='new-password' "
+        "style='margin-top:8px'>"
+        "<div class='err' id='e2'></div>"
+        f"<div class='cns'>{CONSENT_HTML}</div>"
+        "<button id='s2'>Сохранить и войти</button>"
+        "<button class='lnk' id='again' type='button'>Отправить код ещё раз</button>"
+        "<button class='lnk' id='back' type='button'>Назад ко входу</button>"
+        "</div>"
+
         "<footer><a href='/privacy'>Политика</a><a href='/consent'>Согласие</a><a href='/offer'>Оферта</a></footer>"
-        "<script>const $=s=>document.querySelector(s);const ok=v=>/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v);"
-        f"const CT={json.dumps(CONSENT_TEXT, ensure_ascii=False)},CV={json.dumps(CONSENT_VERSION)};"
-        "$('#s').onclick=async()=>{const v=$('#m').value.trim();if(!ok(v)){$('#e').classList.add('s');return;}"
-        "$('#e').classList.remove('s');$('#s').disabled=true;$('#s').textContent='Отправляю…';"
-        "try{await fetch('/api/login/request',{method:'POST',headers:{'Content-Type':'application/json'},"
-        "body:JSON.stringify({email:v,consent_text:CT,consent_version:CV})});}catch(e){}"
-        "$('#o').classList.add('s');$('#s').style.display='none';};"  # нейтрально: не раскрываем наличие аккаунта
+
+        "<script>const $=s=>document.querySelector(s);"
+        "const okmail=v=>/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v);"
+        "function err(el,t){el.textContent=t;el.classList.add('s');}"
+        "function clr(el){el.classList.remove('s');}"
+        "function post(u,b){return fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},"
+        "body:JSON.stringify(b)}).then(r=>r.json().then(j=>({s:r.status,j:j})));}"
+
+        # вход по паролю
+        "$('#s').onclick=async()=>{const v=$('#m').value.trim(),p=$('#p').value;"
+        "clr($('#e'));if(!okmail(v)){err($('#e'),'Проверь адрес почты');return;}"
+        "if(!p){err($('#e'),'Введи пароль');return;}"
+        "$('#s').disabled=true;$('#s').textContent='Вхожу…';"
+        "try{const r=await post('/api/auth/login',{email:v,password:p});"
+        "if(r.j.ok){location.href='/app';return;}"
+        # Когда форму пароля заблокировали за перебор, честно уводим на код —
+        # иначе человек упирается в стену, у которой нет двери.
+        "err($('#e'),r.j.error||'Не удалось войти');"
+        "if(r.j.code_hint){$('#forgot').click();}}catch(e){err($('#e'),'Нет связи');}"
+        "$('#s').disabled=false;$('#s').textContent='Войти';};"
+
+        # запрос кода
+        "async function ask(){const v=$('#m').value.trim();"
+        "if(!okmail(v)){err($('#e'),'Сначала введи адрес почты');return false;}"
+        "clr($('#e'));const r=await post('/api/auth/forgot',{email:v});"
+        # wait приходит, когда живой код уже выдан: второго письма не шлём, и
+        # честно говорим об этом, а не рисуем успех поверх неотправленного.
+        "if(r.j&&r.j.wait){$('#codehint').textContent='Письмо уже отправляли — проверь входящие '"
+        "+'и «Промоакции». Отправить ещё раз можно через '+r.j.wait+' сек.';}"
+        "else{$('#codehint').textContent='Если на эту почту есть план — код уже летит. '"
+        "+'Проверь входящие и «Промоакции».';}"
+        "return true;}"
+        "$('#forgot').onclick=async()=>{if(await ask()){"
+        "$('#st-pw').hidden=true;$('#st-code').hidden=false;$('#code').focus();}};"
+        "$('#again').onclick=()=>ask();"
+        "$('#back').onclick=()=>{$('#st-code').hidden=true;$('#st-pw').hidden=false;};"
+
+        # код + новый пароль
+        "$('#s2').onclick=async()=>{clr($('#e2'));"
+        "const b={email:$('#m').value.trim(),code:$('#code').value.trim(),"
+        "password:$('#np1').value,password2:$('#np2').value};"
+        "if(b.code.length<6){err($('#e2'),'Введи 6 цифр из письма');return;}"
+        "$('#s2').disabled=true;$('#s2').textContent='Сохраняю…';"
+        "try{const r=await post('/api/auth/reset',b);"
+        "if(r.j.ok){location.href='/app';return;}err($('#e2'),r.j.error||'Не получилось');}"
+        "catch(e){err($('#e2'),'Нет связи');}"
+        "$('#s2').disabled=false;$('#s2').textContent='Сохранить и войти';};"
         "</script></div></body></html>"))
+
+
+@app.get("/app")
+def app_home(request: Request):
+    """Приложение по адресу без токена. Пока это редирект на план, найденный по
+    сессии: полный переезд URL — отдельная задача, а войти по паролю человек
+    должен уметь уже сейчас."""
+    acc = _current_account(request)
+    if not acc:
+        return RedirectResponse("/login", status_code=302)
+    found = _find_account(acc["email"])
+    token = found.get("plan_token") or ""
+    if not token:
+        # Аккаунт есть, плана нет: так бывает у того, кто задал пароль, но чей
+        # план не собрался. Отправляем туда, где ему помогут, а не в 404.
+        return RedirectResponse("/pay/success", status_code=302)
+    return RedirectResponse(f"/plan/{token}", status_code=302)
 
 
 @app.post("/api/sub/{token}/cancel")
@@ -2789,9 +3121,6 @@ def _pay_failed_page(base_url_hint: str = "") -> HTMLResponse:
         status_code=200)
 
 
-PAY_ORDER_COOKIE = "np_o"  # заказ, по которому открыта страница возврата (см. pay_success)
-
-
 @app.get("/pay/success", response_class=HTMLResponse)
 def pay_success(o: str = "", request: Request = None, bg: BackgroundTasks = None) -> HTMLResponse:
     """Возврат с ЮKassa. Экран определяется ПЕРЕПРОВЕРЕННЫМ статусом платежа,
@@ -2896,6 +3225,49 @@ def pay_success(o: str = "", request: Request = None, bg: BackgroundTasks = None
                  "text-decoration:underline;text-underline-offset:3px\">Оформить заново</a>")
         actions = f"<div style=\"margin-top:22px\">{back}{again}</div>"
 
+    # Пароль предлагаем ровно здесь: почта уже известна, деньги уже прошли, и это
+    # единственный момент, когда человек точно смотрит на экран. Блок НЕ мешает
+    # плану открыться — поллер выше уводит на план, как только тот готов, и
+    # заполнять пароль необязательно.
+    pw_block = ""
+    if paid:
+        pw_block = (
+            "<form id='pwf' style='margin-top:26px;width:100%;max-width:340px;text-align:left'>"
+            "<div style='font-weight:800;font-size:16px;margin-bottom:4px'>Придумай пароль</div>"
+            "<div style='color:#6B7566;font-size:13.5px;margin-bottom:12px'>"
+            "Чтобы заходить в план с любого устройства, не дожидаясь письма.</div>"
+            "<input id='pw1' type='password' autocomplete='new-password' placeholder='Пароль' "
+            "style='width:100%;box-sizing:border-box;border:1.5px solid #E6DECD;border-radius:12px;"
+            "padding:13px 14px;font-size:16px;background:#fff'>"
+            "<input id='pw2' type='password' autocomplete='new-password' placeholder='Повтори пароль' "
+            "style='width:100%;box-sizing:border-box;margin-top:8px;border:1.5px solid #E6DECD;"
+            "border-radius:12px;padding:13px 14px;font-size:16px;background:#fff'>"
+            "<div id='pwerr' style='display:none;color:#DC2626;font-size:13px;margin-top:8px'></div>"
+            "<div id='pwok' style='display:none;color:#16A34A;font-weight:700;font-size:14px;"
+            "margin-top:10px'>Пароль сохранён — теперь можно входить по почте и паролю.</div>"
+            "<button id='pwb' type='submit' style='width:100%;margin-top:10px;border:0;border-radius:12px;"
+            "background:#16A34A;color:#fff;font-weight:800;font-size:15px;padding:14px;cursor:pointer'>"
+            "Сохранить пароль</button>"
+            "<div style='color:#8B9584;font-size:12px;margin-top:9px;text-align:center'>"
+            "Можно пропустить — план откроется и так, ссылка придёт на почту.</div>"
+            "</form>"
+            "<script>(function(){var f=document.getElementById('pwf');"
+            "f.addEventListener('submit',function(e){e.preventDefault();"
+            "var b=document.getElementById('pwb'),er=document.getElementById('pwerr'),"
+            "ok=document.getElementById('pwok');er.style.display='none';b.disabled=true;"
+            "b.textContent='Сохраняю…';"
+            "fetch('/api/auth/password',{method:'POST',headers:{'Content-Type':'application/json'},"
+            "body:JSON.stringify({password:document.getElementById('pw1').value,"
+            "password2:document.getElementById('pw2').value})})"
+            ".then(function(r){return r.json()}).then(function(j){"
+            "if(j.ok){ok.style.display='block';f.querySelectorAll('input,button').forEach("
+            "function(x){x.disabled=true});return;}"
+            "er.textContent=j.error||'Не удалось сохранить';er.style.display='block';"
+            "b.disabled=false;b.textContent='Сохранить пароль';})"
+            ".catch(function(){er.textContent='Нет связи — попробуй ещё раз';"
+            "er.style.display='block';b.disabled=false;b.textContent='Сохранить пароль';});"
+            "});})();</script>")
+
     title = "Оплата получена!" if paid else "Платёж обрабатывается"
     body = ("Авокадо собирает твой план (≈1 минута) — страница откроет его сама. "
             "Ссылка придёт и на почту.") if paid else (
@@ -2936,7 +3308,7 @@ def pay_success(o: str = "", request: Request = None, bg: BackgroundTasks = None
         f"align-items:center;justify-content:center;box-shadow:0 24px 50px -20px {ring_bg}'>{mark}</div>"
         f"<h1 style='margin:22px 0 8px;font-size:27px'>{title}</h1>"
         f"<p id='wait' style='color:#6B7566;font-size:16px;max-width:36ch'>{body}</p>"
-        + actions +
+        + actions + pw_block +
         "<div style='margin-top:18px;width:34px;height:34px;border:3px solid #DCFCE7;border-top-color:#16A34A;"
         "border-radius:50%;animation:sp 1s linear infinite'></div>"
         "<style>@keyframes sp{to{transform:rotate(360deg)}}</style>"

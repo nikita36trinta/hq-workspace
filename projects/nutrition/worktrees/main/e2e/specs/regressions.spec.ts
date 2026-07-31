@@ -64,19 +64,35 @@ test.describe("regressions", () => {
 	 * email with no visible basis for processing it. Fixed with a consent line
 	 * directly above the button (option B of the golive-legal doctrine).
 	 */
+	/**
+	 * Экранов входа стало два (пароль и код из письма), и подпись о согласии
+	 * нужна на КАЖДОМ: она про действие, а не про страницу. Проверяем оба —
+	 * одна общая строка внизу страницы формально присутствует, но оказывается
+	 * ПОД кнопкой, и как «согласие действием» уже не работает.
+	 */
 	test("login page shows the consent line and links the documents", async ({ page }) => {
 		await page.goto("/login");
 
-		const consent = page.locator(".cns");
-		await expect(consent).toBeVisible();
-		await expect(consent).toContainText(/Нажимая кнопку/i);
-		await expect(consent.locator('a[href="/consent"]')).toHaveCount(1);
-		await expect(consent.locator('a[href="/privacy"]')).toHaveCount(1);
+		for (const [step, button] of [["#st-pw", "#s"], ["#st-code", "#s2"]] as const) {
+			const consent = page.locator(`${step} .cns`);
+			await expect(consent, `нет подписи о согласии в ${step}`).toHaveCount(1);
+			await expect(consent).toContainText(/Нажимая кнопку/i);
+			await expect(consent.locator('a[href="/consent"]')).toHaveCount(1);
+			await expect(consent.locator('a[href="/privacy"]')).toHaveCount(1);
 
-		// the line has to sit ABOVE the button, not below it in the footer
-		const cy = await consent.evaluate((el) => el.getBoundingClientRect().bottom);
-		const by = await page.locator("#s").evaluate((el) => el.getBoundingClientRect().top);
-		expect(cy, "consent wording must be directly above the button").toBeLessThanOrEqual(by);
+			// the line has to sit ABOVE the button, not below it in the footer
+			const geom = await page.evaluate(([s, b]) => {
+				const el = document.querySelector(s) as HTMLElement;
+				const was = el.hidden;
+				el.hidden = false;                       // мерим и скрытый шаг тоже
+				const c = el.querySelector(".cns")!.getBoundingClientRect().bottom;
+				const y = (el.querySelector(b) as HTMLElement).getBoundingClientRect().top;
+				el.hidden = was;
+				return { c, y };
+			}, [step, button]);
+			expect(geom.c, `consent wording must be directly above ${button}`)
+				.toBeLessThanOrEqual(geom.y);
+		}
 	});
 
 	/**
