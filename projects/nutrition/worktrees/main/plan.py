@@ -804,9 +804,8 @@ body{{padding-bottom:104px}}
 .wbig small{{font-family:Onest;font-size:14px;color:var(--muted);font-weight:600;margin-left:4px;letter-spacing:0}}
 .wdelta{{font-weight:800;font-size:15px;color:var(--muted)}}
 .wdelta.g{{color:var(--gd)}}.wdelta.b{{color:#B45309}}
-.wspark{{width:100%;height:80px;margin:14px 0 4px;display:block}}
-.wspark path{{fill:none;stroke:var(--g);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}}
-.wspark circle{{fill:var(--g)}}
+/* График веса убран намеренно: на двух-трёх записях он показывал не тренд, а
+   шум, и занимал полкарточки. Число и дельта говорят то же самое честнее. */
 .wadd{{display:flex;gap:8px;margin-top:12px}}
 .wadd input{{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;font-size:16px;background:var(--bg);color:var(--ink)}}
 .wadd button{{border:none;border-radius:12px;background:var(--g);color:#fff;font-weight:700;font-size:15px;padding:0 18px;cursor:pointer;white-space:nowrap}}
@@ -915,7 +914,6 @@ body{{padding-bottom:104px}}
     <div class="wcard">
       <div class="wrow"><div class="wbig"><span id="wcur">—</span><small>кг</small></div>
         <div class="wdelta" id="wdelta"></div></div>
-      <svg class="wspark" id="wspark" viewBox="0 0 300 80" preserveAspectRatio="none"></svg>
       <div class="wadd"><input type="number" inputmode="decimal" step="0.1" id="winput" placeholder="Вес сегодня, кг">
         <button id="wsave">Записать</button></div>
       <div class="whint" id="whint"></div></div></section>
@@ -1074,14 +1072,6 @@ renderWater();
 const WTK='np_wt_'+T, MN=['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
 const fmtd=s=>{{const d=new Date(s);return d.getDate()+' '+MN[d.getMonth()];}};
 const loadWt=()=>{{try{{return JSON.parse(localStorage.getItem(WTK)||'[]');}}catch(e){{return[];}}}};
-function drawSpark(pts){{const svg=document.getElementById('wspark');if(!svg)return;
-  if(pts.length<1){{svg.innerHTML='';return;}}
-  const ws=pts.map(p=>p.w);let mn=Math.min(...ws),mx=Math.max(...ws);if(mx-mn<1){{mn-=1;mx+=1;}}
-  const W=300,H=80,pad=10,xf=i=>pts.length<2?W/2:pad+i*(W-2*pad)/(pts.length-1),yf=w=>H-pad-(w-mn)/(mx-mn)*(H-2*pad);
-  let d='';pts.forEach((p,i)=>{{d+=(i?'L':'M')+xf(i).toFixed(1)+' '+yf(p.w).toFixed(1)+' ';}});
-  const dots=pts.map((p,i)=>"<circle cx='"+xf(i).toFixed(1)+"' cy='"+yf(p.w).toFixed(1)+"' r='3'/>").join('');
-  svg.innerHTML="<path d='"+d+"'/>"+dots;
-}}
 function renderWeight(){{
   const a=loadWt(),base=START_W>0?START_W:(a[0]?a[0].w:0),cur=a.length?a[a.length-1].w:(START_W>0?START_W:0);
   const ce=document.getElementById('wcur');if(ce)ce.textContent=cur?String(cur).replace('.',','):'—';
@@ -1091,7 +1081,6 @@ function renderWeight(){{
     else{{const good=GOAL==='gain'?diff>0:GOAL==='lose'?diff<0:true;
       de.textContent=(diff>0?'+':'')+String(diff).replace('.',',')+' кг';de.className='wdelta '+(good?'g':'b');}}
   }}else de.textContent='';}}
-  drawSpark((START_W>0?[{{d:'',w:START_W}}]:[]).concat(a));
   const h=document.getElementById('whint');
   if(h)h.textContent=a.length?('Записей: '+a.length+' · последняя '+fmtd(a[a.length-1].d)):
     (START_W>0?('Старт из анкеты — '+String(START_W).replace('.',',')+' кг. Записывай раз в неделю — увидишь тренд.'):'Записывай вес раз в неделю — увидишь тренд.');
