@@ -224,22 +224,33 @@ def _meal_card(m: dict, day: int = 0, slot: str = "", idx: int = 0) -> str:
                    + "</details>")
     name = m.get("name", "")
     slug = dish_photos.slugify(name)
-    # Фото — кнопка: в списке оно 56px, а в кэше лежит 512px, и разглядеть блюдо
-    # в такой марке невозможно. Тап открывает его на весь экран.
-    img = (f"<button class='mimg' data-zoom='{_e(slug)}' data-name='{_e(name)}' "
-           f"aria-label='Посмотреть фото: {_e(name)}'>"
-           f"<img loading='lazy' data-slug='{_e(slug)}' alt='' "
-           f"src='/dish/{quote(slug)}?t={quote(name)}'></button>")
-    return (f"<div class='meal' data-k='{key}' data-kc='{kcnum}'{pfc}><div class='mrow'>{img}"
-            f"<div class='minfo'><span class='slot'>{_e(m.get('slot',''))}</span>"
-            f"<div class='mname'>{_e(name)}</div>{macros}</div>"
-            f"<div class='kc'>{_e(kc)}<small>ккал</small></div></div>{details}"
-            f"<div class='mact'><button class='done' data-k='{key}'><span class='dc'></span>Приготовил</button>"
-            f"<button class='swap' data-day='{day}' data-slot='{slot}' data-i='{idx}' data-k='{key}'>Заменить</button>"
-            f"<button class='dislike' data-name='{_e(name)}' title='Не нравится — убрать из меню'>"
-            f"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
-            f"<path d='M17 2H7.3a2 2 0 0 0-2 1.7l-1.3 8A2 2 0 0 0 6 14h4l-.7 3.3a2 2 0 0 0 3.5 1.6L17 14'/>"
-            f"<path d='M17 2h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2'/></svg></button></div></div>")
+    slot_txt = _e(m.get("slot", ""))
+    # Строка, а не карточка. Карточка несла название, КБЖУ, рецепт-гармошку и три
+    # кнопки — на день это восемь экранов прокрутки, и «что я ем дальше» тонуло.
+    # В строке остаётся ровно то, что читают на бегу: фото, название, приём,
+    # калории и отметка. Всё остальное — на экране блюда.
+    img = (f"<span class='mimg'><img loading='lazy' data-slug='{_e(slug)}' alt='' "
+           f"src='/dish/{quote(slug)}?t={quote(name)}'></span>")
+    open_btn = (f"<button class='mopen' data-k='{key}' aria-label='Открыть блюдо: {_e(name)}'>{img}"
+                f"<span class='mtxt'><b class='mname'>{_e(name)}</b>"
+                f"<span class='mmeta'>{slot_txt}</span></span>"
+                f"<span class='mk'>{_e(kc)}</span></button>")
+    tick = (f"<button class='tick' data-k='{key}' aria-label='Отметить «приготовил»: {_e(name)}'>"
+            f"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' "
+            f"stroke-linecap='round' stroke-linejoin='round'><path d='M5 12.5 10 17.5 19 7'/></svg></button>")
+    # Подробности лежат в самой строке, но скрыты: экран блюда клонирует их
+    # отсюда. Так у страницы один источник правды — не надо гонять рецепт
+    # отдельным запросом и синхронизировать две копии.
+    hidden = (f"<div class='mhide' hidden data-slug='{_e(slug)}' data-name='{_e(name)}' "
+              f"data-slot='{slot_txt}' data-kcal='{_e(kc)}'>{macros}{details}"
+              f"<div class='mact'><button class='done' data-k='{key}'><span class='dc'></span>Приготовил</button>"
+              f"<button class='swap' data-day='{day}' data-slot='{slot}' data-i='{idx}' data-k='{key}'>Заменить</button>"
+              f"<button class='dislike' data-name='{_e(name)}' title='Не нравится — убрать из меню'>"
+              f"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+              f"<path d='M17 2H7.3a2 2 0 0 0-2 1.7l-1.3 8A2 2 0 0 0 6 14h4l-.7 3.3a2 2 0 0 0 3.5 1.6L17 14'/>"
+              f"<path d='M17 2h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2'/></svg></button></div></div>")
+    return (f"<div class='meal' data-k='{key}' data-kc='{kcnum}'{pfc}>"
+            f"{open_btn}{tick}{hidden}</div>")
 
 
 def _shopping(sh: list, days: list | None = None) -> str:
@@ -589,16 +600,31 @@ h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;l
 @keyframes in{{from{{opacity:0;transform:translateY(8px)}}to{{opacity:1;transform:none}}}}
 .dtitle{{font-weight:700;font-size:11px;margin:6px 4px 12px;text-transform:uppercase;letter-spacing:.11em;color:var(--muted)}}
 .dtitle span{{color:var(--gd)}}
-.meal{{border-radius:var(--rl);padding:14px;margin-bottom:10px}}
-.mrow{{display:flex;justify-content:space-between;gap:12px;align-items:center}}
-.mimg{{width:64px;height:64px;flex:0 0 auto;border-radius:13px;background:var(--soft);display:block;
-  padding:0;border:none;overflow:hidden;cursor:zoom-in;position:relative}}
+/* Приём пищи — строка-пилюля. Слева фото, дальше название и приём, справа
+   калории и отметка. Всё, что не читают на бегу (КБЖУ, рецепт, кнопки), уехало
+   на экран блюда: в карточке они превращали день в восемь экранов прокрутки. */
+.meal{{border-radius:var(--rl);padding:10px 12px 10px 10px;margin-bottom:10px;
+  display:flex;align-items:center;gap:10px}}
+.mopen{{flex:1;min-width:0;display:flex;align-items:center;gap:12px;background:none;border:0;
+  padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer}}
+.mimg{{width:52px;height:52px;flex:0 0 auto;border-radius:var(--rm);background:var(--soft);
+  display:block;overflow:hidden;position:relative}}
 .mimg img{{width:100%;height:100%;object-fit:cover;display:block}}
-/* Подсказка, что фото открывается: без неё картинка выглядит просто картинкой.
-   Лупа мелкая и в углу, чтобы не спорить с самой едой. */
-.mimg::after{{content:"";position:absolute;right:3px;bottom:3px;width:16px;height:16px;border-radius:50%;
-  background:rgba(255,255,255,.9) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23405038' stroke-width='2.4' stroke-linecap='round'><circle cx='10.5' cy='10.5' r='6.5'/><path d='M15.5 15.5 21 21'/></svg>") center/11px 11px no-repeat;
-  box-shadow:0 1px 3px rgba(0,0,0,.25)}}
+.mtxt{{flex:1;min-width:0}}
+.mname{{display:block;font-size:14.5px;font-weight:600;line-height:1.25}}
+.mmeta{{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}}
+.mk{{font-family:Unbounded;font-weight:700;font-size:13.5px;letter-spacing:-.035em;
+  color:var(--ink-2);white-space:nowrap}}
+/* Отметка — своя кнопка, а не часть строки: тап по строке открывает блюдо, и
+   промахнуться между «посмотреть» и «съедено» нельзя. 34px — палец попадает. */
+.tick{{width:34px;height:34px;flex:0 0 auto;border:0;border-radius:12px;cursor:pointer;padding:0;
+  background:color-mix(in srgb,var(--ink) 6%,transparent);color:transparent;
+  display:flex;align-items:center;justify-content:center;transition:.15s}}
+.tick svg{{width:17px;height:17px;display:block}}
+.tick:focus-visible{{outline:2px solid var(--gd);outline-offset:2px}}
+.meal.on .tick{{background:var(--g);color:#fff}}
+.meal.on{{opacity:.55}}
+.meal.on .mname{{text-decoration:line-through}}
 
 /* Фото на весь экран. Открывается тапом по марке в списке. */
 .lb{{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;
@@ -611,14 +637,36 @@ h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;l
 .lb figcaption{{color:#fff;font-weight:700;font-size:15px;text-align:center;margin-top:12px}}
 .lb .x{{position:absolute;top:12px;right:12px;width:40px;height:40px;border-radius:50%;border:none;
   background:rgba(255,255,255,.16);color:#fff;font-size:22px;line-height:1;cursor:pointer}}
-.minfo{{flex:1;min-width:0}}
-.slot{{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}}
-.mname{{font-size:16px;font-weight:700;margin-top:2px}}.mm{{font-size:12px;color:var(--muted)}}
-.kc{{font-weight:800;color:var(--gd);white-space:nowrap;font-size:15px}}.kc small{{font-size:11px;color:var(--muted);margin-left:2px}}
-details{{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}}
-summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
-.dh{{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;margin:10px 0 4px}}
+.mm{{font-size:12px;color:var(--muted)}}
+.dh{{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.11em;margin:24px 0 11px}}
 .ing,.steps{{padding-left:18px;font-size:14px;line-height:1.6}}.steps li{{margin-bottom:4px}}
+
+/* ── экран блюда ────────────────────────────────────────────────────────────
+   Отдельный ЭКРАН, а не гармошка в списке: тут фото, КБЖУ, состав, шаги и все
+   действия — на телефоне такому нужна вся высота. Возврат кнопкой и системным
+   «назад» (экран заводится в историю), иначе жест уводил бы из приложения. */
+.dishv{{position:fixed;inset:0;z-index:60;background:var(--bg);overflow:auto;display:none}}
+.dishv.on{{display:block}}
+.dvbody .dshot{{border-radius:var(--rx);overflow:hidden;box-shadow:var(--sh-2);cursor:zoom-in;
+  display:block;padding:0;border:0;background:none;width:100%}}
+.dvbody .dshot img{{width:100%;height:250px;object-fit:cover;display:block;background:var(--soft)}}
+.dvbody h2{{font-family:Unbounded;font-weight:800;font-size:26px;letter-spacing:-.045em;
+  line-height:1.05;margin:20px 0 0}}
+.dvbody .dmeta{{color:var(--muted);font-size:13.5px;margin-top:8px}}
+.dkcal{{display:flex;gap:10px;margin-top:16px}}
+.dkcal div{{flex:1;border-radius:var(--rm);padding:12px 8px;text-align:center;
+  background:color-mix(in srgb,var(--ink) 4%,transparent)}}
+.dkcal b{{display:block;font-family:Unbounded;font-weight:700;font-size:18px;letter-spacing:-.045em}}
+.dkcal b i{{font-style:normal;font-family:Onest;font-size:11px;font-weight:700;color:var(--muted);
+  letter-spacing:0;margin-left:1px}}
+.dkcal span{{display:block;font-size:9.5px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);margin-top:5px}}
+/* Действия прибиты к низу окна: до них не нужно доскроллить рецепт. */
+.dvbody{{padding-bottom:110px}}
+.dact{{position:fixed;left:0;right:0;bottom:0;padding:12px 18px calc(14px + env(safe-area-inset-bottom));
+  background:linear-gradient(to top,var(--bg) 68%,transparent);z-index:2}}
+.dact .mact{{max-width:560px;margin:0 auto}}
 .sec{{margin-top:30px}}
 .sec h2{{font-family:Unbounded;font-size:20px;font-weight:700;letter-spacing:-.035em;margin-bottom:12px}}
 .shop{{display:flex;flex-direction:column;gap:6px}}
@@ -684,16 +732,17 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 .tab.complete::before{{content:"✓ "}}
 .mact{{display:flex;gap:8px;margin-top:12px}}
 .done{{flex:1;border:1.5px solid var(--line);background:var(--card);color:var(--muted);font-weight:700;
-  font-size:14px;padding:11px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px}}
+  font-size:15px;padding:15px;border-radius:var(--rl);cursor:pointer;display:flex;
+  align-items:center;justify-content:center;gap:9px;font-family:inherit}}
 .swap{{flex:0 0 auto;border:1.5px solid var(--line);background:var(--card);color:var(--muted);font-weight:700;
-  font-size:14px;padding:11px 16px;border-radius:12px;cursor:pointer}}
+  font-size:14px;padding:11px 16px;border-radius:var(--rl);cursor:pointer;font-family:inherit}}
 .swap:hover{{border-color:var(--g);color:var(--gd)}}.swap:disabled{{opacity:.5}}
 /* «Не нравится». У кнопки не было НИ ОДНОГО правила: инлайновый svg без
    размеров сплющивал её в вертикальную чёрточку справа от «Заменить» — на
    экране это читалось как случайный артефакт вёрстки, а не как кнопка.
    Делаем квадратной под высоту соседей и задаём размер иконке. */
-.dislike{{flex:0 0 auto;width:44px;border:1.5px solid var(--line);background:var(--card);
-  color:var(--muted);border-radius:12px;cursor:pointer;display:flex;align-items:center;
+.dislike{{flex:0 0 auto;width:52px;border:1.5px solid var(--line);background:var(--card);
+  color:var(--muted);border-radius:var(--rl);cursor:pointer;display:flex;align-items:center;
   justify-content:center;padding:0;transition:.15s}}
 .dislike svg{{width:19px;height:19px;display:block}}
 .dislike:hover{{border-color:#DC2626;color:#DC2626}}
@@ -706,10 +755,13 @@ summary{{font-size:13px;font-weight:700;color:var(--gd);cursor:pointer}}
 .mact .hintx.show{{display:block}}
 .mact{{flex-wrap:wrap}}
 .done .dc{{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;position:relative}}
-.meal.on .done{{border-color:var(--g);background:var(--soft);color:var(--gd)}}
-.meal.on .done .dc{{background:var(--g);border-color:var(--g)}}
-.meal.on .done .dc::after{{content:"";position:absolute;left:4px;top:1px;width:6px;height:10px;border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}}
-.meal.on .done::after{{content:" ✓"}}
+/* Состояние живёт на самой кнопке, а не на родительской карточке: на экране
+   блюда кнопка вынута из строки, и селектор `.meal.on .done` там не сработал бы —
+   человек отмечал «Приготовил», а кнопка оставалась серой. */
+.done.on{{border-color:var(--g);background:var(--soft);color:var(--gd)}}
+.done.on .dc{{background:var(--g);border-color:var(--g)}}
+.done.on .dc::after{{content:"";position:absolute;left:4px;top:1px;width:6px;height:10px;border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}}
+.done.on::after{{content:" ✓"}}
 /* ── экраны и нижняя навигация ────────────────────────────────────────────
    Страница была одним свитком на 5292 px (восемь экранов) со всеми 35 блюдами
    недели сразу и без навигации. Те же разделы разложены по четырём вкладкам;
@@ -948,6 +1000,14 @@ body{{padding-bottom:104px}}
   <div class="dvbody" id="dvbody"></div>
 </section>
 
+<!-- Экран блюда. Открывается тапом по строке приёма: фото, КБЖУ, состав, шаги
+     и действия. В списке всего этого нет намеренно — там читают на бегу. -->
+<section class="dishv" id="dishview" aria-hidden="true">
+  <div class="dvtop"><button id="dishback" aria-label="Назад">{_ic_back()}</button><b id="dishslot"></b></div>
+  <div class="dvbody" id="dishbody"></div>
+  <div class="dact" id="dishact"></div>
+</section>
+
 <nav class="bnav">
   <button class="on" data-s="today">{_ic_home()}<span>Сегодня</span></button>
   <button data-s="week">{_ic_week()}<span>Неделя</span></button>
@@ -1048,11 +1108,19 @@ function paint(){{
     num.textContent=got;
     bar.style.width=(goal?Math.min(100,Math.round(got/goal*100)):0)+'%';
   }});
+  // Кнопка «Приготовил» на экране блюда — копия, вынутая из строки. Красим её по
+  // ключу, а не по родителю: у копии родителя-.meal нет.
+  document.querySelectorAll('.done').forEach(b=>b.classList.toggle('on', !!done[b.dataset.k]));
 }}
-document.querySelectorAll('.done').forEach(b=>b.addEventListener('click',()=>{{
-  const k=b.dataset.k; if(done[k])delete done[k]; else done[k]=1;
+// Отметка «приготовил» приходит из двух мест сразу: галочка в строке и кнопка на
+// экране блюда (а она ещё и клон). Поэтому делегирование, а не привязка к
+// конкретным узлам — иначе клон был бы мёртвой кнопкой.
+document.addEventListener('click',e=>{{
+  const b=e.target.closest('.done,.tick'); if(!b) return;
+  const k=b.dataset.k; if(!k) return;
+  if(done[k])delete done[k]; else done[k]=1;
   localStorage.setItem(DKEY,JSON.stringify(done)); paint(); pushProgress();
-}}));
+}});
 paint();
 // трекер воды (сброс по дню)
 const WK=()=>'np_water_'+T+'_'+new Date().toISOString().slice(0,10);
@@ -1135,7 +1203,8 @@ fetch('/api/plan/'+T+'/progress').then(r=>r.json()).then(srv=>{{
   if(tries<6)setTimeout(poll,5000);
 }}setTimeout(poll,5000);}})();
 // замена блюда (LLM-регенерация одного блюда, затем перезагрузка на том же дне)
-document.querySelectorAll('.swap').forEach(b=>b.addEventListener('click',async()=>{{
+document.addEventListener('click',async e=>{{
+  const b=e.target.closest('.swap'); if(!b) return;
   const day=+b.dataset.day, slot=b.dataset.slot, idx=+b.dataset.i, o=b.textContent; b.disabled=true; b.textContent='Подбираю…';
   try{{
     // idx — номер приёма в дне. Слоты повторяются («Перекус» ×2), и по одному
@@ -1147,7 +1216,7 @@ document.querySelectorAll('.swap').forEach(b=>b.addEventListener('click',async()
     try{{await fetch('/api/plan/'+T+'/progress',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(collectLocal())}});}}catch(e){{}}
     location.hash='d'+day; location.reload();
   }}catch(e){{ b.disabled=false; b.textContent=o; alert('Не удалось заменить — попробуй ещё раз'); }}
-}}));
+}});
 // отвязка карты (без отмены подписки) — двойное подтверждение
 const ub=document.getElementById('unbindCard');
 if(ub){{let a2=false;ub.addEventListener('click',async()=>{{
@@ -1189,23 +1258,24 @@ if(sp)sp.onclick=async()=>{{
   }}catch(e){{sp.disabled=false;sp.textContent='Сохранить и пересобрать план';if(pm)pm.classList.remove('s');alert('Не удалось пересобрать. Попробуй ещё раз или напиши support@mynutriplan.ru');}}
 }};
 // «Не нравится» — добавить блюдо в стоп-лист и пересобрать план (тяжёлая LLM-операция → подтверждение)
-document.querySelectorAll('.dislike').forEach(b=>{{let armed=false;
+document.addEventListener('click',async e=>{{
+  const b=e.target.closest('.dislike'); if(!b) return;
   // Подсказку рисуем строкой в самой строке действий: title на телефоне не
   // виден, а без обратной связи первый тап выглядит как «ничего не произошло».
-  const hint=document.createElement('div');hint.className='hintx';
-  hint.textContent='Нажми ещё раз — уберу это блюдо и пересоберу план';
-  b.parentNode.appendChild(hint);
-  b.addEventListener('click',async()=>{{
-  if(!armed){{armed=true;b.classList.add('armed');hint.classList.add('show');
+  let hint=b.parentNode.querySelector('.hintx');
+  if(!hint){{hint=document.createElement('div');hint.className='hintx';
+    hint.textContent='Нажми ещё раз — уберу это блюдо и пересоберу план';
+    b.parentNode.appendChild(hint);}}
+  if(!b.dataset.armed){{b.dataset.armed='1';b.classList.add('armed');hint.classList.add('show');
     b.title='Нажми ещё раз — уберу это блюдо и пересоберу план';
-    setTimeout(()=>{{armed=false;b.classList.remove('armed');hint.classList.remove('show');
+    setTimeout(()=>{{delete b.dataset.armed;b.classList.remove('armed');hint.classList.remove('show');
       b.title='Не нравится — убрать из меню';}},4000);return;}}
   const name=b.dataset.name||''; document.querySelectorAll('.dislike').forEach(x=>x.disabled=true);
   try{{
     const r=await fetch('/api/plan/'+T+'/settings',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{dislike:name}})}});
     const j=await r.json();if(!j.ok)throw 0; location.hash=''; location.reload();
   }}catch(e){{document.querySelectorAll('.dislike').forEach(x=>x.disabled=false);alert('Не удалось обновить меню — попробуй ещё раз');}}
-}});}});
+}});
 // Фото блюда на весь экран. В списке марка 56–64px, а в кэше 512px — блюдо в
 // такой марке не разглядеть, хотя «понятно, что покупаешь» и есть весь смысл фото.
 (function(){{
@@ -1224,16 +1294,26 @@ document.querySelectorAll('.dislike').forEach(b=>{{let armed=false;
   }}
   function close(){{
     lb.classList.remove('on'); lb.setAttribute('hidden','');
-    document.body.style.overflow='';
+    // Фото открывается ПОВЕРХ экрана блюда, и тот тоже держит фон. Снимать
+    // блокировку безусловно нельзя: закрыв фото, человек оставался бы на экране
+    // блюда, под которым едет страница.
+    document.body.style.overflow=document.querySelector('.dishv.on, .dayview.on')?'hidden':'';
     if(opener){{opener.focus();opener=null;}}     // возвращаем фокус туда, откуда открыли
   }}
   document.addEventListener('click',e=>{{
-    const b=e.target.closest('.mimg[data-zoom]');
+    // Открывает только большое фото НА ЭКРАНЕ БЛЮДА. В списке фото — часть
+    // строки: тап по строке ведёт на блюдо, и два разных исхода у одного
+    // жеста были бы лотереей.
+    const b=e.target.closest('.dshot[data-zoom]');
     if(b){{open(b.dataset.zoom,b.dataset.name,b);return;}}
     // Клик по фону и по кресту закрывают; по самой картинке — нет.
     if(lb.classList.contains('on') && !e.target.closest('figure')) close();
   }});
-  document.addEventListener('keydown',e=>{{if(e.key==='Escape'&&lb.classList.contains('on'))close();}});
+  // preventDefault — сигнал экранам под фото, что Escape уже израсходован. Без
+  // него один Escape закрывал И фото, И экран блюда: человек хотел вернуться к
+  // рецепту, а его выбрасывало в список.
+  document.addEventListener('keydown',e=>{{
+    if(e.key==='Escape'&&lb.classList.contains('on')){{close();e.preventDefault();}}}});
 }})();
 
 // Список покупок: отметки купленного. Раньше это была стена текста без единого
@@ -1287,10 +1367,17 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
     const panel=document.querySelector('.panel[data-d="'+i+'"]');
     if(!panel) return;
     const clone=panel.cloneNode(true);
-    clone.querySelectorAll('.mact, details').forEach(n=>n.remove());
+    // Всё, чем можно ДЕЙСТВОВАТЬ, из копии вон: и галочка в строке, и скрытый
+    // блок с кнопками. data-k снимаем со ВСЕГО, а не только с .meal — иначе
+    // делегированный обработчик поймал бы клик по копии и отметил чужой день.
+    clone.querySelectorAll('.mhide, .tick, .mact, details').forEach(n=>n.remove());
     clone.querySelectorAll('.calbar, .caltxt').forEach(n=>n.remove());
     clone.querySelectorAll('[id]').forEach(n=>n.removeAttribute('id'));   // без дублей id
-    clone.querySelectorAll('.meal').forEach(n=>{{n.classList.remove('on');n.removeAttribute('data-k');}});
+    clone.querySelectorAll('[data-k]').forEach(n=>n.removeAttribute('data-k'));
+    clone.querySelectorAll('.meal').forEach(n=>n.classList.remove('on'));
+    // Строка перестаёт быть кнопкой: экран блюда несёт «Приготовил» и
+    // «Заменить», а тут обещан просмотр.
+    clone.querySelectorAll('.mopen').forEach(n=>n.disabled=true);
     const title=(clone.querySelector('.dtitle')||{{}}).textContent||('День '+(i+1));
     const t=clone.querySelector('.dtitle'); if(t) t.remove();
     document.getElementById('dvtitle').textContent=title.trim().replace(/\\s+(\\d+\\s*ккал)$/,' · $1');
@@ -1310,6 +1397,65 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
   document.getElementById('dvback').addEventListener('click',()=>close(true));
   addEventListener('popstate',()=>{{ if(view.classList.contains('on')) close(false); }});
   addEventListener('keydown',e=>{{ if(e.key==='Escape'&&view.classList.contains('on')) close(true); }});
+}})();
+
+// ── экран блюда ───────────────────────────────────────────────────────────
+// Содержимое берём из самой строки: там уже лежат КБЖУ, рецепт и кнопки,
+// скрытые в .mhide. Один источник правды — не надо ходить за рецептом на
+// сервер и следить, чтобы две копии не разошлись.
+(function(){{
+  const view=document.getElementById('dishview'), body=document.getElementById('dishbody'),
+        act=document.getElementById('dishact'), slotb=document.getElementById('dishslot');
+  if(!view) return;
+  function open(meal){{
+    const h=meal.querySelector('.mhide'); if(!h) return;
+    const name=h.dataset.name||'', slug=h.dataset.slug||'', slot=h.dataset.slot||'';
+    const day=(meal.closest('.panel')||{{}}).dataset;
+    slotb.textContent=slot;
+    const kcal=h.dataset.kcal||'', p=meal.dataset.p||'0', f=meal.dataset.f||'0', c=meal.dataset.c||'0';
+    const rec=h.querySelector('details');
+    let blocks='';
+    if(rec){{
+      const ing=rec.querySelector('.ing'), st=rec.querySelector('.steps');
+      if(ing) blocks+='<div class="dh">Что нужно</div><ul class="ing">'+ing.innerHTML+'</ul>';
+      if(st)  blocks+='<div class="dh">Как готовить</div><ol class="steps">'+st.innerHTML+'</ol>';
+    }}
+    body.innerHTML=
+      '<button class="dshot" data-zoom="'+slug+'" data-name="'+name.replace(/"/g,'&quot;')+'" '
+        +'aria-label="Открыть фото">'
+        +'<img alt="" src="/dish/'+encodeURIComponent(slug)+'?t='+encodeURIComponent(name)+'"></button>'
+      +'<h2>'+name+'</h2>'
+      +'<div class="dmeta">'+(day&&day.d!==undefined?('День '+(+day.d+1)+' · '):'')+slot.toLowerCase()+'</div>'
+      +'<div class="dkcal">'
+        +'<div><b>'+kcal+'</b><span>ккал</span></div>'
+        +'<div><b>'+p+'<i>г</i></b><span>белки</span></div>'
+        +'<div><b>'+f+'<i>г</i></b><span>жиры</span></div>'
+        +'<div><b>'+c+'<i>г</i></b><span>углеводы</span></div>'
+      +'</div>'+blocks;
+    // Кнопки — КОПИЯ из строки: обработчики делегированные, поэтому копия
+    // работает так же, как оригинал, и ключ отметки у неё тот же.
+    act.innerHTML=''; act.appendChild(h.querySelector('.mact').cloneNode(true));
+    paint();
+    view.classList.add('on'); view.setAttribute('aria-hidden','false');
+    view.scrollTop=0; document.body.style.overflow='hidden';
+    history.pushState({{dish:1}},'');
+  }}
+  function close(back){{
+    view.classList.remove('on'); view.setAttribute('aria-hidden','true');
+    document.body.style.overflow='';
+    if(back && history.state && history.state.dish) history.back();
+  }}
+  document.addEventListener('click',e=>{{
+    const b=e.target.closest('.mopen'); if(!b||b.disabled) return;
+    const meal=b.closest('.meal'); if(meal) open(meal);
+  }});
+  document.getElementById('dishback').addEventListener('click',()=>close(true));
+  addEventListener('popstate',()=>{{ if(view.classList.contains('on')) close(false); }});
+  addEventListener('keydown',e=>{{
+    // Escape закрывает по одному слою за раз: если сверху открыто фото, оно уже
+    // забрало это нажатие себе (см. preventDefault в обработчике фото).
+    if(e.key==='Escape'&&!e.defaultPrevented&&view.classList.contains('on')) close(true);
+  }});
 }})();
 
 // PWA: service worker + install prompt

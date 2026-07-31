@@ -1,5 +1,13 @@
 import { expect, test } from "./_fixtures";
 import { dismissWelcome } from "./_helpers";
+import type { Page } from "@playwright/test";
+
+/** Открыть экран блюда первого приёма открытого дня. */
+async function openFirstDish(page: Page): Promise<void> {
+	await page.locator(".panel.on .mopen").first().click();
+	await page.waitForTimeout(400);
+	await expect(page.locator("#dishview"), "экран блюда не открылся").toHaveClass(/\bon\b/);
+}
 
 /** Экран плана — то, что человек получает за деньги. /plan/sample открыт всем. */
 test.describe("экран плана", () => {
@@ -18,10 +26,11 @@ test.describe("экран плана", () => {
 		await page.goto("/plan/sample");
 		await dismissWelcome(page);
 		await page.waitForTimeout(600);
+		// Кнопки уехали со строки на экран блюда: в списке читают на бегу.
+		await openFirstDish(page);
 
 		const g = await page.evaluate(() => {
-			const m = [...document.querySelectorAll(".meal")]
-				.find((e) => (e as HTMLElement).offsetParent !== null) as HTMLElement;
+			const m = document.querySelector("#dishact") as HTMLElement;
 			const box = (sel: string) => {
 				const e = m.querySelector(sel) as HTMLElement | null;
 				if (!e) return null;
@@ -41,17 +50,13 @@ test.describe("экран плана", () => {
 		await dismissWelcome(page);
 		await page.waitForTimeout(600);
 		const meals = await page.locator(".meal").count();
+		await openFirstDish(page);
 
-		await page.evaluate(() => {
-			const m = [...document.querySelectorAll(".meal")]
-				.find((e) => (e as HTMLElement).offsetParent !== null)!;
-			(m.querySelector(".dislike") as HTMLElement).click();
-		});
+		await page.locator("#dishact .dislike").click();
 		await page.waitForTimeout(300);
 
 		const armed = await page.evaluate(() => {
-			const m = [...document.querySelectorAll(".meal")]
-				.find((e) => (e as HTMLElement).offsetParent !== null)!;
+			const m = document.querySelector("#dishact")!;
 			const h = m.querySelector(".hintx") as HTMLElement | null;
 			return { hintShown: !!h && getComputedStyle(h).display !== "none",
 				buttonArmed: !!m.querySelector(".dislike.armed") };
@@ -67,10 +72,12 @@ test.describe("экран плана · фото на весь экран", () =
 		await page.goto("/plan/sample");
 		await dismissWelcome(page);
 		await page.waitForTimeout(600);
+		// Фото на весь экран живёт на экране блюда: в списке тап по строке ведёт
+		// на блюдо, и два разных исхода у одного жеста были бы лотереей.
+		await openFirstDish(page);
 
 		const opened = await page.evaluate(() => {
-			const b = [...document.querySelectorAll(".mimg[data-zoom]")]
-				.find((e) => (e as HTMLElement).offsetParent !== null) as HTMLElement;
+			const b = document.querySelector(".dshot[data-zoom]") as HTMLElement;
 			b.click();
 			const lb = document.querySelector(".lb")!;
 			return { on: lb.classList.contains("on"),
@@ -88,10 +95,17 @@ test.describe("экран плана · фото на весь экран", () =
 		await page.waitForTimeout(250);
 		const closed = await page.evaluate(() => ({
 			on: document.querySelector(".lb")!.classList.contains("on"),
+			// Фото было открыто ПОВЕРХ экрана блюда — тот всё ещё держит фон.
+			// Снять блокировку здесь значило бы пустить страницу ехать под ним.
 			bodyLocked: document.body.style.overflow,
 		}));
 		expect(closed.on, "Escape должен закрывать просмотр").toBe(false);
-		expect(closed.bodyLocked, "прокрутка обязана вернуться").toBe("");
+		expect(closed.bodyLocked, "экран блюда ещё открыт — фон обязан остаться запертым").toBe("hidden");
+
+		await page.locator("#dishback").click();
+		await page.waitForTimeout(300);
+		expect(await page.evaluate(() => document.body.style.overflow),
+			"после закрытия блюда прокрутка обязана вернуться").toBe("");
 	});
 
 	/**
