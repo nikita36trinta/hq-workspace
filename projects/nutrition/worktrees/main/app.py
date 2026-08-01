@@ -1442,7 +1442,12 @@ LEAD_TOKEN_TTL = 7 * 86400
 # в адресе остаётся метка-заглушка, по ней квиз просит те же данные.
 LEAD_RESUME_COOKIE = "np_resume"
 LEAD_RESUME_MARK = "1"          # что видно в адресе вместо токена
-LEAD_RESUME_COOKIE_AGE = 1800   # кука нужна на одну загрузку квиза, дольше не живёт
+# Кука живёт столько же, сколько сам resume-токен. Полчаса было мало: человек
+# открывал ссылку из письма, отвлекался, обновлял страницу — и попадал на первый
+# шаг анкеты вместо своей нормы и пейволла. Это самый тёплый трафик, который у
+# нас есть, и терять его на перезагрузке нельзя. Токен всё равно одноразово
+# проверяется на сервере, так что длинная кука ничего не открывает сверх него.
+LEAD_RESUME_COOKIE_AGE = 7 * 24 * 3600
 
 
 def _lead_token_make(email: str, quiz: dict) -> str:
@@ -2010,7 +2015,7 @@ def showcase() -> HTMLResponse:
 
 
 @app.get("/quiz", response_class=HTMLResponse)
-def quiz(request: Request, l: str = DEFAULT_LANDING, resume: str = "") -> Response:
+def quiz(request: Request, l: str = "", resume: str = "") -> Response:
     """Единый квиз, темизированный под лендинг (?l=slug).
 
     ?resume=<токен> из письма-лида до страницы не доходит: сначала 302 на тот же
@@ -2021,7 +2026,14 @@ def quiz(request: Request, l: str = DEFAULT_LANDING, resume: str = "") -> Respon
     Вычистить адрес скриптом, как на /pay/success, здесь нельзя: квиз читает
     resume из location, а порядок «вычистили → прочитали» не гарантирован.
     """
-    slug = l if l in LANDINGS else DEFAULT_LANDING
+    # Без ?l= берём лендинг из куки, а не подставляем умолчание. Иначе голый
+    # /quiz — а такие ссылки рисует сам сайт («Оформить заново», resume подписки)
+    # — переписывал лендинг на slim: у человека с /l/chef стирались 11 ответов,
+    # а его оплата уезжала в отчёт как пришедшая со slim.
+    slug = l if l in LANDINGS else ""
+    if not slug:
+        ck = (request.cookies.get(LANDING_COOKIE) or "").strip()
+        slug = ck if ck in LANDINGS else DEFAULT_LANDING
     tok = "".join(c for c in (resume or "") if c.isalnum())[:64]
     if tok and tok != LEAD_RESUME_MARK:
         q = {k: v for k, v in request.query_params.items() if k != "resume"}
@@ -4096,6 +4108,12 @@ def _return_mails(token: str, pl: dict, base: str, now: datetime) -> int:
     return sent
 
 
+class _SkipReplan(Exception):
+    """Недельную сборку в этот тик пропускаем: пусть план останется прежним.
+    Ловится общим except в cron_run — вместе с пропуском не двигается и
+    next_plan, то есть следующий тик попробует снова."""
+
+
 METRIKA_TOKEN = os.getenv("NUTRI_METRIKA_TOKEN", "").strip()
 _YM_UPLOADED = DATA / "ym_uploaded.json"
 
@@ -4235,6 +4253,18 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                 pl = plan_ai.generate_plan(sub.get("quiz") or {},
                                            avoid=list(dict.fromkeys(_menu_names(old))))
                 pl["quiz"] = sub.get("quiz") or {}
+                # Не меняем ХОРОШИЙ план на заготовку. LLM недоступна — у человека
+                # уже есть оплаченная неделя с рецептами и списком покупок; отдать
+                # вместо неё банк-заготовку значит молча ухудшить то, за что он
+                # платит 499 ₽/мес: другое меню, ни рецептов, ни покупок, и без
+                # единого слова на экране. Ждём следующего тика — план останется
+                # прежним, а «неделя пройдена» человеку и так покажется.
+                if pl.get("source") != "ai" and (old or {}).get("source") == "ai":
+                    _bump("replan_skipped_degraded")
+                    print(f"[ALERT] недельная сборка деградировала — оставили прежний план "
+                          f"{token}", flush=True)
+                    out["replan_deferred"] += 1
+                    raise _SkipReplan
                 same = _menu_names(pl) == _menu_names(old)
                 # Сброс «приготовил» оправдан только сменой меню. При недоступном LLM
                 # банк-заготовка детерминирована и повторяет прошлую неделю — сбрасывать
