@@ -1617,12 +1617,48 @@ LANDING_COOKIE = "np_l"
 LANDING_COOKIE_AGE = 60 * 60 * 24 * 60  # 60 дней
 
 
+# Какие лендинги участвуют в раздаче с корня. Пустая переменная = все.
+# Ограничивать полезно: восемь вариантов делят один бюджет, и чтобы отличить
+# конверсию 2% от 3%, на КАЖДЫЙ нужно порядка полутора тысяч кликов. На старте
+# разумнее крутить два-три максимально разных по обещанию, а остальные держать
+# доступными по прямым ссылкам.
+SPLIT_LANDINGS = [s.strip() for s in os.getenv("NUTRI_SPLIT", "").split(",")
+                  if s.strip() in LANDINGS] or list(LANDINGS)
+
+
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request) -> RedirectResponse:
-    # вернувшийся пользователь → его угол (по cookie), иначе дефолт
-    slug = request.cookies.get(LANDING_COOKIE, "")
-    dest = slug if slug in LANDINGS else DEFAULT_LANDING
-    return RedirectResponse(f"/l/{dest}", status_code=302)
+    """Корень раздаёт трафик по лендингам.
+
+    Три правила, в порядке силы:
+      1. явный ?l= — уважаем всегда (ссылка из объявления на конкретный угол);
+      2. кука — вернувшийся попадает туда же, где был. Без этого человек при
+         каждом заходе видел бы новое обещание, а его ответы в квизе и разрез
+         по лендингам в отчёте разъезжались бы;
+      3. иначе — случайный из SPLIT_LANDINGS, и он тут же закрепляется кукой.
+
+    Распределение равномерное и по-настоящему случайное, а не по остатку от
+    хэша адреса: за одним адресом сидит целая сеть, и деление по IP на малых
+    числах даёт перекос, который потом не отличить от разницы лендингов.
+    """
+    q = (request.query_params.get("l") or "").strip()
+    if q in LANDINGS:
+        dest = q
+    else:
+        slug = request.cookies.get(LANDING_COOKIE, "")
+        if slug in LANDINGS:
+            dest = slug
+        else:
+            import secrets as _s
+            dest = _s.choice(SPLIT_LANDINGS)
+            _bump(f"split_{dest}")     # раздачи считаем отдельно от визитов
+    r = RedirectResponse(f"/l/{dest}", status_code=302)
+    # Редирект НЕ кэшировать. 302 браузеры и промежуточные кэши сохраняют, и
+    # тогда первый жребий закрепился бы за всеми, кто пришёл следом, — раздача
+    # выродилась бы в один лендинг, причём незаметно.
+    r.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    r.headers["Vary"] = "Cookie"
+    return r
 
 
 NUTRI_METRIKA_ID = os.getenv("NUTRI_METRIKA_ID", "").strip()
