@@ -1315,6 +1315,28 @@ def _peer_trusted(peer: str) -> bool:
     return bool(TRUSTED_PROXIES) and peer in TRUSTED_PROXIES
 
 
+def _ip_is_shared(request: Request) -> bool:
+    """Знаем ли мы, что адрес клиента нам сейчас недоступен.
+
+    Пришёл X-Forwarded-For от недоверенного пира — значит перед нами прокси, а
+    список не настроен: _client_ip вернёт адрес ПРОКСИ, один и тот же у всех.
+    Считать по нему лимиты нельзя — 20 лидов в час станут общими на весь сайт,
+    и двадцать первый живой человек за час не пройдёт квиз. В этом состоянии
+    IP-лимит не применяем вовсе и полагаемся на лимит по адресу почты: пропустить
+    бота хуже, чем закрыть вход всем покупателям сразу.
+    """
+    return bool(request.headers.get("x-forwarded-for")) and not _peer_trusted(
+        (request.client.host if request.client else "") or "")
+
+
+def _rate_ok_ip(request: Request, bucket: str, limit: int, window_sec: int) -> bool:
+    """Лимит по IP, который сам отключается, когда IP недостоверен."""
+    if _ip_is_shared(request):
+        _bump("ip_limit_skipped")
+        return True
+    return _rate_ok(bucket, _client_ip(request), limit, window_sec)
+
+
 _XFF_WARNED = False
 
 
@@ -1800,7 +1822,7 @@ def dish_photo(slug: str, bg: BackgroundTasks, request: Request, t: str = "", lg
         # Обход всех планов — единственная дорогая ветка ручки, и заказывает её
         # ЧУЖОЙ слаг. Лимит по IP держит её на посторонних: у своих блюда лежат
         # в кэше (каталог + _write_plan), сюда они не попадают вовсе.
-        if _rate_ok("dish_scan", _client_ip(request), 60, 3600):
+        if _rate_ok_ip(request, "dish_scan", 60, 3600):
             known = _is_known_dish(slug)
         else:
             _bump("dish_scan_limited")
@@ -2434,7 +2456,7 @@ def save_lead(lead: Lead, request: Request, bg: BackgroundTasks) -> JSONResponse
     # письмо — ограничивать нечего, а e2e гоняет воронку десятки раз подряд с
     # одного адреса и одного IP. Обойти защиту этим нельзя ровно поэтому.
     if not notrack() and not (
-            _rate_ok("lead_email", em, 5, 3600) and _rate_ok("lead_ip", _client_ip(request), 20, 3600)):
+            _rate_ok("lead_email", em, 5, 3600) and _rate_ok_ip(request, "lead_ip", 20, 3600)):
         _bump("lead_rate_limited")
         # 429 квиз не ломает: он раскрывает план на любом ответе, кроме 422.
         return JSONResponse({"error": "too many"}, status_code=429)
@@ -2530,7 +2552,7 @@ def _pay_rate_ok(req: PayReq, request: Request) -> bool:
     (мог передумать с тарифом, мог вернуться после «платёж не прошёл»), поэтому
     10 в час с адреса и 40 с IP он не увидит."""
     em = str(req.email).strip().lower()
-    if _rate_ok("pay_email", em, 10, 3600) and _rate_ok("pay_ip", _client_ip(request), 40, 3600):
+    if _rate_ok("pay_email", em, 10, 3600) and _rate_ok_ip(request, "pay_ip", 40, 3600):
         return True
     _bump("pay_rate_limited")
     return False
@@ -2817,9 +2839,14 @@ def _pay_webhook(payload: dict, request: Request, bg: BackgroundTasks) -> JSONRe
         order = _order_by_payment(pid)
         oid = order.get("order", "")
         now = datetime.now(timezone.utc)
+        # Сумма и идентификатор — из ОТВЕТА кассы, а не из тела уведомления.
+        # Тело мы уже объявили недоверенным и проверяем по нему только факт
+        # возврата; сумму же брали оттуда же — и один curl с amount 99999.00
+        # клал в журнал выручки минус сто тысяч рублей. Отчёт о деньгах не
+        # должен писаться снаружи.
         _write_order({"order": oid, "type": order.get("type", "?"), "payment_id": pid,
                       "refund_id": rid, "status": "refunded",
-                      "amount": (obj.get("amount") or {}).get("value"),
+                      "amount": f"{refunded:.2f}",
                       "email": order.get("email", ""), "landing": order.get("landing", "?"),
                       "ts": now.isoformat(), "event": "refund.succeeded"})
         _bump(f"refund_{order.get('landing', '?')}")
@@ -3324,7 +3351,7 @@ def login_request(req: LoginReq, request: Request, bg: BackgroundTasks) -> JSONR
         return JSONResponse({"ok": False, "error": "Мы уже отправили несколько писем на этот адрес. "
                                                    "Проверь входящие и «Промоакции» — следующее "
                                                    "письмо можно запросить через час."}, status_code=429)
-    if not _rate_ok("login_ip", _client_ip(request), 20, 3600):
+    if not _rate_ok_ip(request, "login_ip", 20, 3600):
         _bump("login_rate_limited")
         return JSONResponse({"ok": False, "error": "Слишком много запросов входа. "
                                                    "Попробуй ещё раз через час."}, status_code=429)
@@ -4403,13 +4430,19 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
             # есть, — заготовка хуже полноценного плана, но бесконечно лучше
             # тишины после оплаты.
             elif pl.get("mail_owed") and out["owed_sent"] < 10:
-                age = _days_since(pl.get("started") or "")
-                started_h = None
+                # Возраст считаем прямо здесь. В прошлой версии тут стоял вызов
+                # _days_since — функции, которой в этом файле нет (она в plan.py):
+                # ветка падала на NameError, его глотал внешний except, и вся
+                # досылка была мёртвым кодом. Человек читал «пришлём в течение
+                # часа» и не получал ничего. Проверять надо было исполнением, а
+                # не чтением — счётчик owed_sent_degraded вечно нулевой выглядел
+                # как «таких случаев не было».
                 try:
-                    started_h = (now - datetime.fromisoformat(str(pl.get("started")))).total_seconds() / 3600
+                    started_h = (now - datetime.fromisoformat(
+                        str(pl.get("started")))).total_seconds() / 3600
                 except Exception:  # noqa: BLE001
-                    started_h = 24 if age else None
-                if started_h is not None and started_h >= 1:
+                    started_h = 24.0   # даты нет или она битая — считаем долг старым
+                if started_h >= 1:
                     owed = _OWED_MAIL.get(pl.get("mail_owed") or "")
                     em = _plan_email(f.stem)
                     if owed and em:
