@@ -1047,7 +1047,12 @@ def _charge_subscription(sub: dict) -> tuple[str, str]:
         "amount": {"value": val, "currency": "RUB"}, "capture": True,
         "payment_method_id": sub["payment_method_id"],
         "description": "NutriPlan — продление подписки",
-        "metadata": {"type": "sub_renew", "order": sub["sub_id"], "email": sub.get("email", "")},
+        # landing и amount кладём в metadata: без них продление приходило с
+        # landing="?" и без суммы, выпадало из таблицы лендингов и из выручки
+        # целиком — а это регулярные деньги, ради которых подписка и делалась.
+        # Замер на синтетике: без них дашборд показывал 798 ₽ при фактических 1297.
+        "metadata": {"type": "sub_renew", "order": sub["sub_id"], "email": sub.get("email", ""),
+                     "landing": sub.get("landing", "") or "?", "amount": val},
         "receipt": {"customer": {"email": sub.get("email", "")}, "items": [{
             "description": "Подписка NutriPlan (1 месяц)", "quantity": "1.00",
             "amount": {"value": val, "currency": "RUB"},
@@ -2994,8 +2999,17 @@ def _pay_webhook(payload: dict, request: Request, bg: BackgroundTasks) -> JSONRe
                 bg.add_task(_fulfill_once, email, quiz, oid, base)
                 return JSONResponse({"ok": True, "duplicate": True, "refulfill": True})
             return JSONResponse({"ok": True, "duplicate": True})
+        # Сумму пишем В СТРОКУ ОПЛАТЫ, из ответа кассы. Её тут не было вовсе:
+        # выручку приходилось сшивать со строкой создания заказа, у продлений
+        # такой строки нет вообще, а в CSV офлайн-конверсий уходил Price=0 —
+        # то есть Директ учился бы на нулевой выручке.
+        try:
+            _amt = f"{float((obj.get('amount') or {}).get('value') or 0):.2f}"
+        except (TypeError, ValueError):
+            _amt = ""
         _write_order({"order": oid, "type": typ, "payment_id": obj.get("id"), "status": "succeeded",
-                      "email": email, "landing": slug, "ts": now.isoformat(), "event": "payment.succeeded"})
+                      "email": email, "landing": slug, "amount": _amt,
+                      "ts": now.isoformat(), "event": "payment.succeeded"})
         if typ == "subscription":
             pm = (obj.get("payment_method") or {}).get("id", "")
             # Если sub уже есть (гонка/повтор) — не сбрасываем счётчики, только гарантируем карту.
@@ -4244,8 +4258,18 @@ def _upload_offline_conversions() -> dict:
                 ts = int(datetime.fromisoformat(str(r.get("ts") or "")).timestamp())
             except Exception:  # noqa: BLE001
                 continue
-            goal = "pay_success_sub" if r.get("type", "").startswith("sub") else "pay_success_once"
-            rows.append((cid, goal, ts, str(r.get("amount") or ""), oid))
+            # Имя цели ОДНО и то же, что шлётся онлайн со страницы возврата.
+            # Разные имена (pay_success_once/_sub) означали бы: заведёшь все
+            # ключевыми — покупки удвоятся и CPA занизится вдвое, заведёшь одну —
+            # половина конверсий не видна. Дедупликации между именами нет.
+            # Сумма — из строки оплаты, с фолбэком на строку создания: без неё
+            # в CSV уходил Price=0, и стратегии «по ценности» учились бы на нуле.
+            amt = str(r.get("amount") or (_find_order(oid).get("amount") or "")).replace(",", ".")
+            try:
+                amt = f"{float(amt):.2f}"
+            except ValueError:
+                amt = "0"
+            rows.append((cid, "pay_success", ts, amt, oid))
         if not rows:
             return {"uploaded": 0}
         csv = "ClientId,Target,DateTime,Price,Currency\n" + "\n".join(
@@ -4608,6 +4632,16 @@ def admin_stats(request: Request, token: str = "", period: str = "7d",
             # Дашборд не должен быть единственным способом посмотреть цифры:
             # упал рендер — отдаём сырые числа, а не пустую страницу.
             print(f"[ALERT] дашборд статистики упал: {e}", flush=True)
+    # JSON отдаёт ТЕ ЖЕ числа, что и страница, за ТОТ ЖЕ период. Раньше он
+    # период игнорировал: ответ на ?period=today побайтово совпадал с ?period=all
+    # (визиты 799 вместо 2) и не содержал ни денег, ни воронки. По такому JSON
+    # нельзя было ни свериться со страницей, ни выгрузить что-то скриптом.
+    try:
+        import stats
+        d = stats.collect(c, ORDERS, LANDINGS, period)
+    except Exception as e:  # noqa: BLE001
+        print(f"[ALERT] сбор статистики упал: {e}", flush=True)
+        d = {}
     rows = []
     for slug, name in LANDINGS.items():
         v = c.get(f"visit_{slug}", 0)
@@ -4631,7 +4665,18 @@ def admin_stats(request: Request, token: str = "", period: str = "7d",
                                  "source": pl.get("source", ""), "ver": pl.get("ver")})
     except Exception:  # noqa: BLE001
         pass
-    return JSONResponse({"landings": rows, "degraded": {
+    return JSONResponse({
+        # Период и всё, что от него зависит, — первым: именно этих чисел тут
+        # не хватало, а «landings» ниже остались как есть, накопительным итогом
+        # (их формат мог кем-то использоваться, ломать его молча нельзя).
+        "period": period,
+        "funnel": dict(d.get("funnel") or []),
+        "money": d.get("money") or {},
+        "by_landing": d.get("rows") or [],
+        "health": d.get("health") or {},
+        "totals_all_time": d.get("totals_all_time") or {},
+        "landings_all_time": rows,
+        "landings": rows, "degraded": {
         "open": open_deg,                                   # не починенные прямо сейчас
         "hits": c.get("plan_degraded", 0),                  # сколько раз вообще случалось
         "sold": c.get("fulfill_degraded", 0),               # из них — ушло оплатившим

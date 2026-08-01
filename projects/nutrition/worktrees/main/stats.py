@@ -102,12 +102,18 @@ def collect(counters: dict, orders_path: Path, landings: dict, period: str = "7d
                 created.setdefault(oid, r)
 
     def _amount(rec: dict) -> float:
-        # Суммы в строке оплаты нет — берём из строки создания того же заказа.
-        src = created.get(rec.get("order") or "") or {}
-        try:
-            return float(str(src.get("amount") or 0).replace(",", "."))
-        except ValueError:
-            return 0.0
+        # Сумма теперь пишется в саму строку оплаты. Фолбэк на строку создания —
+        # для записей, сделанных до этого: у них суммы в строке оплаты нет.
+        # У ПРОДЛЕНИЙ строки создания не существует в принципе, поэтому без
+        # первого источника они давали ноль и выпадали из выручки целиком.
+        for src in (rec, created.get(rec.get("order") or "") or {}):
+            raw = src.get("amount")
+            if raw not in (None, ""):
+                try:
+                    return float(str(raw).replace(",", "."))
+                except ValueError:
+                    pass
+        return 0.0
 
     def _landing(rec: dict) -> str:
         return (rec.get("landing") or (created.get(rec.get("order") or "") or {}).get("landing")
@@ -124,22 +130,38 @@ def collect(counters: dict, orders_path: Path, landings: dict, period: str = "7d
 
     visits, quizzes, leads = _tot("visit_"), _tot("quiz_"), _tot("lead_")
     pay_init = _tot("pay_init_") + _tot("sub_init_")
-    pays = len(paid_p)
+    # Типы разводим ЯВНО. Раньше «разовые» считались как «всё, что не подписка»,
+    # и каждое продление попадало в них: на трёх оплатах дашборд показывал 3
+    # разовых при одной настоящей. Продления берём из журнала, а не из счётчика:
+    # счётчик пишется с суффиксом лендинга, а у продления лендинга не было.
+    pays_all = len(paid_p)
     subs = sum(1 for r in paid_p if (r.get("type") or "") == "subscription")
-    renews = _tot("sub_renew_ok_")
-    cancels = _tot("sub_cancel_")
+    renews = sum(1 for r in paid_p if (r.get("type") or "") == "sub_renew")
+    once = pays_all - subs - renews
+    # Отмены суммируем по ВСЕМ ключам счётчика, включая «sub_cancel_?»: перебор
+    # только по белому списку лендингов терял отмены без лендинга (на проде
+    # показывалось 2 при трёх фактических).
+    cancels = sum(_sum(counters, k.split("@")[0], days)
+                  for k in {c.split("@")[0] for c in counters if c.startswith("sub_cancel_")})
 
     # ── по лендингам ──────────────────────────────────────────────────────
+    # Строки строим по лендингам ПЛЮС по всем, что реально встретились в оплатах.
+    # Цикл только по белому списку молча прятал деньги: продления приходили с
+    # landing="?" и не попадали ни в одну строку — 43% выручки не было видно
+    # нигде, хотя в плитке «Выручка» они учитывались. Две цифры на одном экране
+    # расходились, и понять, какая правильная, было нельзя.
+    seen = {_landing(r) for r in paid_p}
     rows = []
-    for slug, title in landings.items():
-        v = _sum(counters, f"visit_{slug}", days)
+    for slug in list(landings) + sorted(s for s in seen if s not in landings):
+        title = landings.get(slug, "Прочее / без лендинга").partition(" — ")[0]
         lp = [r for r in paid_p if _landing(r) == slug]
         rows.append({
-            "slug": slug, "title": title.partition(" — ")[0],
-            "visits": v,
+            "slug": slug, "title": title,
+            "visits": _sum(counters, f"visit_{slug}", days),
             "split": _sum(counters, f"split_{slug}", days),
             "quiz": _sum(counters, f"quiz_{slug}", days),
             "leads": _sum(counters, f"lead_{slug}", days),
+            "ad": _sum(counters, f"visit_{slug}_ad", days),
             "pays": len(lp),
             "revenue": sum(_amount(r) for r in lp),
         })
@@ -148,17 +170,35 @@ def collect(counters: dict, orders_path: Path, landings: dict, period: str = "7d
     return {
         "period": period, "days": days,
         "funnel": [("Визиты", visits), ("Начали квиз", quizzes), ("Оставили почту", leads),
-                   ("Открыли оплату", pay_init), ("Оплатили", pays)],
+                   # В воронке — только НОВЫЕ покупки: продление не проходит ни
+                   # визит, ни квиз, и в знаменателе шага «открыли оплату» его
+                   # тоже нет. Считая его тут, мы получали конверсию 100% при
+                   # фактических 60% — то есть завышали в 1,67 раза.
+                   ("Открыли оплату", pay_init), ("Оплатили", subs + once)],
         "money": {"revenue": revenue, "refunded": refunded, "net": revenue - refunded,
-                  "pays": pays, "subs": subs, "once": pays - subs,
+                  "pays": pays_all, "subs": subs, "once": once,
                   "renews": renews, "cancels": cancels,
-                  "avg": (revenue / pays) if pays else 0.0},
+                  # Средний чек — по НОВЫМ покупкам: продления по своей природе
+                  # равны цене подписки и, попадая в знаменатель, размывают
+                  # ответ на вопрос «сколько платит новый покупатель».
+                  "avg": (sum(_amount(r) for r in paid_p
+                              if (r.get("type") or "") != "sub_renew") / (subs + once))
+                         if (subs + once) else 0.0},
         "rows": rows,
+        # Здесь же ошибки СОЗДАНИЯ платежа и записи на диск: без них неделя
+        # лежачей кассы выглядела как «спроса нет» при зелёном «ошибок нет».
         "health": {k: int(counters.get(k, 0) or 0) for k in (
-            "webhook_verify_fail", "webhook_error", "fulfill_fail", "fulfill_degraded",
-            "fulfill_rescued", "mail_fail", "plan_degraded", "ip_limit_skipped",
-            "lead_rate_limited", "pay_rate_limited")},
-        "totals_all_time": {"pays": len(paid), "revenue": sum(_amount(r) for r in paid)},
+            "pay_create_error", "sub_create_error", "webhook_verify_fail", "webhook_error",
+            "fulfill_fail", "fulfill_degraded", "fulfill_rescued", "mail_fail",
+            "write_fail_lead", "write_fail_order", "write_fail_plan", "plan_degraded",
+            "ip_limit_skipped", "lead_rate_limited", "pay_rate_limited", "forgot_global_capped")},
+        # Возвраты вычитаем и здесь: строка в шапке — та, которую переносят в
+        # отчёт, и «1 оплата на 299 ₽» при полном возврате означала бы деньги,
+        # которых нет.
+        "totals_all_time": {"pays": len(paid),
+                            "revenue": sum(_amount(r) for r in paid)
+                            - sum(abs(float(str(r.get("amount") or 0).replace(",", ".") or 0))
+                                  for r in refunds)},
     }
 
 
@@ -220,8 +260,9 @@ def render(d: dict, token: str) -> str:
         ("Выручка", f"{_n(m['revenue'])}<small> ₽</small>",
          f"возвраты {_n(m['refunded'])} ₽" if m["refunded"] else "возвратов нет",
          "good" if m["revenue"] else ""),
-        ("Оплат", _n(m["pays"]), f"подписок {m['subs']} · разовых {m['once']}", ""),
-        ("Средний чек", f"{_n(m['avg'])}<small> ₽</small>", "по оплатам периода", ""),
+        ("Оплат", _n(m["pays"]),
+         f"новых {m['subs'] + m['once']} · продлений {m['renews']}", ""),
+        ("Средний чек", f"{_n(m['avg'])}<small> ₽</small>", "по новым покупкам", ""),
         ("Продлений", _n(m["renews"]), f"отмен {m['cancels']}",
          "bad" if m["cancels"] > m["renews"] and m["cancels"] else ""),
     ]
@@ -252,11 +293,14 @@ def render(d: dict, token: str) -> str:
     if any(r["visits"] or r["pays"] for r in rows):
         trs = "".join(
             f"<tr><td>{_e(r['title'])}<br><span style='color:#8B9584;font-size:12px'>{_e(r['slug'])}</span></td>"
-            f"<td>{_n(r['visits'])}</td><td>{_n(r['split'])}</td><td>{_n(r['quiz'])}</td>"
-            f"<td>{_n(r['leads'])}</td><td>{_n(r['pays'])}</td>"
+            f"<td>{_n(r['visits'])}</td><td>{_n(r['ad'])}</td><td>{_n(r['split'])}</td>"
+            f"<td>{_n(r['quiz'])}</td><td>{_n(r['leads'])}</td><td>{_n(r['pays'])}</td>"
             f"<td><b>{_n(r['revenue'])}</b></td></tr>" for r in rows)
-        table = ("<table><tr><th>Лендинг</th><th>Визиты</th><th>Раздано</th><th>Квиз</th>"
-                 f"<th>Лиды</th><th>Оплат</th><th>Выручка, ₽</th></tr>{trs}</table>")
+        # Колонка «Реклама» — то, ради чего дашборд и открывают: без неё нельзя
+        # отличить платный трафик от органики, и вопрос «окупилась ли реклама»
+        # оставался без ответа прямо на странице про рекламу.
+        table = ("<table><tr><th>Лендинг</th><th>Визиты</th><th>Реклама</th><th>Раздано</th>"
+                 f"<th>Квиз</th><th>Лиды</th><th>Оплат</th><th>Выручка, ₽</th></tr>{trs}</table>")
     else:
         table = "<div class='empty'>За этот период заходов не было.</div>"
 
