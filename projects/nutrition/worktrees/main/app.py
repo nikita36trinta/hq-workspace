@@ -22,6 +22,7 @@ from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
+from starlette.concurrency import run_in_threadpool
 
 import dish_photos
 
@@ -42,6 +43,20 @@ _notrack: ContextVar[bool] = ContextVar("notrack", default=False)
 
 @app.middleware("http")
 async def _notrack_mw(request: Request, call_next):
+    # Схема из X-Forwarded-Proto. Мы отключили ProxyHeaders-мидлварь uvicorn
+    # (она доверяла подделываемому левому элементу X-Forwarded-For), но вместе с
+    # ней потерялся и учёт протокола: request.base_url стал всегда http://.
+    # А на нём собираются return_url для ЮKassa и ВСЕ ссылки в письмах — то есть
+    # человек получал http-ссылки, лишний редирект в момент возврата после
+    # оплаты и спам-сигнал в почте. Заголовку верим по тому же правилу, что и
+    # адресу: только от пира из доверенного списка.
+    try:
+        peer = request.client.host if request.client else ""
+        proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+        if proto in ("http", "https") and _peer_trusted(peer):
+            request.scope["scheme"] = proto
+    except Exception:  # noqa: BLE001
+        pass
     q = request.query_params.get("notrack")
     on = request.cookies.get(NOTRACK_COOKIE) == "1"
     if q == "1":
@@ -2736,24 +2751,31 @@ async def pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
     в счётчиках это выглядело как «оплат нет», то есть неотличимо от «никто не покупает».
     Считаем, кричим в лог и отвечаем 5xx — ЮKassa повторит доставку."""
     try:
-        return await _pay_webhook(request, bg)
+        payload = await request.json()
+    except Exception:  # noqa: BLE001
+        return JSONResponse({"ok": False}, status_code=400)
+    try:
+        # Тело разобрали здесь, а всю работу уводим в тредпул. Внутри обработчика
+        # стоит БЛОКИРУЮЩИЙ поход в ЮKassa на 20 секунд, и в async-ручке он
+        # останавливал весь событийный цикл: один мусорный POST без всякой
+        # авторизации подвешивал сайт целиком (замер: главная отдавалась 19 с
+        # вместо 0,002 с; три запроса подряд — 59 с). А поскольку мы просим
+        # ЮKassa повторить неудачную доставку, блокировка воспроизводила сама
+        # себя. Обработчик синхронный — starlette выполнит его в потоке.
+        return await run_in_threadpool(_pay_webhook, payload, request, bg)
     except Exception as e:  # noqa: BLE001
         _bump("webhook_error")
         print(f"[ALERT] вебхук ЮKassa упал: {type(e).__name__}: {str(e)[:200]}", flush=True)
         return JSONResponse({"ok": False, "error": "internal"}, status_code=500)
 
 
-async def _pay_webhook(request: Request, bg: BackgroundTasks) -> JSONResponse:
+def _pay_webhook(payload: dict, request: Request, bg: BackgroundTasks) -> JSONResponse:
     """Уведомления ЮKassa. URL зарегистрировать в ЛК на ТРИ события:
     payment.succeeded, payment.canceled, refund.succeeded.
 
     Тело уведомления НЕ доверенное — КАЖДОЕ событие перепроверяется через API по id.
     Для возврата это обязательно: без проверки подделанное уведомление гасило бы
     подписку живому плательщику."""
-    try:
-        payload = await request.json()
-    except Exception:
-        return JSONResponse({"ok": False}, status_code=400)
     obj = payload.get("object") or {}
     event = payload.get("event")
 
@@ -4344,6 +4366,29 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                                         plan.menu_email_html(fresh, f"{base}/plan/{f.stem}"), owed[1])
                             out["owed_sent"] += 1
                         _plan_mark(f.stem, {"mail_owed": ""})
+            # Долг висит дольше часа, а план всё ещё заготовка (LLM недоступна или
+            # квиза нет вовсе). Раньше в этой ветке человек не получал НИЧЕГО:
+            # письмо с меню ждало апгрейда, которого могло не случиться никогда, а
+            # обещание «пришлём в течение часа» истекало молча. Отдаём то, что
+            # есть, — заготовка хуже полноценного плана, но бесконечно лучше
+            # тишины после оплаты.
+            elif pl.get("mail_owed") and out["owed_sent"] < 10:
+                age = _days_since(pl.get("started") or "")
+                started_h = None
+                try:
+                    started_h = (now - datetime.fromisoformat(str(pl.get("started")))).total_seconds() / 3600
+                except Exception:  # noqa: BLE001
+                    started_h = 24 if age else None
+                if started_h is not None and started_h >= 1:
+                    owed = _OWED_MAIL.get(pl.get("mail_owed") or "")
+                    em = _plan_email(f.stem)
+                    if owed and em:
+                        _send_email(em, owed[0],
+                                    plan.menu_email_html(pl, f"{base}/plan/{f.stem}"), owed[1])
+                        out["owed_sent"] += 1
+                        _bump("owed_sent_degraded")
+                        print(f"[ALERT] отдали заготовку по долгу письма: {f.stem}", flush=True)
+                    _plan_mark(f.stem, {"mail_owed": ""})
         except Exception:  # noqa: BLE001
             pass
     out["fulfilled"] = _sweep_unfulfilled(now, base)
