@@ -1281,15 +1281,23 @@ def _rate_ok(bucket: str, key: str, limit: int, window_sec: int) -> bool:
 # Пустое умолчание было хуже обоих вариантов: переменная не задана нигде в
 # репозитории, а прод стоит за прокси — значит все посетители схлопывались в
 # один адрес прокси, и лимит «20 лидов в час» становился общим на весь сайт.
-_DEFAULT_PROXY_NETS = ("127.", "::1", "10.", "192.168.", "172.16.", "172.17.", "172.18.",
-                       "172.19.", "172.2", "172.30.", "172.31.")
 TRUSTED_PROXIES = {p.strip() for p in os.getenv("NUTRI_TRUSTED_PROXIES", "").split(",") if p.strip()}
 
 
 def _peer_trusted(peer: str) -> bool:
-    if TRUSTED_PROXIES:
-        return peer in TRUSTED_PROXIES      # задали явно — только он и никто больше
-    return any(peer.startswith(n) for n in _DEFAULT_PROXY_NETS)
+    """Доверять адресу можно ТОЛЬКО по явному списку.
+
+    Умолчание «доверяем приватным сетям» я уже пробовал — и оно оказалось хуже
+    пустого: при публикации порта докером пиром выглядит шлюз 192.168.65.1, то
+    есть приватным становится КАЖДЫЙ клиент, и подделка заголовка снова проходит.
+    Замерено в контейнере из этого же Dockerfile: X-Forwarded-For: 9.9.9.9
+    ложился в журнал согласий.
+
+    Пустой список означает «заголовку не верим никому» — это безопасно, но за
+    прокси все посетители сливаются в один адрес. Поэтому ниже стоит громкий
+    однократный ALERT: он называет адрес, который надо вписать в переменную.
+    """
+    return bool(TRUSTED_PROXIES) and peer in TRUSTED_PROXIES
 
 
 _XFF_WARNED = False
@@ -3157,7 +3165,10 @@ def auth_forgot(req: EmailOnlyReq, request: Request, bg: BackgroundTasks) -> JSO
             and AUTH.rate_ok("forgot_email_d", email, _auth.FORGOT_PER_EMAIL_DAY, 86400)
             and AUTH.rate_ok("forgot_ip", ip, _auth.FORGOT_PER_IP_HOUR, 3600)):
         _bump("forgot_rate_limited")
-        return neutral
+        # Говорим правду: письма НЕ БУДЕТ. Раньше экран рисовал «код уже летит»,
+        # и человек, у которого письмо ушло в спам, тремя нажатиями доводил себя
+        # до состояния «страница обещает, письма нет, ждать час».
+        return JSONResponse({"ok": True, "capped": True})
     # Общий суточный потолок — защита не от одного злоумышленника, а от репутации
     # домена: заблокируют отправку, и письма перестанут доходить ОПЛАТИВШИМ.
     if not AUTH.rate_ok("forgot_global", "all", _auth.FORGOT_GLOBAL_DAY, 86400):
@@ -3175,7 +3186,13 @@ def auth_forgot(req: EmailOnlyReq, request: Request, bg: BackgroundTasks) -> JSO
             _bump("account_backfilled")
         else:
             _bump("forgot_no_account")
-            return neutral                 # письма нет — и вектора рассылки нет
+            # Письма нет — и вектора рассылки нет. Но ответ обязан выглядеть так
+            # же, как у существующего аккаунта, включая паузу перед повтором:
+            # иначе разница в теле ответа отвечает на вопрос «а этот у вас
+            # покупал?». Паузу считаем по тому же счётчику, что и лимиты.
+            n = AUTH.hit_count("forgot_email_h", email, _auth.CODE_RESEND_SEC)
+            return JSONResponse({"ok": True, "wait": _auth.CODE_RESEND_SEC - 1} if n > 1
+                                else {"ok": True})
     # Аккаунт существует и мы шлём на него письмо — то есть обрабатываем ПДн
     # конкретного человека. По чужому адресу сюда не дойти: ветка выше отсекла.
     _record_consent(request, email, "password_recovery")
@@ -3183,6 +3200,10 @@ def auth_forgot(req: EmailOnlyReq, request: Request, bg: BackgroundTasks) -> JSO
     if not code:
         # Живой код уже выдан. Второго письма НЕ шлём: иначе кнопка «отправить
         # ещё раз» становится усилителем — один нажимающий, сколько угодно писем.
+        # wait возвращаем ВСЕГДА, а не только существующим аккаунтам: иначе само
+        # его наличие отвечает на вопрос «есть ли у вас такой клиент», и форма
+        # снова становится способом перечислить покупателей (см. ниже —
+        # несуществующему адресу отдаётся такой же ответ).
         return JSONResponse({"ok": True, "wait": wait})
     bg.add_task(_send_code_email, email, code)
     _bump("forgot_sent")
@@ -3422,7 +3443,10 @@ def login_page() -> HTMLResponse:
         "clr($('#e'));const r=await post('/api/auth/forgot',{email:v});"
         # wait приходит, когда живой код уже выдан: второго письма не шлём, и
         # честно говорим об этом, а не рисуем успех поверх неотправленного.
-        "if(r.j&&r.j.wait){$('#codehint').textContent='Письмо уже отправляли — проверь входящие '"
+        "if(r.j&&r.j.capped){$('#codehint').textContent='Мы уже отправляли код на этот адрес '"
+        "+'несколько раз. Проверь входящие и «Промоакции» — новое письмо можно запросить '"
+        "+'через час. Если письма нет совсем, напиши на support@mynutriplan.ru.';}"
+        "else if(r.j&&r.j.wait){$('#codehint').textContent='Письмо уже отправляли — проверь входящие '"
         "+'и «Промоакции». Отправить ещё раз можно через '+r.j.wait+' сек.';}"
         "else{$('#codehint').textContent='Если на эту почту есть план — код уже летит. '"
         "+'Проверь входящие и «Промоакции».';}"
@@ -4086,7 +4110,11 @@ def _upload_offline_conversions() -> dict:
             # без него Метрике не к кому привязать конверсию.
             if r.get("event") != "payment.succeeded" or not oid or oid in done:
                 continue
-            cid = (r.get("ym_uid") or "").strip()
+            # ClientId лежит в строке СОЗДАНИЯ заказа, а не в строке оплаты:
+            # куку читает /api/pay/create, а вебхук приходит без браузера. Пока
+            # искали только в строке succeeded, выгрузка была мертва — прогон на
+            # боевом формате давал uploaded: 0 всегда.
+            cid = (r.get("ym_uid") or "").strip() or (_find_order(oid).get("ym_uid") or "").strip()
             if not cid:
                 continue
             try:
