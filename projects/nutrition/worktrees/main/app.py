@@ -1642,6 +1642,56 @@ LANDING_COOKIE = "np_l"
 LANDING_COOKIE_AGE = 60 * 60 * 24 * 60  # 60 дней
 
 
+@app.get("/robots.txt", response_class=Response)
+def robots() -> Response:
+    """Файла не было вовсе (404), и краулеров не сдерживало ничто: они ходили и
+    по лендингам, и по личным адресам. Два следствия, оба неприятные.
+
+    Первое — статистика: боты попадали в визиты наравне с людьми, и конверсию
+    воронки считать было не по чему. Отличить их задним числом нельзя — при
+    визите мы не пишем ни User-Agent, ни referer.
+
+    Второе — приватность: /plan/{token} и /pay/success содержат токен прямо в
+    адресе, и попадание такой ссылки в индекс означало бы публичный доступ к
+    чужому плану. Закрываем всё, что не витрина.
+
+    Crawl-delay для тех, кто его уважает: продукт живёт на одном контейнере, и
+    агрессивный обход конкурирует с живыми людьми за те же потоки.
+    """
+    body = (
+        "User-agent: *\n"
+        "Allow: /$\n"
+        "Allow: /l/\n"
+        "Allow: /offer\nAllow: /privacy\nAllow: /consent\n"
+        "Disallow: /plan/\n"       # в адресе токен: индексация = публичный план
+        "Disallow: /pay/\n"
+        "Disallow: /api/\n"
+        "Disallow: /admin/\n"
+        "Disallow: /login\n"
+        "Disallow: /app\n"
+        "Disallow: /quiz\n"        # шаги анкеты в выдаче не нужны никому
+        "Disallow: /all\n"
+        "Disallow: /showcase\n"
+        "Crawl-delay: 5\n"
+        f"\nSitemap: {PUBLIC_BASE}/sitemap.xml\n")
+    return Response(body, media_type="text/plain; charset=utf-8")
+
+
+@app.get("/sitemap.xml", response_class=Response)
+def sitemap() -> Response:
+    """Только витрина: корень и восемь лендингов. Личные адреса сюда попасть не
+    могут по построению — список берётся из LANDINGS, а не из файловой системы."""
+    urls = "".join(
+        f"<url><loc>{PUBLIC_BASE}/l/{s}</loc><changefreq>weekly</changefreq></url>"
+        for s in LANDINGS)
+    return Response(
+        "<?xml version='1.0' encoding='UTF-8'?>"
+        "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>"
+        f"<url><loc>{PUBLIC_BASE}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>"
+        f"{urls}</urlset>",
+        media_type="application/xml")
+
+
 # Какие лендинги участвуют в раздаче с корня. Пустая переменная = все.
 # Ограничивать полезно: восемь вариантов делят один бюджет, и чтобы отличить
 # конверсию 2% от 3%, на КАЖДЫЙ нужно порядка полутора тысяч кликов. На старте
@@ -1727,8 +1777,17 @@ def _inject_metrika(html: str, anon_page: str = "") -> str:
         # Идентификатор наружу: любая страница шлёт цели через window.npGoal(),
         # не зная номера счётчика и не ломаясь, когда счётчик не настроен.
         f"window.NP_METRIKA_ID={cid};"
-        "window.npGoal=function(n){try{if(window.ym&&window.NP_METRIKA_ID)"
-        "ym(window.NP_METRIKA_ID,'reachGoal',n);}catch(e){}};</script>" + pixel)
+        # Второй аргумент — параметры цели. Раньше его не было, и различать
+        # лендинги пришлось бы восемью разными ИМЕНАМИ целей: каждое заводится
+        # в Директе руками и добавляется заново при каждом новом лендинге.
+        # Старые вызовы npGoal('name') работают как прежде — p просто undefined.
+        # Третий аргумент — callback: страница может придержать переход, пока
+        # цель уходит. Без него самый важный клик (кнопка в квиз) отменял
+        # собственный запрос навигацией, и цель не доезжала ни разу — замерено
+        # перехватом на живом сайте.
+        "window.npGoal=function(n,p,cb){try{if(window.ym&&window.NP_METRIKA_ID)"
+        "ym(window.NP_METRIKA_ID,'reachGoal',n,p,cb);else if(cb)cb();}"
+        "catch(e){if(cb)cb();}};</script>" + pixel)
     return html.replace("</head>", snippet + "</head>", 1)
 
 
