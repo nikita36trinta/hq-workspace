@@ -1234,17 +1234,37 @@ def _counters_write(d: dict) -> None:
     os.replace(tmp, COUNTERS)      # атомарно: читатель видит либо старый файл, либо новый
 
 
+# Счётчики, которые кроме общего итога пишутся ещё и посуточно («имя@ГГГГ-ММ-ДД»).
+# Без этого в статистике нет ВРЕМЕНИ: она отвечает только «сколько всего с
+# запуска» и не может ответить «как прошла неделя рекламы» — а именно этот
+# вопрос задают, когда тратят деньги. Даты нужны не всему: служебные счётчики
+# (ошибки, лимиты) смотрят как накопительный итог.
+_DAILY_PREFIXES = ("visit_", "quiz_", "lead_", "pay_init_", "pay_ok_", "sub_init_",
+                   "sub_ok_", "sub_renew_ok_", "refund_", "split_", "sub_cancel_")
+
+
+def _msk_day(dt: datetime | None = None) -> str:
+    """Сутки по Москве. Границы дня должны совпадать с тем, как владелец
+    смотрит на рекламу; UTC сдвинул бы «вчера» на три часа."""
+    return ((dt or datetime.now(timezone.utc))
+            + timedelta(hours=3)).strftime("%Y-%m-%d")
+
+
 def _bump(name: str, n: int = 1) -> None:
     if notrack():
         return
     try:
         with _counters_locked():
             d = _counters_read()
-            try:
-                cur = int(d.get(name, 0) or 0)
-            except (TypeError, ValueError):
-                cur = 0
-            d[name] = cur + n
+            keys = [name]
+            if name.startswith(_DAILY_PREFIXES):
+                keys.append(f"{name}@{_msk_day()}")
+            for k in keys:
+                try:
+                    cur = int(d.get(k, 0) or 0)
+                except (TypeError, ValueError):
+                    cur = 0
+                d[k] = cur + n
             _counters_write(d)
     except Exception as e:  # noqa: BLE001
         # Молчать нельзя: потерянный счётчик — это потерянная строка в /admin/stats,
@@ -4572,10 +4592,22 @@ def sub_cancel(s: str = "") -> HTMLResponse:
 
 
 @app.get("/admin/stats")
-def admin_stats(request: Request, token: str = "") -> JSONResponse:
+def admin_stats(request: Request, token: str = "", period: str = "7d",
+                format: str = "") -> Response:
     if not _secret_ok(token, request, "ADMIN_TOKEN", "X-Admin-Token"):
         return JSONResponse({"error": "forbidden"}, status_code=403)
     c = _counters()
+    # По умолчанию — страница с воронкой и деньгами. JSON остаётся по ?format=json:
+    # им могло что-то пользоваться, и молча ломать чужой запрос нехорошо.
+    if format != "json":
+        import stats
+        try:
+            return HTMLResponse(stats.render(
+                stats.collect(c, ORDERS, LANDINGS, period), token))
+        except Exception as e:  # noqa: BLE001
+            # Дашборд не должен быть единственным способом посмотреть цифры:
+            # упал рендер — отдаём сырые числа, а не пустую страницу.
+            print(f"[ALERT] дашборд статистики упал: {e}", flush=True)
     rows = []
     for slug, name in LANDINGS.items():
         v = c.get(f"visit_{slug}", 0)
