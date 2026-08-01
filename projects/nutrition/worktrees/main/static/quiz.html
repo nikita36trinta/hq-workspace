@@ -1454,7 +1454,22 @@ async function startPayment(){
       body:JSON.stringify({email:leadEmail,landing:L,goal:answers.goal||'',quiz:answers,src:SRC})});
     const j=await r.json();
     if(j.url){ location.href=j.url; return; }
-    if(j.already && j.plan_url){ location.href=j.plan_url; return; } // подписка уже есть
+    // Подписка уже есть. Три разных исхода, и раньше все три выглядели как один:
+    // человека молча уносило на СТАРЫЙ план, без объяснения, почему с него не
+    // взяли денег и куда делись новые ответы.
+    if(j.already){
+      if(j.login){                       // адрес чужой или мы не знаем, что это он
+        alert('На эту почту уже оформлена подписка. Войди, чтобы открыть свой план.');
+        location.href='/login'; return;
+      }
+      if(j.requiz && j.plan_url){        // ответы изменились — план пересобирается
+        location.href=j.plan_url+'?requiz=1'; return;
+      }
+      if(j.plan_url){
+        alert('Подписка уже активна — второй раз платить не нужно. Открываем твой план.');
+        location.href=j.plan_url; return;
+      }
+    }
     if(r.status===422){ btn.disabled=false; btn.textContent='Оформить →';
       alert('Похоже, адрес почты не подошёл. Вернись на шаг назад и проверь email.'); return; }
     throw new Error(j.error||'no url');

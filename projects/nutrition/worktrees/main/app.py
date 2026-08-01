@@ -1273,26 +1273,29 @@ _XFF_WARNED = False
 def _client_ip(request: Request) -> str:
     """IP, по которому считаем лимиты и пишем в журнал согласий.
 
-    X-Forwarded-For читаем ТОЛЬКО у запросов, пришедших от известного прокси.
-    Чужому заголовку доверять нельзя: он подставляется свободно, а по нему у нас
-    держатся все anti-abuse лимиты (лиды, платежи, письма входа).
+    Работает в паре с --no-proxy-headers в Dockerfile. Своя мидлварь uvicorn для
+    этого не годится: она берёт из цепочки ЛЕВЫЙ элемент, а левый подставляет
+    клиент — nginx с $proxy_add_x_forwarded_for дописывает настоящий адрес
+    СПРАВА, к присланному. Замерено: с включённой мидлварью подставной 9.9.9.9
+    попадает в журнал согласий, сколько ни правь этот файл.
+
+    Поэтому: заголовок читаем сами, только от пира из NUTRI_TRUSTED_PROXIES, и
+    берём ПРАВЫЙ элемент — его дописал наш прокси, всё левее мог сочинить клиент.
     """
     peer = (request.client.host if request.client else "") or "?"
     xff = request.headers.get("x-forwarded-for", "")
-    if not xff:
-        return peer
-    if peer in TRUSTED_PROXIES:
-        # Берём ПОСЛЕДНИЙ элемент цепочки: его дописал наш прокси (nginx с
-        # $proxy_add_x_forwarded_for), всё левее мог сочинить клиент.
+    if xff and peer in TRUSTED_PROXIES:
         return xff.split(",")[-1].strip() or peer
     global _XFF_WARNED
-    if not _XFF_WARNED:
-        # Кричим один раз: если прод стоит за прокси, а список пуст, все клиенты
-        # схлопнутся в один IP и лимиты начнут резать живых людей. Это надо
-        # увидеть в логе сразу, а не по жалобам «не приходит письмо».
+    if xff and not _XFF_WARNED and peer not in TRUSTED_PROXIES:
+        # Кричим один раз. Если прод стоит за прокси, а список пуст, все клиенты
+        # схлопнулись в один IP и лимиты режут живых людей. Узнать об этом лучше
+        # из лога, чем из жалоб «не приходит письмо». Адрес прокси — вот он.
         _XFF_WARNED = True
-        print(f"[ALERT] X-Forwarded-For от недоверенного {peer} — игнорируем. "
-              f"Если перед приложением стоит прокси, задай NUTRI_TRUSTED_PROXIES", flush=True)
+        print(f"[ALERT] X-Forwarded-For пришёл от {peer}, а его нет в "
+              f"NUTRI_TRUSTED_PROXIES — заголовок игнорируем, все посетители "
+              f"считаются одним IP. Если {peer} это наш прокси, добавь его в "
+              f"переменную", flush=True)
     return peer
 
 
@@ -2586,11 +2589,26 @@ def pay_subscribe(req: PayReq, request: Request, bg: BackgroundTasks) -> JSONRes
     # свежий квиз доезжает до плана — подписка ровно это и продаёт. Пересборка идёт в
     # фоне: ручка не должна ждать LLM, у человека на экране редирект.
     _em = str(req.email).strip().lower()
+    # past_due наравне с active: это «списание не прошло, идут ретраи», подписка
+    # живая и крон её обслуживает. Пока сюда попадал только active, человек в
+    # grace-окне оформлял ВТОРУЮ подписку, а следующий тик крона списывал ещё раз
+    # по старой — два списания и две подписки на один адрес.
     for s in _all_subs():
-        if s.get("email", "").strip().lower() == _em and s.get("status") == "active" \
+        if s.get("email", "").strip().lower() == _em \
+                and s.get("status") in ("active", "past_due") \
                 and s.get("payment_method_id"):
             base = str(request.base_url).rstrip("/")
             sid = s.get("sub_id") or ""
+            # Подтверждаем, что это ХОЗЯИН адреса, а не кто-то, кто его знает.
+            # Раньше ручка отдавала plan_url любому: по чужой почте выдавался
+            # токен чужого плана, а токен — это отмена подписки и отвязка карты.
+            # По той же причине под гейтом и пересборка: без него любой мог
+            # гонять дорогие LLM-регенерации в чужом плане.
+            acc = _current_account(request)
+            owner = bool(acc) and _auth.norm_email(acc["email"]) == _em
+            if not owner:
+                _bump("sub_already_anon")
+                return JSONResponse({"already": True, "requiz": False, "login": True})
             fresh = _clean_quiz(req.quiz)
             # Ограничение по частоте — против случайного двойного клика и против
             # дорогих LLM-пересборок: меню меняется от ответов, а не от числа заходов.
@@ -2984,14 +3002,22 @@ class PwReq(BaseModel):
 def auth_set_password(req: PwReq, request: Request) -> JSONResponse:
     """Задать пароль сразу после оплаты.
 
-    Доказательством права служит кука заказа (её ставит /pay/success) либо уже
-    открытая сессия. Почту с клиента НЕ принимаем: иначе любой мог бы задать
-    пароль к чужому аккаунту, просто прислав чужой адрес.
+    ГРАНИЦА ДОВЕРИЯ, и она узкая намеренно. Кука заказа — слабое доказательство:
+    её получает любой, кто открыл /pay/success?o=<токен>, а токен лежит в каждом
+    письме, в истории браузера и в ссылках, которыми люди делятся сами. Поэтому
+    по куке можно ТОЛЬКО завести первый пароль на аккаунте, у которого его ещё
+    нет, и только по свежей оплате. СМЕНА существующего пароля — исключительно
+    по сессии или по коду из письма (/api/auth/reset).
+
+    Без этого получался захват аккаунта: посторонний со ссылкой на план задавал
+    свой пароль на чужую почту, входил и выбивал владельца (его сессии при смене
+    пароля закрываются). Проверено воспроизведением.
     """
     if not _same_origin(request):
         return JSONResponse({"ok": False, "error": "Обнови страницу и попробуй ещё раз"}, status_code=403)
     acc = _current_account(request)
     email = acc["email"] if acc else ""
+    by_order = False
     if not email:
         oid = "".join(c for c in request.cookies.get(PAY_ORDER_COOKIE, "") if c.isalnum())[:40]
         order = _find_order(oid) if oid else {}
@@ -3000,7 +3026,27 @@ def auth_set_password(req: PwReq, request: Request) -> JSONResponse:
             pid = order.get("payment_id", "")
             if not pid or _yk_get_payment(pid).get("status") != "succeeded":
                 return JSONResponse({"ok": False, "error": "Не видим оплаченного заказа"}, status_code=403)
+        # Окно в сутки: форма живёт на экране сразу после оплаты, а не «когда-нибудь
+        # потом по старой ссылке». Чем уже окно, тем меньше шанс, что чужой успеет
+        # раньше хозяина.
+        try:
+            age = (datetime.now(timezone.utc)
+                   - datetime.fromisoformat(str(order.get("ts") or ""))).total_seconds()
+        except Exception:  # noqa: BLE001
+            age = 10 ** 9
+        if age > 86400:
+            return JSONResponse({"ok": False, "code_hint": True,
+                                 "error": "Ссылка на оплату уже не свежая. Задай пароль через "
+                                          "«Забыли пароль» — пришлём код на почту"}, status_code=403)
         email = order.get("email", "")
+        by_order = True
+    if by_order and AUTH.has_password(email):
+        # Пароль уже есть — значит хозяин им пользуется. Перебить его по куке
+        # заказа нельзя: именно так и выглядел захват.
+        _bump("pw_set_denied_existing")
+        return JSONResponse({"ok": False, "code_hint": True,
+                             "error": "На этой почте уже есть пароль. Войди с ним или "
+                                      "нажми «Забыли пароль» — пришлём код"}, status_code=409)
     if not _auth.valid_email(email):
         return JSONResponse({"ok": False, "error": "Не видим оплаченного заказа"}, status_code=403)
     # Пишем ПОСЛЕ проверки права на заказ, а не до неё. Адрес здесь взят с сервера
@@ -3015,7 +3061,11 @@ def auth_set_password(req: PwReq, request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": why}, status_code=422)
     aid = AUTH.ensure_account(email)
     AUTH.set_password(email, pw)
-    AUTH.close_all_sessions(aid)   # смена пароля выкидывает старые входы — это и есть её смысл
+    if not by_order:
+        # Смена пароля из своей сессии выкидывает остальные входы — это её смысл.
+        # А вот при ПЕРВОЙ установке по куке заказа рубить чужие сессии нельзя:
+        # именно этим захватчик и выбивал владельца.
+        AUTH.close_all_sessions(aid)
     resp = JSONResponse({"ok": True})
     _set_session_cookie(resp, AUTH.open_session(aid))
     _bump("pw_set")
@@ -3090,8 +3140,17 @@ def auth_forgot(req: EmailOnlyReq, request: Request, bg: BackgroundTasks) -> JSO
         print("[ALERT] суточный потолок писем восстановления исчерпан", flush=True)
         return neutral
     if not AUTH.account(email):
-        _bump("forgot_no_account")
-        return neutral                     # письма нет — и вектора рассылки нет
+        # Аккаунтов в SQLite нет у всех, кто купил ДО появления входа. Для них
+        # «Забыли пароль» молча не делал ничего: вся ранее оплатившая база
+        # осталась без доступа к своему плану. Заводим аккаунт на лету, если
+        # человек нашёлся среди заказов и подписок — это те же данные, по которым
+        # работал прежний вход по ссылке.
+        if _find_account(email).get("plan_token"):
+            AUTH.ensure_account(email)
+            _bump("account_backfilled")
+        else:
+            _bump("forgot_no_account")
+            return neutral                 # письма нет — и вектора рассылки нет
     # Аккаунт существует и мы шлём на него письмо — то есть обрабатываем ПДн
     # конкретного человека. По чужому адресу сюда не дойти: ветка выше отсекла.
     _record_consent(request, email, "password_recovery")
@@ -3624,9 +3683,22 @@ def webmanifest(t: str = "") -> Response:
 
 @app.get("/api/plan/{token}/ready")
 def plan_ready(token: str) -> JSONResponse:
-    """Готов ли план (для поллинга success-страницы после оплаты)."""
+    """Готов ли план (для поллинга success-страницы после оплаты).
+
+    Отдаём ещё и версию: после повторной оплаты с новыми ответами план на экране
+    уже есть — он просто СТАРЫЙ, и «готов/не готов» тут ничего не различает.
+    Страница плана ждёт именно смены версии.
+    """
     tok = "".join(c for c in token if c.isalnum())
-    return JSONResponse({"ready": bool(tok and (PLANS / f"{tok}.json").exists())})
+    f = PLANS / f"{tok}.json" if tok else None
+    ready = bool(f and f.exists())
+    ver = ""
+    if ready:
+        try:
+            ver = str((json.loads(f.read_text(encoding="utf-8")) or {}).get("ver", "") or "")
+        except Exception:  # noqa: BLE001
+            ver = ""        # битый файл — пусть страница просто продолжит ждать
+    return JSONResponse({"ready": ready, "ver": ver})
 
 
 # Вычистить ?o= из адреса ДО того, как загрузится счётчик: в нём тот же токен,
@@ -3948,6 +4020,83 @@ def _return_mails(token: str, pl: dict, base: str, now: datetime) -> int:
     return sent
 
 
+METRIKA_TOKEN = os.getenv("NUTRI_METRIKA_TOKEN", "").strip()
+_YM_UPLOADED = DATA / "ym_uploaded.json"
+
+
+def _upload_offline_conversions() -> dict:
+    """Догрузить оплаты в Метрику офлайн-конверсиями.
+
+    Зачем вообще: цель pay_success шлётся только с экрана возврата. Закрыл вкладку
+    в приложении банка, вернулся при ещё не подтверждённом платеже, не дождался
+    ответа ЮKassa — деньги пришли, план выдан, а Метрика и Директ конверсии не
+    увидели. Значит, оптимизировать рекламу не по чему.
+
+    Грузим по ClientId (кука _ym_uid), его пишет _marks при создании платежа.
+    Без NUTRI_METRIKA_TOKEN тихо ничего не делаем: на локальной площадке и на
+    стенде токена нет, и падать из-за этого крон не должен.
+    """
+    if not (METRIKA_TOKEN and NUTRI_METRIKA_ID and ORDERS.exists()):
+        return {"skipped": True}
+    import urllib.request
+    import uuid
+    try:
+        with _json_locked(_YM_UPLOADED):
+            done = set(_json_read(_YM_UPLOADED).keys())
+        rows = []
+        for line in ORDERS.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            oid = r.get("order") or ""
+            # Только подтверждённые деньги и только те, у кого есть ClientId:
+            # без него Метрике не к кому привязать конверсию.
+            if r.get("event") != "payment.succeeded" or not oid or oid in done:
+                continue
+            cid = (r.get("ym_uid") or "").strip()
+            if not cid:
+                continue
+            try:
+                ts = int(datetime.fromisoformat(str(r.get("ts") or "")).timestamp())
+            except Exception:  # noqa: BLE001
+                continue
+            goal = "pay_success_sub" if r.get("type", "").startswith("sub") else "pay_success_once"
+            rows.append((cid, goal, ts, str(r.get("amount") or ""), oid))
+        if not rows:
+            return {"uploaded": 0}
+        csv = "ClientId,Target,DateTime,Price,Currency\n" + "\n".join(
+            f"{c},{g},{t},{p or 0},RUB" for c, g, t, p, _ in rows)
+        boundary = "----npconv" + uuid.uuid4().hex
+        body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; "
+                f"filename=\"conv.csv\"\r\nContent-Type: text/csv\r\n\r\n{csv}\r\n"
+                f"--{boundary}--\r\n").encode()
+        url = (f"https://api-metrika.yandex.net/management/v1/counter/{NUTRI_METRIKA_ID}"
+               f"/offline_conversions/upload?client_id_type=CLIENT_ID")
+        req = urllib.request.Request(url, data=body, headers={
+            "Authorization": f"OAuth {METRIKA_TOKEN}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            r.read()
+        # Помечаем ПОСЛЕ успешной загрузки: пометить раньше — значит навсегда
+        # потерять конверсию, если запрос не дошёл.
+        with _json_locked(_YM_UPLOADED):
+            d = _json_read(_YM_UPLOADED)
+            for _c, _g, _t, _p, oid in rows:
+                d[oid] = datetime.now(timezone.utc).isoformat()
+            if len(d) > 20000:
+                d = dict(sorted(d.items(), key=lambda kv: kv[1])[-10000:])
+            _json_write(_YM_UPLOADED, d)
+        _bump("ym_conv_uploaded", len(rows))
+        return {"uploaded": len(rows)}
+    except Exception as e:  # noqa: BLE001
+        _bump("ym_conv_fail")
+        print(f"[ALERT] офлайн-конверсии не загрузились: {e}", flush=True)
+        return {"error": str(e)[:120]}
+
+
 @app.get("/api/cron/run")
 def cron_run(request: Request, secret: str = "") -> JSONResponse:
     """Тик планировщика: недельная регенерация плана + месячное списание. Дёргать системным cron.
@@ -4140,6 +4289,12 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
         except Exception:  # noqa: BLE001
             pass
     out["fulfilled"] = _sweep_unfulfilled(now, base)
+    # Догрузка конверсий — в конце и в try: реклама важна, но не важнее того,
+    # чтобы тик крона довёл до конца биллинг и выдачу недель.
+    try:
+        out["ym_conv"] = _upload_offline_conversions()
+    except Exception as e:  # noqa: BLE001
+        out["ym_conv"] = {"error": str(e)[:80]}
     return JSONResponse(out)
 
 

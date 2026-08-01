@@ -109,15 +109,45 @@ def compute(quiz: dict) -> dict:
             "C": round(cal * 0.40 / 4), "goal": GOAL_TXT.get(goal, "твоей цели")}
 
 
+_SNACKS = ("Яблоко и горсть орехов", "Творог с ягодами", "Банан",
+           "Йогурт натуральный", "Овощные палочки с хумусом", "Горсть миндаля", "Груша")
+_SNACKS_VEG = ("Яблоко и горсть орехов", "Хумус с овощными палочками", "Банан",
+               "Соевый йогурт", "Смузи из ягод", "Горсть миндаля", "Груша")
+
+
 def week(quiz: dict) -> list[dict]:
+    """Меню для бесплатного письма после квиза.
+
+    Число приёмов берётся из ответа человека, а не жёстко три. Раньше выбравший
+    «2 приёма» или «3 + перекусы» получал письмо на три приёма, а следом пейволл,
+    где написано «5 приёмов пищи в день» — обещание расходилось с примером на
+    том же экране, прямо над кнопкой оплаты.
+    """
     veg = "nomeat" in (quiz.get("diet") or [])
     bank = BANK["veg"] if veg else BANK["omni"]
     c = compute(quiz)["cal"]
-    kc = [round(c * 0.30), round(c * 0.40), round(c * 0.30)]
+    mode = str(quiz.get("meals") or "3")
+    snacks = _SNACKS_VEG if veg else _SNACKS
     out = []
     for i, (bf, ln, dn) in enumerate(bank):
-        out.append({"day": DAYS[i], "meals": [("Завтрак", bf, kc[0]),
-                                              ("Обед", ln, kc[1]), ("Ужин", dn, kc[2])]})
+        if mode == "2":
+            # Два приёма: завтрак уходит, калории уходят в обед и ужин.
+            kc = [round(c * 0.55), round(c * 0.45)]
+            meals = [("Обед", ln, kc[0]), ("Ужин", dn, kc[1])]
+        elif mode == "if":
+            # Окно 8 часов: тоже два приёма, но названия честнее — это не «обед».
+            kc = [round(c * 0.55), round(c * 0.45)]
+            meals = [("Первый приём", ln, kc[0]), ("Второй приём", dn, kc[1])]
+        elif mode == "3s":
+            kc = [round(c * 0.25), round(c * 0.33), round(c * 0.27)]
+            sn = round((c - sum(kc)) / 2)
+            meals = [("Завтрак", bf, kc[0]), ("Перекус", snacks[i % len(snacks)], sn),
+                     ("Обед", ln, kc[1]), ("Перекус", snacks[(i + 3) % len(snacks)], sn),
+                     ("Ужин", dn, kc[2])]
+        else:
+            kc = [round(c * 0.30), round(c * 0.40), round(c * 0.30)]
+            meals = [("Завтрак", bf, kc[0]), ("Обед", ln, kc[1]), ("Ужин", dn, kc[2])]
+        out.append({"day": DAYS[i], "meals": meals})
     return out
 
 
@@ -662,6 +692,12 @@ def _renews_weeks(sub) -> bool:
     st = sub.get("status")
     if st == "active":
         return True
+    # past_due — это «списание не прошло, идут ретраи», а не «отвалился». Крон в
+    # grace-окне продолжает и биллить, и возить недели. Пока этого тут не было,
+    # экран писал «разовый план не продлевается» и предлагал оформить подписку
+    # заново — то есть сам вёл человека во ВТОРОЕ списание поверх идущего.
+    if st == "past_due":
+        return True
     if st != "canceled":
         return False
     left = _days_since(sub.get("next") or "")   # дата платежа впереди → «прошло» отрицательное
@@ -830,6 +866,18 @@ header{{position:sticky;top:0;background:color-mix(in srgb,var(--bg) 86%,transpa
 h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;line-height:.98;
   margin:20px 0 8px}}
 .lead{{color:var(--ink-2);font-size:14.5px}}
+/* Полоса «пересобираем меню». Не перекрывает план: старый план рабочий, им
+   можно пользоваться, пока собирается новый. */
+.requiz{{display:flex;gap:12px;align-items:flex-start;margin-top:14px;padding:13px 15px;
+  border-radius:var(--rl);background:var(--soft);color:var(--gd)}}
+.requiz[hidden]{{display:none}}
+.requiz b{{display:block;font-size:14.5px}}
+.requiz span{{font-size:12.5px;color:var(--ink-2)}}
+.rspin{{width:18px;height:18px;flex:0 0 auto;margin-top:2px;border-radius:50%;
+  border:2.5px solid color-mix(in srgb,var(--g) 30%,transparent);border-top-color:var(--g);
+  animation:rspin 1s linear infinite}}
+@keyframes rspin{{to{{transform:rotate(360deg)}}}}
+@media (prefers-reduced-motion:reduce){{.rspin{{animation:none}}}}
 .norm{{border-radius:var(--rx);padding:20px 21px 18px;margin-top:16px}}
 .norm .cap{{font-size:11px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
   color:var(--muted)}}
@@ -1261,6 +1309,14 @@ body{{padding-bottom:104px}}
        Разделы те же самые, просто разложены по вкладкам. -->
   <section class="scr on" id="sc-today">
     <h1>{title}</h1><p class="lead">Персонально под твою цель, вкусы и ритм</p>
+    <!-- Пришёл после повторной оплаты с новыми ответами: план на экране ещё
+         СТАРЫЙ, пересборка идёт в фоне. Раньше человека просто уносило сюда
+         молча — он видел прежнее меню и решал, что новые ответы потерялись. -->
+    <div class="requiz" id="requiz" hidden>
+      <span class="rspin"></span>
+      <div><b>Пересобираем меню под новые ответы</b>
+        <span>Это займёт около минуты. Пока показан прежний план — страница обновится сама.</span></div>
+    </div>
     {week_over}
     <!-- Крупно то, что человек спрашивает у экрана: сколько ещё можно съесть.
          Норма — это цель, а не ответ на вопрос «сколько осталось». -->
@@ -2054,6 +2110,30 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
   // — и письмо открывало обычный план: человек приходил управлять подпиской и
   // не находил ни окна, ни объяснения.
   if(/(^|[#&])sub(=|&|$)/.test(location.hash)||/[?&]sub=1(&|$)/.test(location.search)) open();
+}})();
+
+// ── пересборка меню после повторной оплаты ────────────────────────────────
+// Пришли с ?requiz=1 — значит квиз прошли заново, и новое меню собирается прямо
+// сейчас. Показываем полосу и ждём смены версии плана: без этого человек видел
+// старое меню и уходил, решив, что его ответы никуда не делись.
+(function(){{
+  if(!/[?&]requiz=1/.test(location.search)) return;
+  const box=document.getElementById('requiz'); if(!box) return;
+  box.hidden=false;
+  history.replaceState(null,'',location.pathname+location.hash);   // не переживает F5
+  let t=0;
+  (function tick(){{
+    t+=4;
+    fetch('/api/plan/'+T+'/ready').then(r=>r.json()).then(j=>{{
+      // ver меняется, когда план пересобран. Сравниваем с тем, с чем страница
+      // отрисована, а не с «есть ли план»: план есть и сейчас, он просто старый.
+      if(j && j.ver && String(j.ver)!==VER){{ location.reload(); return; }}
+      if(t<180) setTimeout(tick,4000);
+      else box.querySelector('span').textContent=
+        'Сборка затянулась. Мы её доведём — обнови страницу через несколько минут '
+        +'или напиши на support@mynutriplan.ru';
+    }}).catch(()=>{{ if(t<180) setTimeout(tick,6000); }});
+  }})();
 }})();
 
 // PWA: service worker + install prompt
