@@ -1439,7 +1439,7 @@ def _record_consent(request: Request, email: str, action: str, method: str = "bu
     фронт со старой формулировкой, и это надо видеть.
 
     `action` — на каком действии получено согласие (quiz_lead, pay, subscribe,
-    login_link, …). Без него журнал не отвечает на вопрос «в связи с чем»,
+    login_password, …). Без него журнал не отвечает на вопрос «в связи с чем»,
     а именно он определяет объём обрабатываемых данных.
     """
     seen = (text or "").strip()
@@ -3108,11 +3108,16 @@ def _pay_webhook(payload: dict, request: Request, bg: BackgroundTasks) -> JSONRe
     return JSONResponse({"ok": True})
 
 
-# ---------- аккаунт: вход по email (magic-link) + управление подпиской ----------
-
-LOGINS = DATA / "logins.json"
-LOGIN_LINK_TTL = 1800            # сколько ссылка ждёт первого открытия
-LOGIN_LINK_AFTER_USE = 86400     # ...и сколько живёт после него (см. login_consume)
+# ---------- аккаунт: поиск по email + управление подпиской ----------
+#
+# Вход по ссылке из письма (magic-link) отсюда убран. Он появился раньше
+# паролей и после их ввода остался лишним третьим способом войти: страница
+# /login его уже не вызывала, ни одна ссылка так и не была выпущена
+# (logins.json на проде не создавался), а код продолжал жить — вместе со своим
+# хранилищем токенов, письмом и правилами продления. Лишний вход — это лишняя
+# поверхность: ссылка в почте даёт доступ к плану всем, кто дотянулся до
+# ящика или до предпросмотра в мессенджере. Вход остался в двух видах:
+# пароль и одноразовый код на почту.
 
 
 def _find_account(email: str) -> dict:
@@ -3140,40 +3145,6 @@ def _find_account(email: str) -> dict:
     except Exception:  # noqa: BLE001
         pass
     return {"plan_token": token, "sub": None} if token else {}
-
-
-def _logins_load() -> dict:
-    try:
-        return json.loads(LOGINS.read_text(encoding="utf-8")) if LOGINS.exists() else {}
-    except Exception:  # noqa: BLE001
-        return {}
-
-
-def _logins_save(d: dict) -> None:
-    try:
-        DATA.mkdir(parents=True, exist_ok=True)
-        LOGINS.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
-    except Exception:  # noqa: BLE001
-        pass
-
-
-def _send_login_email(email: str, link: str) -> None:
-    html = (f"<div style='font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;"
-            f"padding:32px;color:#20321F'><h2 style='margin:0 0 12px'>Вход в NutriPlan</h2>"
-            f"<p style='color:#6B7566'>Нажми кнопку, чтобы открыть свой план и приложение:</p>"
-            f"<p style='margin:20px 0'><a href='{link}' style='display:inline-block;background:#16A34A;color:#fff;"
-            f"text-decoration:none;font-weight:800;padding:15px 26px;border-radius:14px'>Открыть мой план</a></p>"
-            f"<p style='color:#9aa39a;font-size:13px'>Ссылка ждёт 30 минут, а после первого открытия "
-            f"работает ещё сутки. Если вход запрашивал не ты — просто проигнорируй это письмо.</p></div>")
-    _send_email(email, "Вход в NutriPlan", html, "login")
-
-
-class LoginReq(BaseModel):
-    email: EmailStr
-    # Что именно было показано над кнопкой и какой версии — присылает фронт,
-    # чтобы в записи лежал реально увиденный текст, а не серверная догадка.
-    consent_text: str = ""
-    consent_version: str = ""
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -3465,81 +3436,6 @@ def _send_code_email(email: str, code: str) -> None:
     _send_email(email, f"Код для входа: {pretty}", html, "login_code")
 
 
-@app.post("/api/login/request")
-def login_request(req: LoginReq, request: Request, bg: BackgroundTasks) -> JSONResponse:
-    # Rate-limit: не даём перебирать аккаунты и бомбить почту письмами.
-    #
-    # Было 3 письма в час и МОЛЧАЛИВЫЙ ok:true сверх лимита — страница рисовала
-    # успех, письма не было, и человек ждал его до вечера. Порог поднят (письмо
-    # проваливается в «Промоакции», и повторный запрос — нормальное поведение,
-    # а не атака), а сверх лимита отвечаем честным 429 с текстом. Наличие
-    # аккаунта это по-прежнему не раскрывает: лимит про запрашивающего.
-    em = str(req.email).strip().lower()
-    if not _rate_ok("login_email", em, 6, 3600):
-        _bump("login_rate_limited")
-        return JSONResponse({"ok": False, "error": "Мы уже отправили несколько писем на этот адрес. "
-                                                   "Проверь входящие и «Промоакции» — следующее "
-                                                   "письмо можно запросить через час."}, status_code=429)
-    if not _rate_ok_ip(request, "login_ip", 20, 3600):
-        _bump("login_rate_limited")
-        return JSONResponse({"ok": False, "error": "Слишком много запросов входа. "
-                                                   "Попробуй ещё раз через час."}, status_code=429)
-    # Пишем ДО ветвления по наличию аккаунта: согласие человек дал нажатием,
-    # независимо от того, нашёлся ли у него план. Ветка «аккаунта нет» тоже
-    # обрабатывает его почту — значит и основание на неё нужно.
-    _record_consent(request, em, "login_link", text=req.consent_text, version=req.consent_version)
-    acct = _find_account(str(req.email))
-    if acct.get("plan_token"):
-        import uuid
-        now = datetime.now(timezone.utc).timestamp()
-        d = {k: v for k, v in _logins_load().items() if v.get("exp", 0) > now}
-        token = uuid.uuid4().hex
-        d[token] = {"email": str(req.email), "exp": now + LOGIN_LINK_TTL}
-        _logins_save(d)
-        link = f"{str(request.base_url).rstrip('/')}/login/{token}"
-        bg.add_task(_send_login_email, str(req.email), link)
-    # Нейтральный ответ ВСЕГДА (есть план или нет) — не раскрываем наличие аккаунта (anti-enum).
-    return JSONResponse({"ok": True})
-
-
-@app.get("/login/{token}", response_class=HTMLResponse)
-def login_consume(token: str) -> HTMLResponse:
-    token = "".join(c for c in token if c.isalnum())
-    now = datetime.now(timezone.utc).timestamp()
-    d = _logins_load()
-    rec = d.get(token)
-    if not rec or rec.get("exp", 0) < now:
-        return HTMLResponse("<!doctype html><meta charset='utf-8'>"
-            "<div style='font-family:sans-serif;text-align:center;padding:60px'>"
-            "<h1>Ссылка устарела</h1><p><a href='/login'>Запросить вход заново</a></p></div>", status_code=410)
-    # Ссылку НЕ гасим первым же GET. По ней ходит не только человек: антивирус
-    # почтовика и предпросмотр мессенджера открывают ссылки из письма РАНЬШЕ
-    # адресата — и одноразовая ссылка сгорала до того, как её кто-то увидел
-    # («Ссылка устарела» на первом же клике). Это тот же класс дефекта, что был
-    # у /sub/cancel: GET обязан быть безопасным.
-    #
-    # Вместо гашения: открываем сессию (дальше вход по куке, ссылка не нужна) и
-    # продлеваем саму ссылку на сутки от первого использования — чтобы человек,
-    # открывший письмо через час после прогрева, всё-таки попал внутрь.
-    if not rec.get("used"):
-        rec["used"] = datetime.now(timezone.utc).isoformat()
-        rec["exp"] = now + LOGIN_LINK_AFTER_USE
-        d[token] = rec
-        _logins_save(d)
-    acct = _find_account(rec["email"])
-    if acct.get("plan_token"):
-        resp = RedirectResponse(f"/plan/{acct['plan_token']}", status_code=302)
-        try:
-            _set_session_cookie(resp, AUTH.open_session(AUTH.ensure_account(rec["email"])))
-        except Exception as e:  # noqa: BLE001
-            # Сессия — удобство, а план по ссылке всё равно откроется: не роняем вход.
-            print(f"[ALERT] вход по ссылке: сессия не открыта ({e})", flush=True)
-        return resp
-    return HTMLResponse("<!doctype html><meta charset='utf-8'>"
-        "<div style='font-family:sans-serif;text-align:center;padding:60px'><h1>План не найден</h1>"
-        "<p>По этой почте плана пока нет. <a href='/'>Собрать план</a></p></div>")
-
-
 @app.get("/login", response_class=HTMLResponse)
 def login_page() -> HTMLResponse:
     # через _inject_metrika: страница собирается строкой, а не общим шаблоном,
@@ -3749,7 +3645,7 @@ def plan_page(token: str) -> HTMLResponse:
     if not pl:
         return HTMLResponse("<!doctype html><meta charset='utf-8'>"
             "<div style='font-family:sans-serif;text-align:center;padding:60px'>"
-            "<h1>План не найден</h1><p>Ссылка устарела или неверна. <a href='/login'>Войти по почте</a></p></div>",
+            "<h1>План не найден</h1><p>Ссылка устарела или неверна. <a href='/login'>Войти</a></p></div>",
             status_code=404)
     import plan
     if safe in DEMO_TOKENS:
@@ -4671,7 +4567,7 @@ def sub_cancel(s: str = "") -> HTMLResponse:
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<div style='font-family:sans-serif;text-align:center;padding:60px;color:#20321F'>"
         "<h1>Управление подпиской — в приложении</h1>"
-        "<p>Открой свой план и найди раздел «Подписка». <a href='/login'>Войти по почте</a></p></div>")
+        "<p>Открой свой план и найди раздел «Подписка». <a href='/login'>Войти</a></p></div>")
 
 
 @app.get("/admin/stats")
