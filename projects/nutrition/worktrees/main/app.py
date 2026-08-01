@@ -994,10 +994,23 @@ def _plan_email(token: str) -> str:
     return (sub.get("email") or "").strip() or (_find_order(token).get("email") or "").strip()
 
 
-# Демо-планы для проверки ЮKassa — самовосстанавливаются в исходное состояние
-# при каждом открытии страницы (проверяющий может жать «Отвязать/Отменить» сколько
-# угодно, при перезагрузке всё снова «Активна + карта привязана»).
+# Демо-план — публичная площадка, где интерфейс можно щёлкать без оплаты
+# (/plan/sample). Провизионируется сам, из цикла писем и биллинга исключён.
 DEMO_TOKENS = {t for t in os.getenv("NUTRI_DEMO_TOKENS", "sample").split(",") if t}
+
+# Демо-ПОДПИСКА — отдельная история и по умолчанию ВЫКЛЮЧЕНА.
+#
+# Она существовала ради проверяющих ЮKassa: им надо было увидеть живые кнопки
+# «Отменить» и «Отвязать карту», поэтому на демо-плане при каждом открытии
+# страницы заново рисовалась активная подписка с фейковым payment_method_id.
+# Рекурренты одобрены 22.07.2026 — показывать больше некому, а фальшивое
+# «Активна · следующее списание 31 августа» на публичной странице переживает
+# свою причину: это выдуманное состояние оплаты, и оно же засоряет любой
+# подсчёт подписок, который забудет исключить демо.
+#
+# Включается обратно одной переменной, если ЮKassa снова попросит показать
+# управление подпиской: NUTRI_DEMO_SUB_TOKENS=sample.
+DEMO_SUB_TOKENS = {t for t in os.getenv("NUTRI_DEMO_SUB_TOKENS", "").split(",") if t}
 
 
 def _demo_sub(token: str) -> dict:
@@ -3598,7 +3611,7 @@ def sub_cancel_api(token: str, request: Request, bg: BackgroundTasks) -> JSONRes
     # Демо-подписку (её проверяющие ЮKassa жмут сколько угодно) обходим стороной:
     # она восстанавливается при каждом открытии страницы вместе с меткой письма,
     # то есть однократность на ней не работает и письма пошли бы пачкой.
-    if token not in DEMO_TOKENS:
+    if token not in DEMO_SUB_TOKENS:
         bg.add_task(_sub_mail_once, token, "mail_canceled", "Подписка отменена · NutriPlan",
                     _sub_canceled_email(str(request.base_url).rstrip("/"), token,
                                         sub.get("next_charge", "")), "sub_canceled")
@@ -3620,7 +3633,7 @@ def sub_unbind_card_api(token: str, request: Request, bg: BackgroundTasks) -> JS
     _bump(f"card_unbind_{sub.get('landing','?')}")
     # Отвязка — не отмена, и письмо об этом должно прийти отдельным текстом:
     # подписка ещё работает, просто автосписаний не будет.
-    if token not in DEMO_TOKENS:   # см. отмену выше: демо сбрасывается и метка не держится
+    if token not in DEMO_SUB_TOKENS:   # см. отмену выше: демо сбрасывается и метка не держится
         bg.add_task(_sub_mail_once, token, "mail_unbound", "Карта отвязана · NutriPlan",
                     _sub_unbound_email(str(request.base_url).rstrip("/"), token,
                                        sub.get("next_charge", "")), "sub_unbound")
@@ -3648,7 +3661,7 @@ def plan_page(token: str) -> HTMLResponse:
             "<h1>План не найден</h1><p>Ссылка устарела или неверна. <a href='/login'>Войти</a></p></div>",
             status_code=404)
     import plan
-    if safe in DEMO_TOKENS:
+    if safe in DEMO_SUB_TOKENS:
         _save_sub(_demo_sub(safe))  # демо всегда в исходном виде (для проверки ЮKassa)
     sub = _load_sub(safe)
     # Тексты и доступные кнопки считает сервер (_sub_view), а не вёрстка: она знала
