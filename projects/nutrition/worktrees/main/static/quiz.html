@@ -915,7 +915,14 @@ function loadState(){ try{ const s=JSON.parse(localStorage.getItem(SKEY)||'null'
   // Клик по рекламе на ДРУГОЙ лендинг — это новый заход, а не продолжение
   // вчерашнего: раньше человек попадал на вчерашний пейволл со вчерашними
   // ответами, даже не увидев ни одного вопроса нового лендинга.
-  if(s && s.l && s.l!==L){ clearState(); return false; }
+  //
+  // Но только когда лендинг назван ЯВНО. У голого /quiz текущий L равен
+  // умолчанию (slim), и сравнение стирало 11 ответов человеку, который пришёл с
+  // /l/chef, дошёл до оплаты и нажал «Оформить заново» — а такие ссылки рисует
+  // сам сайт. Потерять заполненный квиз у того, кто уже собрался платить, —
+  // худшее, что тут можно сделать.
+  const explicitL = new URLSearchParams(location.search).has('l');
+  if(s && s.l && explicitL && s.l!==L){ clearState(); return false; }
   if(s && s.answers && (Date.now()-(s.t||0) < 864e5)){ // не старше суток
     Object.assign(answers, s.answers);
     planRevealed=!!s.planRevealed; leadEmail=s.leadEmail||'';

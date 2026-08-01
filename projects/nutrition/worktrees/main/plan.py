@@ -657,11 +657,19 @@ def _acct_html(sub, token: str) -> str:
         sline = "Оплаченный период закончился. Новые недели больше не приходят."
         note = "<span class='cnote'>Подписку можно оформить заново — план и прогресс останутся на месте</span>"
         acts = ""
-    else:   # canceled и всё прочее: доступ до конца оплаченного периода
+    else:   # canceled и всё прочее
+        # Дата в ПРОШЛОМ — это уже не «доступ до», а «период кончился». Раньше
+        # экран продолжал обещать доступ до вчерашнего числа, и при остановленном
+        # кроне — навсегда: статус меняет он, а страница читает то, что записано.
+        over = _days_since(sub.get("next") or "")
         badge = "<div class='scanceled'>Отменена</div>"
-        sline = (f"Списаний больше не будет. Доступ сохраняется до <b>{nxt}</b>."
-                 if nxt else "Списаний больше не будет. Доступ сохраняется до конца оплаченного периода.")
-        note = ""
+        if over is not None and over >= 0:
+            sline = "Оплаченный период закончился. Новые недели больше не приходят."
+            note = "<span class='cnote'>Подписку можно оформить заново — план и прогресс останутся</span>"
+        else:
+            sline = (f"Списаний больше не будет. Доступ сохраняется до <b>{nxt}</b>."
+                     if nxt else "Списаний больше не будет. Доступ сохраняется до конца оплаченного периода.")
+            note = ""
         acts = ""
     return (f"<section class='sec acct'><h2>Подписка</h2>"
             f"<div class='subcard'>{badge}"
@@ -1315,7 +1323,7 @@ body{{padding-bottom:104px}}
     <div class="requiz" id="requiz" hidden>
       <span class="rspin"></span>
       <div><b>Пересобираем меню под новые ответы</b>
-        <span>Это займёт около минуты. Пока показан прежний план — страница обновится сама.</span></div>
+        <span class="rsub">Это займёт около минуты. Пока показан прежний план — страница обновится сама.</span></div>
     </div>
     {week_over}
     <!-- Крупно то, что человек спрашивает у экрана: сколько ещё можно съесть.
@@ -2060,7 +2068,9 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
   }}
   function close(back){{
     view.classList.remove('on'); view.setAttribute('aria-hidden','true');
-    document.body.style.overflow='';
+    // Блюдо часто открыто ПОВЕРХ просмотра дня. Снимать блокировку безусловно
+    // нельзя: тот ещё открыт, и фон под ним начинал ехать.
+    document.body.style.overflow=document.querySelector('.dayview.on, .submodal:not([hidden])')?'hidden':'';
     if(back && history.state && history.state.dish) history.back();
   }}
   document.addEventListener('click',e=>{{
@@ -2129,9 +2139,15 @@ document.querySelectorAll('.bnav button').forEach(b=>b.addEventListener('click',
       // отрисована, а не с «есть ли план»: план есть и сейчас, он просто старый.
       if(j && j.ver && String(j.ver)!==VER){{ location.reload(); return; }}
       if(t<180) setTimeout(tick,4000);
-      else box.querySelector('span').textContent=
-        'Сборка затянулась. Мы её доведём — обнови страницу через несколько минут '
-        +'или напиши на support@mynutriplan.ru';
+      else {{
+        // Текст кладём в ПОДПИСЬ, а не в первый попавшийся span — первым идёт
+        // кружок-спиннер 25×25, и текст вылезал за карточку поверх самого себя.
+        // И убираем обещание «обновится сама»: она уже не обновится.
+        const sub=box.querySelector('.rsub'); if(sub) sub.textContent=
+          'Сборка затянулась. Мы её доведём — обнови страницу через несколько минут '
+          +'или напиши на support@mynutriplan.ru';
+        const sp=box.querySelector('.rspin'); if(sp) sp.style.display='none';
+      }}
     }}).catch(()=>{{ if(t<180) setTimeout(tick,6000); }});
   }})();
 }})();

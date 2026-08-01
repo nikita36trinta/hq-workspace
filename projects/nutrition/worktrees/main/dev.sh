@@ -2,6 +2,9 @@
 # Локальная площадка для правок. Исходники ПРИМОНТИРОВАНЫ, uvicorn с --reload,
 # поэтому правка файла видна по F5 — без docker cp и без перезапуска прода.
 #
+# --no-proxy-headers — как в Dockerfile: площадка должна отличаться от боевой
+# чем угодно, только не тем местом, где проверка уже один раз провалилась.
+#
 # WATCHFILES_FORCE_POLLING обязателен: через bind-mount на macOS inotify внутрь
 # контейнера не доходит, и --reload молча не срабатывает — правишь файл, а в
 # браузере старая страница.
@@ -32,6 +35,7 @@ docker run -d --name "$NAME" -p 8790:8790 \
   -e WATCHFILES_FORCE_POLLING=1 \
   nutriplan-dev-img \
   uvicorn app:app --host 0.0.0.0 --port 8790 --reload \
+    --no-proxy-headers \
     --reload-dir /src --reload-include '*.py' >/dev/null
 for i in $(seq 1 40); do
   if curl -fsS -o /dev/null http://localhost:8790/api/health 2>/dev/null; then

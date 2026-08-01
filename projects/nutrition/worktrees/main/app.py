@@ -927,7 +927,11 @@ def _sub_view(sub: dict, now: datetime | None = None) -> dict:
         "has_card": has_card,
         "until": until,
         "until_ru": until_ru,
-        "resume_url": "/quiz",
+        # С лендингом подписки: голый /quiz воспринимался как заход с другого
+        # лендинга и стирал сохранённые ответы.
+        "resume_url": ("/quiz?l=" + "".join(c for c in str((sub or {}).get("landing") or "")
+                                            if c.isalnum() or c in "-_")[:24]
+                       if (sub or {}).get("landing") else "/quiz"),
     }
     if st == "active" and has_card:
         v.update(state="active", badge="Активна",
@@ -1265,8 +1269,29 @@ def _rate_ok(bucket: str, key: str, limit: int, window_sec: int) -> bool:
 # X-Forwarded-For присылает КЛИЕНТ, и пока мы верили ему на слово, каждый лимит
 # «N в час на IP» снимался одной строкой в заголовке: замерено — 18 запросов без
 # заголовка отсекались на 15-м, те же 20 с подставным XFF проходили все 20.
-# В проде сюда кладут адрес прокси: NUTRI_TRUSTED_PROXIES=127.0.0.1,172.17.0.1
+# Кому верим в X-Forwarded-For. Переменная переопределяет умолчание:
+# NUTRI_TRUSTED_PROXIES=10.0.0.5 — доверять только этому адресу.
+#
+# Умолчание — приватные и loopback-адреса, и это безопасно по устройству сети:
+# доверяем не заголовку, а ПИРУ TCP-соединения. Если перед нами стоит прокси, пир
+# это он (loopback или адрес docker-сети). Если прокси нет, пир — сам посетитель
+# из интернета с публичным адресом, и его заголовок мы игнорируем. Подделать пир
+# нельзя: это адрес сокета, а не строка в запросе.
+#
+# Пустое умолчание было хуже обоих вариантов: переменная не задана нигде в
+# репозитории, а прод стоит за прокси — значит все посетители схлопывались в
+# один адрес прокси, и лимит «20 лидов в час» становился общим на весь сайт.
+_DEFAULT_PROXY_NETS = ("127.", "::1", "10.", "192.168.", "172.16.", "172.17.", "172.18.",
+                       "172.19.", "172.2", "172.30.", "172.31.")
 TRUSTED_PROXIES = {p.strip() for p in os.getenv("NUTRI_TRUSTED_PROXIES", "").split(",") if p.strip()}
+
+
+def _peer_trusted(peer: str) -> bool:
+    if TRUSTED_PROXIES:
+        return peer in TRUSTED_PROXIES      # задали явно — только он и никто больше
+    return any(peer.startswith(n) for n in _DEFAULT_PROXY_NETS)
+
+
 _XFF_WARNED = False
 
 
@@ -1284,10 +1309,10 @@ def _client_ip(request: Request) -> str:
     """
     peer = (request.client.host if request.client else "") or "?"
     xff = request.headers.get("x-forwarded-for", "")
-    if xff and peer in TRUSTED_PROXIES:
+    if xff and _peer_trusted(peer):
         return xff.split(",")[-1].strip() or peer
     global _XFF_WARNED
-    if xff and not _XFF_WARNED and peer not in TRUSTED_PROXIES:
+    if xff and not _XFF_WARNED and not _peer_trusted(peer):
         # Кричим один раз. Если прод стоит за прокси, а список пуст, все клиенты
         # схлопнулись в один IP и лимиты режут живых людей. Узнать об этом лучше
         # из лога, чем из жалоб «не приходит письмо». Адрес прокси — вот он.
@@ -3877,7 +3902,12 @@ def pay_success(o: str = "", request: Request = None, bg: BackgroundTasks = None
         back = (f"<a href=\"{pay_url}\" style=\"display:inline-block;background:#16A34A;color:#fff;"
                 "text-decoration:none;font-weight:800;padding:15px 28px;border-radius:14px\">"
                 "Вернуться к оплате</a>") if pay_url else ""
-        again = ("<a href=\"/quiz\" style=\"display:block;margin-top:14px;color:#6B7566;font-size:14px;"
+        # С лендингом заказа, а не голый /quiz: человек должен вернуться в свою
+        # воронку, а не в чужую. Плюс без ?l= квиз считал заход «с другого
+        # лендинга» и стирал все 11 ответов — у того, кто уже дошёл до оплаты.
+        _ls = "".join(c for c in str(order.get("landing") or "") if c.isalnum() or c in "-_")[:24]
+        again = (f"<a href=\"/quiz{'?l=' + _ls if _ls else ''}\" style=\"display:block;margin-top:14px;"
+                 "color:#6B7566;font-size:14px;"
                  "text-decoration:underline;text-underline-offset:3px\">Оформить заново</a>")
         actions = f"<div style=\"margin-top:22px\">{back}{again}</div>"
 
