@@ -628,80 +628,47 @@ def _fmt_ru_date(iso: str) -> str:
 
 
 def _acct_html(sub, token: str) -> str:
-    """Секция «Подписка» в ЛК: статус + отмена/отвязка карты (требование ЮKassa)."""
+    """Секция «Подписка» в ЛК: состояние, кнопки, путь обратно.
+
+    Всё, что тут рисуется, приходит готовым из app._sub_view: состояние подписки
+    считается ОДИН раз и на сервере. Раньше вёрстка выводила его заново из
+    status/next/has_card — те же четыре состояния, описанные вторым, более бедным
+    набором фраз. Вторая копия обходилась дороже, чем выглядело:
+      • «Пробуем ещё раз до 25 августа» превращалось в «в ближайшие дни» — без
+        даты, то есть без ответа на вопрос, ради которого на экран и заходят;
+      • у отменившего пропадала фраза «до этой даты новые недели продолжают
+        приходить», и отмена читалась как немедленная потеря доступа;
+      • завершённая подписка писала «можно оформить заново» и НЕ ДАВАЛА ССЫЛКИ:
+        сервер считал can_resume и resume_url, а вёрстка их выбрасывала — текст
+        предлагал действие, которого на экране не существовало.
+    """
     if not sub:
         return ""
-    if sub.get("status") == "active":
-        nxt = _fmt_ru_date(sub.get("next", ""))
-        amt = _e(sub.get("amount", "499"))
-        has_card = bool(sub.get("payment_method_id") or sub.get("has_card"))
-        card = ("<span class='cnote'>Карта привязана для автопродления</span>" if has_card
-                else "<span class='cnote'>Карта не привязана — автосписаний не будет</span>")
-        unbind = (f"<button class='unbindb' id='unbindCard' data-token='{_e(token)}'>Отвязать карту</button>"
-                  if has_card else "")
-        # При отвязанной карте не обещаем списание — доступ до конца периода, потом завершение.
-        sline = (f"Следующее списание: <b>{nxt}</b> · {amt} ₽/мес" if has_card
-                 else f"Автопродления не будет · доступ до <b>{nxt}</b>")
-        return (f"<section class='sec acct'><h2>Подписка</h2>"
-                f"<div class='subcard'><div class='sactive'>Активна</div>"
-                f"<div class='sline'>{sline}</div>{card}"
-                f"{unbind}"
-                f"<button class='cancelb' id='cancelSub' data-token='{token}'>Отменить подписку</button>"
-                f"<div class='cmsg' id='cmsg'></div></div></section>")
-    # Всё, что не active, раньше рисовалось как «Отменена · списаний не будет».
-    # После того как крон начал ретраить неудавшееся списание в grace-окне, это
-    # стало враньём про деньги: человек читает «списаний не будет», а мы в эти
-    # три дня реально пытаемся списать — и остановить нас с экрана нечем.
-    st = sub.get("status") or ""
-    nxt = _fmt_ru_date(sub.get("next", ""))
-    amt = _e(sub.get("amount", "499"))
-    has_card = bool(sub.get("payment_method_id") or sub.get("has_card"))
-    if st == "past_due":
-        badge = "<div class='scanceled'>Не удалось списать</div>"
-        if has_card:
-            sline = (f"Не прошло списание {amt} ₽. Попробуем ещё раз в ближайшие дни — "
-                     f"проверь, что на карте есть деньги.")
-            # Если карта отклоняется совсем, ретраи ничего не изменят, а другого
-            # способа заплатить на экране не было вовсе: гейт оплаты отвечает
-            # «подписка уже есть», и человек через три дня просто терялся.
-            note = ("<span class='cnote'>Ты ничего не отменял: подписка активна, "
-                    "но продление не прошло.<br>Хочешь платить с другой карты — "
-                    "отмени подписку здесь и оформи заново, доступ не прервётся.</span>")
-        else:
-            # Карту отвязали — значит ретраи прекращены, и обещать «попробуем ещё
-            # раз» нельзя. Раньше экран продолжал это писать, и человек шёл
-            # блокировать карту в банк: он же попросил остановить, а мы обещаем
-            # списать. Врать про деньги хуже, чем врать про статус.
-            sline = "Автопродление остановлено — карта отвязана, списаний не будет."
-            note = ("<span class='cnote'>Доступ сохраняется до конца оплаченного периода, "
-                    "потом подписка завершится</span>")
-        # Кнопки обязаны быть: единственный способ остановить ретраи без похода
-        # в банк — отвязать карту или отменить подписку прямо здесь.
-        acts = ((f"<button class='unbindb' id='unbindCard' data-token='{_e(token)}'>Отвязать карту</button>"
-                 if has_card else "")
-                + f"<button class='cancelb' id='cancelSub' data-token='{_e(token)}'>Отменить подписку</button>")
-    elif st == "ended":
-        badge = "<div class='scanceled'>Завершена</div>"
-        sline = "Оплаченный период закончился. Новые недели больше не приходят."
-        note = "<span class='cnote'>Подписку можно оформить заново — план и прогресс останутся на месте</span>"
-        acts = ""
-    else:   # canceled и всё прочее
-        # Дата в ПРОШЛОМ — это уже не «доступ до», а «период кончился». Раньше
-        # экран продолжал обещать доступ до вчерашнего числа, и при остановленном
-        # кроне — навсегда: статус меняет он, а страница читает то, что записано.
-        over = _days_since(sub.get("next") or "")
-        badge = "<div class='scanceled'>Отменена</div>"
-        if over is not None and over >= 0:
-            sline = "Оплаченный период закончился. Новые недели больше не приходят."
-            note = "<span class='cnote'>Подписку можно оформить заново — план и прогресс останутся</span>"
-        else:
-            sline = (f"Списаний больше не будет. Доступ сохраняется до <b>{nxt}</b>."
-                     if nxt else "Списаний больше не будет. Доступ сохраняется до конца оплаченного периода.")
-            note = ""
-        acts = ""
+    state = sub.get("state") or ""
+    badge = sub.get("badge") or ""
+    line = sub.get("line") or ""
+    note = sub.get("note") or ""
+    if not badge:
+        # Пришла сырая запись подписки, а не разбор _sub_view (старый вызов,
+        # тест). Показываем хотя бы статус: пустая карточка хуже скупой.
+        state = "active" if sub.get("status") == "active" else "ended"
+        badge = "Активна" if state == "active" else "Подписка"
+        line = line or f"{sub.get('amount', '499')} ₽/мес"
+    acts = ""
+    if sub.get("can_unbind"):
+        acts += f"<button class='unbindb' id='unbindCard' data-token='{_e(token)}'>Отвязать карту</button>"
+    if sub.get("can_cancel"):
+        acts += f"<button class='cancelb' id='cancelSub' data-token='{_e(token)}'>Отменить подписку</button>"
+    if sub.get("can_resume"):
+        # Ссылка ведёт в квиз С ЛЕНДИНГОМ подписки: голый /quiz считается заходом
+        # с другого лендинга и стирает сохранённые ответы.
+        acts += (f"<a class='resumeb' href='{_e(sub.get('resume_url') or '/quiz')}'>"
+                 f"Оформить подписку заново</a>")
+    note_html = f"<span class='cnote'>{_e(note)}</span>" if note else ""
+    cls = "sactive" if state == "active" else "scanceled"
     return (f"<section class='sec acct'><h2>Подписка</h2>"
-            f"<div class='subcard'>{badge}"
-            f"<div class='sline'>{sline}</div>{note}{acts}"
+            f"<div class='subcard'><div class='{cls}'>{_e(badge)}</div>"
+            f"<div class='sline'>{_e(line)}</div>{note_html}{acts}"
             f"<div class='cmsg' id='cmsg'></div></div></section>")
 
 
@@ -725,7 +692,10 @@ def _renews_weeks(sub) -> bool:
     «план не продлевается» было бы прямым враньём — меню придёт и на почту, и сюда."""
     if not sub:
         return False
-    st = sub.get("status")
+    # state, а не сырой status: у past_due с истёкшим окном ретраев сервер уже
+    # считает подписку завершённой, а status ещё держит «past_due» до ближайшего
+    # тика cron. По сырому полю мы бы в этом промежутке обещали новую неделю.
+    st = sub.get("state") or sub.get("status")
     if st == "active":
         return True
     # past_due — это «списание не прошло, идут ретраи», а не «отвалился». Крон в
@@ -1091,6 +1061,11 @@ h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;l
 .unbindb:hover{{background:var(--soft)}}.unbindb:disabled{{opacity:.5}}
 .cancelb{{margin-top:10px;width:100%;border:1.5px solid var(--line);background:var(--card);color:#b91c1c;font-weight:700;font-size:14px;padding:12px;border-radius:12px;cursor:pointer}}
 .cancelb:hover{{border-color:#b91c1c}}.cancelb:disabled{{opacity:.5}}
+/* Возврат в подписку после её завершения. Кнопка ЗАЛИВНАЯ, в отличие от
+   «Отвязать/Отменить»: те останавливают списания и должны выглядеть спокойно,
+   а эта — единственное действие на экране, которое человек может захотеть. */
+.resumeb{{display:block;margin-top:16px;width:100%;border:none;background:var(--g);color:#fff;
+  font-weight:800;font-size:15px;padding:14px;border-radius:12px;text-align:center;text-decoration:none}}
 .cmsg{{margin-top:12px;font-size:14px;color:var(--gd);font-weight:700;display:none}}.cmsg.s{{display:block}}
 /* Вход в подписку. Был серой ссылкой 13px в самом низу профиля — до неё надо
    было прокрутить полторы тысячи пикселей, а идут туда за отменой списаний,
@@ -1751,20 +1726,36 @@ document.addEventListener('click',async e=>{{
     location.hash=(fromDay?'v':'d')+day; location.reload();   // v = вернуться в просмотр дня, как у «Заменить весь день»
   }}catch(e){{ b.disabled=false; b.textContent=o; alert('Не удалось заменить — попробуй ещё раз'); }}
 }});
-// Карточка подписки после отмены/отвязки. Раньше JS трогал только бейдж и
-// #cmsg, а строку .sline не переписывал вовсе — и на одном экране одновременно
-// жили «ОТМЕНЕНА» и «Следующее списание: 30 августа · 499 ₽/мес». Правим по
-// КЛАССАМ (.sline/.cnote), а дату вынимаем из уже отрисованного <b>: конкретные
-// серверные формулировки живут в app.py и меняются без нас.
-function subTill(){{
-  const b=document.querySelector('.subcard .sline b');
-  return b?b.textContent.trim():'';
-}}
-function setSubLine(html){{
-  const l=document.querySelector('.subcard .sline'); if(l) l.innerHTML=html;
-}}
-function setCardNote(txt){{
-  const n=document.querySelector('.subcard .cnote'); if(n) n.textContent=txt;
+// Карточка подписки после отмены/отвязки.
+//
+// Ручки /cancel и /unbind-card возвращают поле `view` — тот же разбор состояния
+// (_sub_view), которым карточка была отрисована на сервере. Применяем его целиком,
+// вместо того чтобы собирать текст здесь ещё раз: третья копия формулировок
+// (сервер → разметка → JS) разъезжалась быстрее всех остальных, и именно тут
+// когда-то одновременно жили «ОТМЕНЕНА» и «Следующее списание: 30 августа».
+function applySubView(v){{
+  const card=document.querySelector('.subcard'); if(!card||!v) return;
+  const b=card.querySelector('.sactive,.scanceled');
+  if(b){{ b.className=(v.state==='active')?'sactive':'scanceled'; b.textContent=v.badge||''; }}
+  const ln=card.querySelector('.sline'); if(ln) ln.textContent=v.line||'';
+  let nt=card.querySelector('.cnote');
+  if(v.note){{
+    if(!nt){{ nt=document.createElement('span'); nt.className='cnote';
+              if(ln) ln.insertAdjacentElement('afterend',nt); }}
+    nt.textContent=v.note;
+  }} else if(nt) nt.remove();
+  const u=card.querySelector('#unbindCard'), c=card.querySelector('#cancelSub');
+  if(u) u.style.display=v.can_unbind?'':'none';
+  if(c) c.style.display=v.can_cancel?'':'none';
+  // Путь обратно появляется ровно тогда, когда сервер считает его уместным:
+  // после завершения подписки её надо оформлять заново, а не «возобновлять».
+  let rb=card.querySelector('.resumeb');
+  if(v.can_resume&&!rb){{
+    rb=document.createElement('a'); rb.className='resumeb';
+    rb.href=v.resume_url||'/quiz'; rb.textContent='Оформить подписку заново';
+    const msg=card.querySelector('.cmsg');
+    if(msg) msg.insertAdjacentElement('beforebegin',rb); else card.appendChild(rb);
+  }} else if(!v.can_resume&&rb) rb.remove();
 }}
 // отвязка карты (без отмены подписки) — двойное подтверждение
 const ub=document.getElementById('unbindCard');
@@ -1775,12 +1766,11 @@ if(ub){{let a2=false;ub.addEventListener('click',async()=>{{
     const r=await fetch('/api/sub/'+ub.dataset.token+'/unbind-card',{{method:'POST'}});
     const j=await r.json();if(!j.ok)throw 0;
     const m=document.getElementById('cmsg');
+    // Подтверждение действия — это не состояние: оно про «нажатие сработало»
+    // и живёт рядом с состоянием, а не вместо него.
     m.textContent='Карта отвязана — автосписаний больше не будет. Подписка активна до конца оплаченного периода.';
-    m.classList.add('s');ub.style.display='none';
-    const till=subTill();
-    setSubLine(till?('Автопродления не будет · доступ до <b>'+_esc(till)+'</b>')
-                   :'Автопродления не будет · доступ до конца оплаченного периода');
-    setCardNote('Карта не привязана — автосписаний не будет');
+    m.classList.add('s');
+    applySubView(j.view);
   }}catch(e){{ub.disabled=false;ub.textContent='Отвязать карту';alert('Не удалось отвязать карту. Напиши на support@mynutriplan.ru');}}
 }});}}
 // отмена подписки — двойное подтверждение
@@ -1793,21 +1783,8 @@ if(cb){{let armed=false;cb.addEventListener('click',async()=>{{
     const j=await r.json();if(!j.ok)throw 0;
     const m=document.getElementById('cmsg');
     m.textContent='Подписка отменена, карта отвязана. Автосписаний больше не будет — доступ сохраняется до конца оплаченного периода.';
-    m.classList.add('s');cb.style.display='none';
-    if(ub)ub.style.display='none';
-    const till=subTill();
-    setSubLine(till?('Списаний больше не будет. Доступ сохраняется до <b>'+_esc(till)+'</b>.')
-                   :'Списаний больше не будет. Доступ сохраняется до конца оплаченного периода.');
-    setCardNote('Карта отвязана — автосписаний не будет');
-    // Меняем ЛЮБОЙ бейдж, а не только «Активна». Из состояния «Не удалось
-    // списать» селектор .sactive ничего не находил, и рядом со строкой
-    // «Списаний больше не будет» оставалось красное «НЕ УДАЛОСЬ СПИСАТЬ» —
-    // человек решал, что отмена не сработала, и шёл блокировать карту в банк.
-    const a=document.querySelector('.subcard .sactive, .subcard .scanceled');
-    if(a)a.outerHTML="<div class='scanceled'>Отменена</div>";
-    const ln=document.querySelector('.subcard .sline');
-    if(ln)ln.textContent='Списаний больше не будет. Доступ сохраняется до конца оплаченного периода.';
-    const nt=document.querySelector('.subcard .cnote'); if(nt)nt.remove();
+    m.classList.add('s');
+    applySubView(j.view);
   }}catch(e){{cb.disabled=false;cb.textContent='Отменить подписку';alert('Не удалось отменить. Напиши на support@mynutriplan.ru');}}
 }});}}
 // «Что ты не ешь» — сохранить исключения и пересобрать план
@@ -2197,17 +2174,30 @@ window.addEventListener('appinstalled',()=>{{ib.hidden=true;}});
 </script></body></html>"""
 
 
-def menu_email_html(pl: dict, plan_link: str = "") -> str:
-    """Письмо после оплаты: краткое меню (без рецептов) + кнопка на полный план в вебе."""
+def menu_email_html(pl: dict, plan_link: str = "", sub_link: str = "") -> str:
+    """Письмо после оплаты: краткое меню (без рецептов) + кнопка на полный план в вебе.
+
+    `sub_link` — адрес управления подпиской, передаётся только подписчику. Оферта
+    (п. 6) обещает, что ссылка на раздел «Подписка» есть В КАЖДОМ письме с планом,
+    а несла её лишь тройка денежных писем — активация, «через 3 дня продлим» и
+    факт списания. Самое частое письмо подписчика, еженедельный план, ссылки не
+    имело вовсе: обещание в оферте про отмену в один клик не выполнялось ровно в
+    том письме, которое человек и открывает, когда решает, что подписка ему
+    надоела. Разовой покупке ссылку не даём — управлять там нечем.
+    """
     # Подписи дней — те же, что на экране плана: письмо и экран не должны
     # расходиться в нумерации.
     days = "".join(_day_block({"day": _day_label(i), "meals": [
         (m.get("slot", ""), m.get("name", ""), m.get("kcal", "")) for m in (d.get("meals") or [])]})
         for i, d in enumerate(pl.get("days") or []))
     cta = _cta(plan_link, "Открыть план с рецептами") if plan_link else ""
+    manage = (f"<p style='color:{_MUTED};font-size:12.5px;text-align:center;padding:16px 24px 0'>"
+              f"Подписка продлевается сама — "
+              f"<a href='{_e(sub_link)}' style='color:{_MUTED}'>управление подпиской и отмена</a>.</p>"
+              if sub_link else "")
     return (f"<div style='{_CSS_WRAP}'>"
             + _head("Твой план на 7 дней", "Спасибо за оплату! Меню — ниже, рецепты и список покупок — в плане")
             + _norm_card(pl) + cta
             + "<div style='padding:14px 24px 0;font-weight:800;font-size:16px'>Меню на неделю</div>"
-            + days + _foot() + "</div>")
+            + days + manage + _foot() + "</div>")
 

@@ -442,4 +442,42 @@ test.describe("regressions · шаг параметров", () => {
 			"нажатие по подписи должно фокусировать ввод",
 		).toBe("INPUT");
 	});
+
+	/**
+	 * Найдено 2026-08-02 обходом состояний подписки.
+	 *
+	 * Состояние подписки считал сервер (_sub_view), а карточка на странице
+	 * выводила его ЗАНОВО из status/next/has_card — вторым, более бедным
+	 * набором фраз. Дороже всего обошлась завершённая подписка: текст
+	 * «можно оформить заново» был, а ссылки не было ни одной — сервер считал
+	 * can_resume и resume_url, вёрстка их выбрасывала.
+	 *
+	 * Обратная сторона: у ОТМЕНЁННОЙ, но ещё оплаченной подписки кнопки
+	 * возврата быть не должно. Гейт /api/pay/subscribe её не блокирует (карта
+	 * при отмене отвязана), поэтому «оформить заново» здесь означало бы
+	 * списать 499 ₽ сейчас и сжечь остаток уже оплаченного периода.
+	 */
+	test.describe("подписка · состояния", () => {
+		test("завершённая подписка даёт путь обратно", async ({ page }) => {
+			await page.goto("/plan/subended");
+			const card = page.locator(".subcard");
+			await expect(card.locator(".scanceled")).toHaveText("Завершена");
+			const resume = card.locator(".resumeb");
+			await expect(resume, "у завершённой подписки нет способа вернуться").toHaveCount(1);
+			// Лендинг сохраняется: голый /quiz считается заходом с другого
+			// лендинга и стирает сохранённые ответы.
+			await expect(resume).toHaveAttribute("href", "/quiz?l=slim");
+			await expect(card).not.toContainText("Следующее списание");
+		});
+
+		test("отменённая с оплаченным периодом не зовёт платить второй раз", async ({ page }) => {
+			await page.goto("/plan/subcanceled");
+			const card = page.locator(".subcard");
+			await expect(card.locator(".scanceled")).toHaveText("Отменена");
+			await expect(card.locator(".resumeb"),
+				"кнопка возврата списала бы 499 ₽ поверх оплаченного периода").toHaveCount(0);
+			await expect(card, "не сказали, до какой даты доступ сохраняется").toContainText("Доступ до");
+			await expect(card).toContainText("новые недели плана продолжают приходить");
+		});
+	});
 });

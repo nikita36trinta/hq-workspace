@@ -474,7 +474,8 @@ def _fulfill_paid(email: str, quiz: dict, oid: str, base: str) -> None:
             _send_email(email, "Собираем твой план · NutriPlan", _plan_wait_email(base, link),
                         "plan_paid_wait")
         else:
-            _send_email(email, "Твой план на 7 дней · NutriPlan", plan.menu_email_html(pl, link), "plan_paid")
+            _send_email(email, "Твой план на 7 дней · NutriPlan",
+                        plan.menu_email_html(pl, link, _manage_link(base, oid)), "plan_paid")
         _pregen_dish_photos(pl)  # фото блюд заранее — к открытию плана уже готовы (общий кэш)
     except Exception as e:  # noqa: BLE001
         _bump("fulfill_fail")
@@ -601,6 +602,15 @@ def _mail_shell(head: str, body: str, cta_href: str = "", cta_label: str = "", f
     return (f"<div style='font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;"
             f"padding:32px;color:#20321F'><h2 style='margin:0 0 12px'>{head}</h2>"
             f"<div style='color:#6B7566;font-size:15px;line-height:1.55'>{body}</div>{cta}{foot}</div>")
+
+
+def _manage_link(base: str, token: str) -> str:
+    """Ссылка на управление подпиской — или пусто, если подписки нет.
+
+    Одна точка на все письма с планом: решение «подписчик или разовая покупка»
+    принимается по данным, а не по тому, из какой ветки cron вызвали письмо.
+    Разовому покупателю ссылка не нужна и врала бы о наличии подписки."""
+    return f"{base}/sub/cancel?s={token}" if _load_sub(token) else ""
 
 
 def _cancel_note(base: str, sid: str) -> str:
@@ -975,10 +985,19 @@ def _sub_view(sub: dict, now: datetime | None = None) -> dict:
                  # способ остановить ретраи, и прятать их значит толкать человека в банк.
                  can_cancel=True, can_unbind=has_card, can_resume=False)
     elif st == "canceled" and not over:
+        # can_resume=False НАМЕРЕННО, хотя подписку и правда можно оформить заново.
+        # Гейт на /api/pay/subscribe пропускает отменённую (у неё нет привязанной
+        # карты), то есть кнопка «оформить заново» здесь означала бы: списать 499 ₽
+        # сейчас и завести вторую подписку поверх ещё не истёкшего оплаченного
+        # периода — оставшиеся дни просто сгорели бы. Предлагать это на экране,
+        # где человек только что отменил списания, нельзя; вместо кнопки — дата,
+        # после которой возвращаться выгодно.
+        back = f" Вернуться можно после {until_ru} — до этой даты платить не за что." if until_ru else ""
         v.update(state="canceled", badge="Отменена",
                  line=f"Доступ до {until_ru}" if until_ru else "Доступ до конца оплаченного периода",
-                 note="Списаний больше не будет. До этой даты новые недели плана продолжают приходить.",
-                 can_cancel=False, can_unbind=has_card, can_resume=True)
+                 note="Списаний больше не будет. До этой даты новые недели плана продолжают приходить."
+                      + back,
+                 can_cancel=False, can_unbind=has_card, can_resume=False)
     else:
         # ended, а также canceled/active с истёкшим периодом — фактически то же самое.
         v.update(state="ended", badge="Завершена",
@@ -2775,7 +2794,8 @@ def _regen_by_quiz(sid: str, quiz: dict, base: str) -> None:
         else:
             _pregen_dish_photos(pl)
             _send_email(em, _OWED_MAIL["requiz"][0],
-                        plan.menu_email_html(pl, link), _OWED_MAIL["requiz"][1])
+                        plan.menu_email_html(pl, link, _manage_link(base, token)),
+                        _OWED_MAIL["requiz"][1])
     except Exception as e:  # noqa: BLE001
         _bump("requiz_fail")
         print(f"[ALERT] пересборка плана по новому квизу не удалась: sub={sid} err={e}", flush=True)
@@ -3580,8 +3600,27 @@ def app_home(request: Request):
     token = found.get("plan_token") or ""
     if not token:
         # Аккаунт есть, плана нет: так бывает у того, кто задал пароль, но чей
-        # план не собрался. Отправляем туда, где ему помогут, а не в 404.
-        return RedirectResponse("/pay/success", status_code=302)
+        # план не собрался. Раньше отсюда шёл редирект на /pay/success, и человек,
+        # только что успешно вошедший по паролю, читал «Не нашли этот платёж» —
+        # ответ не на тот вопрос, который он задал, да ещё и пугающий про деньги.
+        # Говорим ровно то, что знаем, и даём оба выхода: неоплатившему — собрать
+        # план, оплатившему — дождаться письма и адрес поддержки.
+        return HTMLResponse(_inject_metrika(
+            "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+            "<title>Плана пока нет · NutriPlan</title></head>"
+            "<body style=\"font-family:-apple-system,Segoe UI,Roboto,sans-serif;min-height:100dvh;"
+            "display:flex;flex-direction:column;align-items:center;justify-content:center;"
+            "text-align:center;padding:30px;background:#FBF8F1;color:#20321F\">"
+            "<h1 style='margin:0 0 10px;font-size:26px'>Ты вошёл, но плана пока нет</h1>"
+            "<p style='color:#6B7566;font-size:16px;max-width:38ch;line-height:1.5'>"
+            "Если ты уже оплатил — план придёт на почту в течение часа, ничего делать не нужно. "
+            "Если оплаты не было, собери план: это 12 вопросов и пара минут.</p>"
+            "<a href='/quiz' style='margin-top:22px;display:inline-block;background:#16A34A;color:#fff;"
+            "text-decoration:none;font-weight:800;padding:15px 28px;border-radius:14px'>Собрать план</a>"
+            "<p style='color:#8A9384;font-size:13px;margin-top:16px'>Оплатил, а письма нет — "
+            "<a href='mailto:support@mynutriplan.ru' style='color:#0E7A36'>support@mynutriplan.ru</a></p>"
+            "</body></html>"))
     return RedirectResponse(f"/plan/{token}", status_code=302)
 
 
@@ -3882,7 +3921,9 @@ def _pay_unknown_page() -> HTMLResponse:
         "списались — план придёт на почту, ничего делать не нужно. Если списания не было, попробуй "
         "оформить заново.</p>"
         "<a href='/quiz' style='margin-top:22px;display:inline-block;background:#16A34A;color:#fff;"
-        "text-decoration:none;font-weight:800;padding:15px 28px;border-radius:14px'>К плану</a>"
+        # «К плану» вела в квиз: кнопка обещала план, а открывала анкету на
+        # двенадцать вопросов. Называем действие тем, чем оно является.
+        "text-decoration:none;font-weight:800;padding:15px 28px;border-radius:14px'>Собрать план</a>"
         "<p style='color:#8A9384;font-size:13px;margin-top:16px'>Вопросы — "
         "<a href='mailto:support@mynutriplan.ru' style='color:#0E7A36'>support@mynutriplan.ru</a></p>"
         # Адрес хита свой, а не /pay/success: с общим адресом цель «URL содержит
@@ -4361,7 +4402,8 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                     # так что греются только новые блюда недели.
                     _pregen_dish_photos(pl)
                     _send_email(sub["email"], "Новый план на неделю · NutriPlan",
-                                plan.menu_email_html(pl, link), "plan_weekly")
+                                plan.menu_email_html(pl, link, _manage_link(base, sub["sub_id"])),
+                                "plan_weekly")
                 upd["next_plan"] = (datetime.fromisoformat(sub["next_plan"]) + timedelta(days=7)).isoformat()
                 out["replanned"] += 1
         except Exception:  # noqa: BLE001
@@ -4468,7 +4510,8 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                         em = _plan_email(f.stem)
                         if em:
                             _send_email(em, owed[0],
-                                        plan.menu_email_html(fresh, f"{base}/plan/{f.stem}"), owed[1])
+                                        plan.menu_email_html(fresh, f"{base}/plan/{f.stem}",
+                                                             _manage_link(base, f.stem)), owed[1])
                             out["owed_sent"] += 1
                         _plan_mark(f.stem, {"mail_owed": ""})
             # Долг висит дольше часа, а план всё ещё заготовка (LLM недоступна или
@@ -4495,7 +4538,8 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
                     em = _plan_email(f.stem)
                     if owed and em:
                         _send_email(em, owed[0],
-                                    plan.menu_email_html(pl, f"{base}/plan/{f.stem}"), owed[1])
+                                    plan.menu_email_html(pl, f"{base}/plan/{f.stem}",
+                                                         _manage_link(base, f.stem)), owed[1])
                         out["owed_sent"] += 1
                         _bump("owed_sent_degraded")
                         print(f"[ALERT] отдали заготовку по долгу письма: {f.stem}", flush=True)

@@ -1,0 +1,13 @@
+{
+ "amount": "499",
+ "email": "e2e@example.com",
+ "landing": "slim",
+ "created": "2026-01-01T00:00:00+00:00",
+ "sub_id": "subcanceled",
+ "plan_token": "subcanceled",
+ "status": "canceled",
+ "payment_method_id": "",
+ "has_card": false,
+ "next": "2099-12-31T00:00:00+00:00",
+ "next_charge": "2099-12-31T00:00:00+00:00"
+}

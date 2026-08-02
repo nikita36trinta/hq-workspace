@@ -59,7 +59,14 @@ export default defineConfig({
 			// нет), а у банк-плана НЕТ списка покупок и рецептов — и тест на
 			// список молча уходил в skip. Пропущенный тест ничего не проверяет.
 			"docker run --rm --name nutriplan-e2e -p 8791:8790 -e DATA_DIR=/tmp/e2edata " +
-			"-v \"$PWD/fixtures/plans/sample.json:/tmp/e2edata/plans/sample.json:ro\" nutriplan-e2e",
+			"-v \"$PWD/fixtures/plans/sample.json:/tmp/e2edata/plans/sample.json:ro\" " +
+			// Планы и подписки для экранов состояния подписки. Каталог subs
+			// монтируется целиком и только для чтения: подписку в тестах никто
+			// не создаёт (касса недоступна), а иначе эти экраны не проверить —
+			// их шесть, и все они про деньги.
+			"-v \"$PWD/fixtures/plans/subended.json:/tmp/e2edata/plans/subended.json:ro\" " +
+			"-v \"$PWD/fixtures/plans/subcanceled.json:/tmp/e2edata/plans/subcanceled.json:ro\" " +
+			"-v \"$PWD/fixtures/subs:/tmp/e2edata/subs:ro\" nutriplan-e2e",
 		url: "http://localhost:8791/api/health",
 		reuseExistingServer: false,
 		timeout: 300_000,
