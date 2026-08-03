@@ -4084,10 +4084,28 @@ def pay_success(o: str = "", request: Request = None, bg: BackgroundTasks = None
     # страница живёт минуту и поллит) накрутило бы конверсию.
     paid_goal = ""
     if oid and st == "succeeded":
+        # Сумма уходит вместе с целью. Без неё Метрика знает, что покупка была, но
+        # не знает, на сколько, — и любая стратегия «по ценности конверсии» учится
+        # на нуле, а отчёт о доходе остаётся пустым. Берём из журнала заказов, а не
+        # из адреса: в адресе её никто не подделает только потому, что её там нет.
+        amt = str(_find_order(oid).get("amount") or "").replace(",", ".")
+        try:
+            price = f"{float(amt):.2f}"
+        except ValueError:
+            price = ""
+        params = (json.dumps({"order_price": float(price), "currency": "RUB"})
+                  if price else "undefined")
+        # Отмечаемся на сервере ПОСЛЕ отправки цели. Иначе выгрузка офлайн-конверсий
+        # догрузит ту же оплату второй раз: она забирает все succeeded-заказы подряд,
+        # не зная, что человек вернулся на эту страницу и цель уже сработала. Тогда
+        # одна покупка считалась бы двумя, а выручка в Метрике была бы вдвое больше
+        # настоящей — и вся неделя замера врала бы в нашу пользу.
         paid_goal = (
             "<script>(function(){try{var k='np_paid_" + oid + "';"
-            "if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,'1');"
-            "if(window.npGoal)window.npGoal('pay_success');}}catch(e){}})();</script>")
+            "if(sessionStorage.getItem(k))return;sessionStorage.setItem(k,'1');"
+            "function mark(){try{navigator.sendBeacon('/api/ym/online/" + oid + "');}catch(e){}}"
+            "if(window.npGoal){window.npGoal('pay_success'," + params + ",mark);"
+            "setTimeout(mark,1500);}}catch(e){}})();</script>")
 
     # Пока платёж висит в pending, ссылка ЮKassa ещё жива — человеку, который
     # закрыл окно и передумал, надо дать вернуться туда же, а не проходить всё
@@ -4253,6 +4271,27 @@ class _SkipReplan(Exception):
 
 METRIKA_TOKEN = os.getenv("NUTRI_METRIKA_TOKEN", "").strip()
 _YM_UPLOADED = DATA / "ym_uploaded.json"
+# Заказы, по которым цель pay_success уже ушла ОНЛАЙН с экрана возврата.
+# Офлайн-выгрузка их пропускает — см. _upload_offline_conversions.
+_YM_ONLINE = DATA / "ym_online.json"
+
+
+@app.post("/api/ym/online/{oid}")
+def ym_online_mark(oid: str) -> JSONResponse:
+    """Страница возврата сообщает: цель pay_success по этому заказу уже отправлена.
+
+    Зовётся через sendBeacon из колбэка Метрики. Ручка публичная и без секрета —
+    и это осознанно: подделка ею возможна ровно одна, «не грузить конверсию по
+    чужому заказу», то есть занизить СВОИ же цифры. Ни денег, ни данных она не
+    выдаёт и ничего не меняет в заказе.
+    """
+    safe = "".join(c for c in oid if c.isalnum())[:64]
+    if safe:
+        with _json_locked(_YM_ONLINE):
+            d = _json_read(_YM_ONLINE)
+            d.setdefault(safe, datetime.now(timezone.utc).isoformat())
+            _json_write(_YM_ONLINE, d)
+    return JSONResponse({"ok": True})
 
 
 def _upload_offline_conversions() -> dict:
@@ -4274,6 +4313,12 @@ def _upload_offline_conversions() -> dict:
     try:
         with _json_locked(_YM_UPLOADED):
             done = set(_json_read(_YM_UPLOADED).keys())
+        # Заказы, по которым цель уже ушла онлайн, догружать НЕЛЬЗЯ: Метрика
+        # засчитает вторую конверсию на тот же ClientId, и одна покупка станет
+        # двумя — с удвоенной выручкой. Выгрузка существует для тех, кто НЕ
+        # вернулся на экран возврата; вернувшиеся отмечаются сами.
+        with _json_locked(_YM_ONLINE):
+            done |= set(_json_read(_YM_ONLINE).keys())
         # Журнал читается РОВНО ОДИН РАЗ, и из него же строится указатель на записи
         # создания заказов. Раньше на каждую неотправленную оплату звался
         # _find_order, а он заново перечитывает и разбирает весь orders.jsonl —
