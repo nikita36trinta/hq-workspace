@@ -192,6 +192,10 @@ def collect(counters: dict, orders_path: Path, landings: dict, period: str = "7d
             "fulfill_fail", "fulfill_degraded", "fulfill_rescued", "mail_fail",
             "write_fail_lead", "write_fail_order", "write_fail_plan", "plan_degraded",
             "ip_limit_skipped", "lead_rate_limited", "pay_rate_limited", "forgot_global_capped")},
+        # Шум снаружи — НЕ в «Здоровье». Ручка вебхука публичная, постучать в неё
+        # может кто угодно, и любое ненулевое значение в блоке здоровья читается
+        # как «у нас сломалось». Держим отдельно и подписываем словами.
+        "noise": {k: int(counters.get(k, 0) or 0) for k in ("webhook_junk",)},
         # Возвраты вычитаем и здесь: строка в шапке — та, которую переносят в
         # отчёт, и «1 оплата на 299 ₽» при полном возврате означала бы деньги,
         # которых нет.
@@ -309,6 +313,10 @@ def render(d: dict, token: str) -> str:
     health = ("<div class='empty'>Ошибок нет.</div>" if not bad else
               "<table>" + "".join(f"<tr><td>{_e(k)}</td><td><b>{_n(v)}</b></td></tr>"
                                   for k, v in sorted(bad.items(), key=lambda x: -x[1])) + "</table>")
+    junk = (d.get("noise") or {}).get("webhook_junk", 0)
+    if junk:
+        health += (f"<div class='empty'>Ещё {_n(junk)} — уведомления о платежах, которых у "
+                   f"ЮKassa нет: кто-то стучится в публичную ручку. Это не наша поломка.</div>")
 
     ta = d["totals_all_time"]
     label = dict(PERIODS).get(p, p)

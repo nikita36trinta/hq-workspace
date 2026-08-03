@@ -2910,7 +2910,11 @@ def _yk_get_payment(pid: str) -> dict:
         if r.status_code == 200:
             return r.json()
         if r.status_code == 404:
-            return {}  # платежа нет — это ОТВЕТ (подделка), повторять уведомление незачем
+            # Платежа нет — это ОТВЕТ, а не сбой связи. Раньше здесь возвращался
+            # пустой словарь, который _yk_unknown тут же объявлял незнанием: две
+            # соседние функции были написаны с противоположными намерениями, и
+            # побеждала вторая. Цена — ниже, в _webhook_junk.
+            return {"_absent": True}
     except Exception:  # noqa: BLE001
         pass
     return {"_unknown": True}
@@ -2920,6 +2924,27 @@ def _yk_unknown(v: dict) -> bool:
     """Мы НЕ ЗНАЕМ ответа ЮKassa (в отличие от «ответ отрицательный»). Пустой словарь
     тоже считаем незнанием: валидный платёж пустым не бывает."""
     return not v or bool(v.get("_unknown"))
+
+
+def _yk_absent(v: dict) -> bool:
+    """ЮKassa ответила определённо: такого платежа у неё нет. Это ЗНАНИЕ, и вести
+    себя как при сбое связи здесь нельзя — см. _webhook_junk."""
+    return bool(v) and bool(v.get("_absent"))
+
+
+def _webhook_junk(event: str, pid: str) -> JSONResponse:
+    """Уведомление про платёж, которого у ЮKassa нет: подделка, чужой шоп, старый
+    тестовый id. Ручка публичная и без авторизации — сюда может постучать кто угодно.
+
+    Отвечаем 200 и отдельным счётчиком. Раньше такое попадало в _webhook_retry, и
+    один curl из интернета делал сразу две вредных вещи: поднимал webhook_verify_fail
+    (а это показатель ЗДОРОВЬЯ КАССЫ, он означает «мы не смогли перепроверить свой
+    платёж» и стоит рядом с «касса лежит») и получал 5xx — то есть мы просили ЮKassa
+    повторить доставку уведомления, которого она никогда не отправляла. Три запроса
+    подряд с любого адреса — и в отчёте тревога на ровном месте."""
+    _bump("webhook_junk")
+    print(f"[INFO] вебхук про неизвестный ЮKassa платёж — игнорируем: {event} pid={pid}", flush=True)
+    return JSONResponse({"ok": True, "verified": False, "reason": "unknown_payment"})
 
 
 def _webhook_retry(event: str, pid: str) -> JSONResponse:
@@ -2977,6 +3002,8 @@ def _pay_webhook(payload: dict, request: Request, bg: BackgroundTasks) -> JSONRe
         # Проверяем по API: возврат виден в самом платеже как refunded_amount.
         # Без этого поддельное уведомление гасило бы подписку живому плательщику.
         verified = _yk_get_payment(pid)
+        if _yk_absent(verified):
+            return _webhook_junk("refund.succeeded", pid)   # такого платежа у кассы нет
         if _yk_unknown(verified):
             # Спросить не удалось. Ответив 200, мы бы навсегда потеряли возврат: подписка
             # осталась бы active с картой, и через 30 дней cron списал бы с того, кому вернули.
@@ -3017,6 +3044,8 @@ def _pay_webhook(payload: dict, request: Request, bg: BackgroundTasks) -> JSONRe
     if event == "payment.canceled":
         pid = obj.get("id", "")
         verified = _yk_get_payment(pid)
+        if _yk_absent(verified):
+            return _webhook_junk("payment.canceled", pid)
         if _yk_unknown(verified):
             return _webhook_retry("payment.canceled", pid)  # не знаем — пусть повторят
         if verified.get("status") != "canceled":
@@ -3048,6 +3077,8 @@ def _pay_webhook(payload: dict, request: Request, bg: BackgroundTasks) -> JSONRe
     if event == "payment.succeeded":
         pid = obj.get("id", "")
         verified = _yk_get_payment(pid)
+        if _yk_absent(verified):
+            return _webhook_junk("payment.succeeded", pid)
         if _yk_unknown(verified):
             # Раньше здесь молча уходило 200: сеть моргнула → ЮKassa считала уведомление
             # доставленным и не повторяла его, а плана, письма и подписки так и не было.
@@ -4243,7 +4274,14 @@ def _upload_offline_conversions() -> dict:
     try:
         with _json_locked(_YM_UPLOADED):
             done = set(_json_read(_YM_UPLOADED).keys())
-        rows = []
+        # Журнал читается РОВНО ОДИН РАЗ, и из него же строится указатель на записи
+        # создания заказов. Раньше на каждую неотправленную оплату звался
+        # _find_order, а он заново перечитывает и разбирает весь orders.jsonl —
+        # до двух полных проходов на строку. На боевом объёме это O(n²) в кроне,
+        # который тикает каждый час: при десяти тысячах заказов один тик читал
+        # бы журнал десятки тысяч раз. Данные те же, проход один.
+        creates: dict[str, dict] = {}
+        paid: list[dict] = []
         for line in ORDERS.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
@@ -4252,15 +4290,27 @@ def _upload_offline_conversions() -> dict:
             except ValueError:
                 continue
             oid = r.get("order") or ""
-            # Только подтверждённые деньги и только те, у кого есть ClientId:
-            # без него Метрике не к кому привязать конверсию.
-            if r.get("event") != "payment.succeeded" or not oid or oid in done:
+            if not oid:
                 continue
+            if r.get("event") == "payment.succeeded":
+                paid.append(r)
+            # Тот же выбор записи, что и в _find_order: строка с квизом — это
+            # запись создания и она главнее; иначе годится первая попавшаяся.
+            if oid not in creates or (r.get("quiz") and not creates[oid].get("quiz")):
+                creates[oid] = r
+        rows = []
+        for r in paid:
+            oid = r["order"]
+            # Только те, у кого есть ClientId: без него Метрике не к кому
+            # привязать конверсию.
+            if oid in done:
+                continue
+            src = creates.get(oid, {})
             # ClientId лежит в строке СОЗДАНИЯ заказа, а не в строке оплаты:
             # куку читает /api/pay/create, а вебхук приходит без браузера. Пока
             # искали только в строке succeeded, выгрузка была мертва — прогон на
             # боевом формате давал uploaded: 0 всегда.
-            cid = (r.get("ym_uid") or "").strip() or (_find_order(oid).get("ym_uid") or "").strip()
+            cid = (r.get("ym_uid") or "").strip() or (src.get("ym_uid") or "").strip()
             if not cid:
                 continue
             try:
@@ -4273,7 +4323,7 @@ def _upload_offline_conversions() -> dict:
             # половина конверсий не видна. Дедупликации между именами нет.
             # Сумма — из строки оплаты, с фолбэком на строку создания: без неё
             # в CSV уходил Price=0, и стратегии «по ценности» учились бы на нуле.
-            amt = str(r.get("amount") or (_find_order(oid).get("amount") or "")).replace(",", ".")
+            amt = str(r.get("amount") or src.get("amount") or "").replace(",", ".")
             try:
                 amt = f"{float(amt):.2f}"
             except ValueError:
