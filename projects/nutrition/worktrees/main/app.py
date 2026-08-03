@@ -18,6 +18,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote, unquote, urlencode
 
+import analytics
+import analytics_panels
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -1614,6 +1616,7 @@ def _lead_token_get(tok: str) -> dict:
 # кладутся СЫРЫМИ в лид и в заказ. Кука — 90 дней: столько живёт окно атрибуции
 # Яндекс.Директа, покупка через месяц после клика должна остаться за источником.
 UTM_COOKIE = "np_utm"
+CAMP_COOKIE = "np_camp"      # плоское имя кампании для модуля аналитики
 UTM_COOKIE_AGE = 60 * 60 * 24 * 90
 UTM_KEYS = ("utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
             "yclid", "gclid")
@@ -1657,6 +1660,15 @@ def _remember_marks(request: Request, response) -> None:
     try:
         response.set_cookie(UTM_COOKIE, quote(json.dumps(marks, ensure_ascii=False)),
                             max_age=UTM_COOKIE_AGE, samesite="lax", path="/", httponly=True)
+        # Отдельная кука с названием кампании — её читает модуль аналитики и
+        # штампует ею КАЖДОЕ событие. Из неё собирается матрица кампаний и
+        # разложение всей воронки по кампании. Общую np_utm он читать не может:
+        # там JSON, а модулю нужна плоская метка. Не httponly НАМЕРЕННО — она
+        # не секрет, зато так её видно из analytics.js при отладке.
+        camp = (marks.get("utm_campaign") or "").strip()[:64]
+        if camp:
+            response.set_cookie(CAMP_COOKIE, quote(camp), max_age=UTM_COOKIE_AGE,
+                                samesite="lax", path="/")
     except Exception:  # noqa: BLE001
         pass  # метка полезна, но ронять из-за неё ответ страницы нельзя
 
@@ -1824,6 +1836,8 @@ def _inject_metrika(html: str, anon_page: str = "") -> str:
     предварительно вычищается из location через history.replaceState
     (/pay/success), и только тогда anon_page работает как задумано.
     """
+    # Аналитика ставится ВСЕГДА и первой: она наша и от счётчика не зависит.
+    html = _inject_analytics(html)
     if notrack() or not (NUTRI_METRIKA_ID and "</head>" in html):
         return html
     cid = NUTRI_METRIKA_ID
@@ -1854,9 +1868,36 @@ def _inject_metrika(html: str, anon_page: str = "") -> str:
         # цель уходит. Без него самый важный клик (кнопка в квиз) отменял
         # собственный запрос навигацией, и цель не доезжала ни разу — замерено
         # перехватом на живом сайте.
-        "window.npGoal=function(n,p,cb){try{if(window.ym&&window.NP_METRIKA_ID)"
-        "ym(window.NP_METRIKA_ID,'reachGoal',n,p,cb);else if(cb)cb();}"
-        "catch(e){if(cb)cb();}};</script>" + pixel)
+        "</script>" + pixel)
+    return html.replace("</head>", snippet + "</head>", 1)
+
+
+def _inject_analytics(html: str) -> str:
+    """Вендорный модуль аналитики: сквозной id, событие visit, приём целей.
+
+    Ставится ОТДЕЛЬНО от Метрики и НЕ зависит от неё: хранилище наше, и когда
+    счётчик Метрики не настроен (или человек её заблокировал), воронка и деньги
+    считаться всё равно должны — иначе аналитика существует ровно до первого
+    блокировщика.
+
+    Скрипт подключается синхронно, без defer: `landing_view` и `quiz_start`
+    срабатывают в первые же миллисекунды, и при defer к их моменту window.Analytics
+    ещё не существовал бы — терялись бы именно верхние шаги воронки.
+
+    Здесь же живёт window.npGoal: одна точка, из которой цель уходит и в Метрику
+    (с колбэком — страница умеет придержать переход), и в наше хранилище. Раньше
+    он определялся внутри метрик-сниппета, то есть без счётчика цели не уходили
+    НИКУДА.
+    """
+    if notrack() or "</head>" not in html:
+        return html
+    snippet = (
+        "<script>window.ANALYTICS_CONFIG={endpoint:'/api/goal'};</script>"
+        "<script src='/assets/analytics.js'></script>"
+        "<script>window.npGoal=function(n,p,cb){"
+        "try{if(window.Analytics)window.Analytics.goal(n,p||{});}catch(e){}"
+        "try{if(window.ym&&window.NP_METRIKA_ID)ym(window.NP_METRIKA_ID,'reachGoal',n,p,cb);"
+        "else if(cb)cb();}catch(e){if(cb)cb();}};</script>")
     return html.replace("</head>", snippet + "</head>", 1)
 
 
@@ -2269,7 +2310,14 @@ def quiz(request: Request, l: str = "", resume: str = "") -> Response:
                 .replace("__DARK__", "1" if t["dark"] else "0")
                 .replace("__PRICE__", str(int(PRICE_RUB)))
                 .replace("__SUB_PRICE__", str(int(SUB_PRICE_RUB))))
-    return HTMLResponse(_inject_metrika(html))
+    resp = HTMLResponse(_inject_metrika(html))
+    # Квиз тоже закрепляет лендинг кукой. Раньше её ставил только /l/{slug}, и у
+    # тех, кто попал на квиз напрямую — из письма-возобновления, из «Оформить
+    # заново», по прямой ссылке, — события шли БЕЗ плеча A/B. Тест лендингов,
+    # ради которого корень и раздаёт трафик, на таких людях был слеп.
+    resp.set_cookie(LANDING_COOKIE, slug, max_age=LANDING_COOKIE_AGE,
+                    samesite="lax", httponly=True)
+    return resp
 
 
 @app.get("/api/health")
@@ -4827,7 +4875,12 @@ def sub_cancel(s: str = "") -> HTMLResponse:
         "<p>Открой свой план и найди раздел «Подписка». <a href='/login'>Войти</a></p></div>")
 
 
-@app.get("/admin/stats")
+# Адрес /admin/stats отдан вендорному модулю аналитики (см. конец файла): он даёт
+# сквозные уники, матрицу кампаний, срезы по устройству/источнику/плечу A/B и
+# денежную петлю. Этот дашборд остался как второй, узкий: в нём то, чего в модуле
+# нет по смыслу — лендинги, деградировавшие планы, здоровье кассы и остаток на
+# модели. Постепенно переезжает в панели модуля, поэтому и не удалён.
+@app.get("/admin/stats-basic")
 def admin_stats(request: Request, token: str = "", period: str = "7d",
                 format: str = "") -> Response:
     if not _secret_ok(token, request, "ADMIN_TOKEN", "X-Admin-Token"):
@@ -4906,3 +4959,123 @@ def admin_stats(request: Request, token: str = "", period: str = "7d",
         # для скриптов не показывал: сверяться с дашбордом стало бы нельзя, а
         # именно этот показатель захочется дёргать мониторингом.
         "llm": (d.get("llm") if isinstance(d, dict) else None) or {}})
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Продуктовая аналитика — вендорный модуль (analytics.py / analytics_render.py)
+#
+# Тот же пайплайн, что стоит на ЧистойСделке: сквозные уники по device-id,
+# матрица кампаний с проваливанием, срезы по устройству/ОС/браузеру/источнику,
+# денежная петля, LTV и повторные, отвал. Свой дашборд у нас считал визиты и
+# лиды по счётчикам — то есть события, а не людей, и ответить «сколько человек
+# дошло от рекламы до оплаты» им было нельзя.
+# ══════════════════════════════════════════════════════════════════════════
+def _analytics_payments() -> list[dict]:
+    """Оплаты для аналитики: сводим строку СОЗДАНИЯ заказа со строкой оплаты.
+
+    Деньги приходят вебхуком, у которого нет ни браузера, ни кук: в строке
+    payment.succeeded есть сумма и статус, но нет ни кампании, ни лендинга.
+    Всё это лежит в строке создания, поэтому журнал читается одним проходом и
+    склеивается по номеру заказа. Иначе вся выручка легла бы в «органику».
+    """
+    if not ORDERS.exists():
+        return []
+    creates: dict[str, dict] = {}
+    out: list[dict] = []
+    try:
+        for line in ORDERS.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            oid = r.get("order") or ""
+            if not oid:
+                continue
+            if r.get("event") == "payment.succeeded":
+                out.append(r)
+            elif oid not in creates:
+                creates[oid] = r
+    except Exception:  # noqa: BLE001
+        return []
+    rows = []
+    for r in out:
+        oid = r["order"]
+        src = creates.get(oid, {})
+        utm = src.get("utm") or {}
+        try:
+            amount = float(str(r.get("amount") or src.get("amount") or 0).replace(",", "."))
+        except ValueError:
+            amount = 0.0
+        rows.append({
+            "order_id": oid, "status": "succeeded", "amount": amount,
+            "ts": r.get("ts") or "", "email": src.get("email") or r.get("email") or "",
+            "campaign": (utm.get("utm_campaign") or "").strip(),
+            # Вариант = ЛЕНДИНГ: наш A/B — это они, а не цена. Тарифов два, и
+            # они не тест, а выбор человека; для них есть отдельная разбивка.
+            "variant": src.get("landing") or "",
+            "method": src.get("type") or r.get("type") or "",
+        })
+    return rows
+
+
+ANALYTICS = analytics.AnalyticsConfig(
+    project_id="nutriplan",
+    data_dir=str(DATA),
+    admin_token=os.getenv("ADMIN_TOKEN", ""),
+    title="NutriPlan · продуктовая аналитика",
+    # Воронка строго вложенная: каждый шаг — подмножество предыдущего. Порядок
+    # ровно тот, в котором человек идёт по продукту, а не «как удобно считать».
+    funnel=[("visit", "Зашли"),
+            ("quiz_start", "Начали квиз"),
+            ("quiz_metrics", "Ввели параметры"),
+            ("quiz_email_screen", "Дошли до почты"),
+            ("lead", "Оставили почту"),
+            ("quiz_norm_shown", "Увидели норму"),
+            ("pay_click", "Открыли оплату")],
+    money=[("pay_click", "Нажали оплатить"),
+           ("yookassa_reached", "Дошли до ЮKassa"),
+           ("pay_success", "Оплатили")],
+    payments_provider=_analytics_payments,
+    campaign_cookie=CAMP_COOKIE,
+    # Лендинг — наше плечо A/B: корень раздаёт трафик по четырём, и вопрос
+    # «какой конвертит» решается этим срезом.
+    stamp_cookies={LANDING_COOKIE: "ab"},
+    stamp_device=True,
+    signal_labels={"landing_view": "Просмотр лендинга",
+                   "landing_cta": "Клик в квиз с лендинга",
+                   "pay_click_sub": "Выбрал подписку",
+                   "pay_click_once": "Выбрал разовый"},
+    extra_events={"pay_click_sub", "pay_click_once", "pay_success"},
+    extra_kpis_provider=lambda ctx: _analytics_kpis(),
+    panels_provider=lambda ctx: analytics_panels.build(
+        str(DATA), _analytics_payments(), _counters()),
+)
+
+
+def _analytics_kpis() -> list[dict]:
+    """Плитки, которых модуль знать не может: они про наши расходы и нашу кассу.
+
+    Остаток на модели стоит здесь не для красоты: 3 августа он кончился молча, и
+    первый же оплативший клиент получил вместо плана заготовку без рецептов.
+    Показатель, из-за которого ломается товар, обязан быть на первом экране."""
+    out = []
+    try:
+        with _json_locked(LLM_BALANCE):
+            b = _json_read(LLM_BALANCE)
+        left = b.get("left")
+        if left is not None:
+            out.append({"label": "Остаток на модели", "value": f"${left:.2f}",
+                        "sub": "хватит на планы" if left > 10 else "пора пополнять",
+                        "tone": "ok" if left > 10 else ("warn" if left > 3 else "bad")})
+    except Exception:  # noqa: BLE001
+        pass
+    c = _counters()
+    bad = sum(int(c.get(k, 0) or 0) for k in
+              ("pay_create_error", "sub_create_error", "webhook_error", "fulfill_fail"))
+    out.append({"label": "Сбои кассы и выдачи", "value": str(bad),
+                "sub": "создание платежа, вебхук, доставка",
+                "tone": "ok" if not bad else "bad"})
+    return out
+app.include_router(analytics.make_router(ANALYTICS))

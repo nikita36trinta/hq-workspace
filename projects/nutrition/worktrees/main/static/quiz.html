@@ -1438,6 +1438,10 @@ function renderPlan(){
 
 async function startPayment(){
   const t = document.querySelector('.tar.sel')?.dataset.t || 'sub';
+  // Два события намеренно. pay_click — ступень воронки, общая для обоих тарифов:
+  // без неё «открыли оплату» пришлось бы складывать из двух чисел, а уники по
+  // сумме не складываются. pay_click_sub/once — разбивка по тарифу.
+  track('pay_click');
   track(t === 'sub' ? 'pay_click_sub' : 'pay_click_once');
   const url = t==='sub' ? '/api/pay/subscribe' : '/api/pay/create';
   const btn=$('#pay'); btn.disabled=true; btn.textContent='Открываю оплату…';
@@ -1445,7 +1449,13 @@ async function startPayment(){
     const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({email:leadEmail,landing:L,goal:answers.goal||'',quiz:answers,src:SRC})});
     const j=await r.json();
-    if(j.url){ location.href=j.url; return; }
+    if(j.url){
+      // Средняя ступень денежной петли: между «нажал» и «оплатил» стоит сама
+      // касса, и без этой отметки нельзя отличить «касса не открылась» от
+      // «передумал на форме ЮKassa» — а это разные поломки и разные починки.
+      try{ if(window.Analytics) window.Analytics.goal('yookassa_reached',{}); }catch(e){}
+      location.href=j.url; return;
+    }
     // Подписка уже есть. Три разных исхода, и раньше все три выглядели как один:
     // человека молча уносило на СТАРЫЙ план, без объяснения, почему с него не
     // взяли денег и куда делись новые ответы.

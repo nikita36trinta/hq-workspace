@@ -2,7 +2,7 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py auth.py stats.py plan.py plan_ai.py dish_photos.py dishes.json ./
+COPY app.py auth.py stats.py analytics.py analytics_render.py analytics_panels.py plan.py plan_ai.py dish_photos.py dishes.json ./
 COPY static ./static
 ENV DATA_DIR=/app/data
 EXPOSE 8790
