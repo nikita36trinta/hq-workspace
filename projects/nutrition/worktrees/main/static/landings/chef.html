@@ -53,7 +53,11 @@
 
   /* hero — editorial magazine */
   .hero{padding:56px 0 30px}
-  .hero-top{text-align:center;max-width:20ch;margin:0 auto}
+  /* Мера в px, а НЕ в ch. Было max-width:20ch — и это считалось от шрифта самого
+     контейнера (16px), то есть 202px, тогда как заголовок внутри — 86px. Восемь
+     слов ломались на пять строк, а по бокам оставалось по 460px пустоты.
+     Ловушка общая: ch и em в max-width родителя не знают ничего о кегле ребёнка. */
+  .hero-top{text-align:center;max-width:min(760px,100%);margin:0 auto}
   .hero-top .num{font-size:13px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
   .hero h1{font-size:clamp(44px,7vw,86px);margin:16px 0 0;letter-spacing:-.02em}
   .hero h1 em{color:var(--terra);font-style:italic}

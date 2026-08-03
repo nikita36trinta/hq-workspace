@@ -61,8 +61,12 @@
   .hero-cta{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
   .hero-cta small{color:var(--muted);font-size:14px}
   .hero-photo{position:relative;display:flex;justify-content:center;align-items:center}
+  /* overflow:visible, а не hidden. Плашки «1 840 ккал» и «21 приём» намеренно
+     свешиваются с карточки на 22px, а hidden их обрезал: слева пропадала первая
+     буква «Сегодня» и цифра, справа — «под твои тренировки». Скругление от этого
+     не страдает: картинка внутри скругляет себя сама (border-radius на img). */
   .hero-photo .pcard{position:relative;width:min(92%,400px);aspect-ratio:4/5;border-radius:46px;
-    overflow:hidden;background:linear-gradient(165deg,#DDF6E5,#B4EAC7)}
+    overflow:visible;background:linear-gradient(165deg,#DDF6E5,#B4EAC7)}
   .hero-photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
     object-position:50% 18%;border-radius:46px;z-index:1}
   .hero-badge{position:absolute;z-index:2;background:#fff;border:1px solid var(--line);
