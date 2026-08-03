@@ -173,13 +173,42 @@ class Direct:
         self.call("campaigns", {"method": "update", "params": {"Campaigns": [
             {"Id": campaign_id, "TextCampaign": {"BiddingStrategy": self._strategy(rub, network)}}]}})
 
+    # Категории автотаргетинга. «Целевые» — это запросы про то же, что в группе;
+    # остальные четыре и есть та околотематика, ради которой автотаргетинг
+    # выключали: на прошлом проекте через него ушло 96% расхода.
+    AUTOTARGETING_EXACT_ONLY = [{"Category": "EXACT", "Value": "YES"},
+                                {"Category": "ALTERNATIVE", "Value": "NO"},
+                                {"Category": "COMPETITOR", "Value": "NO"},
+                                {"Category": "BROADER", "Value": "NO"},
+                                {"Category": "ACCESSORY", "Value": "NO"}]
+
     def disable_autotargeting(self, campaign_id: int) -> int:
-        """Отключить автотаргетинг (Яндекс авто-добавляет к группам ПОИСКА — источник мусора).
-        В РСЯ автотаргет обычно ОСТАВЛЯЮТ (сети на нём и работают). Возвращает число отключённых."""
+        """Сузить автотаргетинг поисковых групп до целевых запросов.
+
+        Раньше здесь стоял keywords.suspend, и это БОЛЬШЕ НЕ РАБОТАЕТ: Директ
+        отвечает 8305 «Автотаргетинг не может быть остановлен» (проверено
+        2026-08-03). Хуже того, ответ приходил в поэлементных Errors, метод их не
+        читал и возвращал число «отключённых» — то есть рапортовал об успехе,
+        когда не сделал ничего. Теперь вместо остановки настраиваем категории:
+        оставляем EXACT, снимаем ALTERNATIVE/COMPETITOR/BROADER/ACCESSORY.
+
+        Ещё одна засада: строки автотаргетинга Яндекс заводит с задержкой после
+        создания группы, поэтому сразу после create_campaign их может не быть —
+        вызывать имеет смысл ПОВТОРНО, а не один раз в потоке создания.
+
+        Возвращает число реально настроенных групп. В РСЯ вызывать не надо:
+        сети на автотаргетинге и работают.
+        """
         auto = [k["Id"] for k in self.keywords([campaign_id])
                 if "autotargeting" in (k.get("Keyword") or "").lower()]
-        if auto:
-            self.call("keywords", {"method": "suspend", "params": {"SelectionCriteria": {"Ids": auto}}})
+        if not auto:
+            return 0
+        res = self.call("keywords", {"method": "update", "params": {"Keywords": [
+            {"Id": i, "AutotargetingCategories": self.AUTOTARGETING_EXACT_ONLY} for i in auto]}})
+        items = (res.get("result") or {}).get("UpdateResults") or []
+        bad = [u for u in items if u.get("Errors")]
+        if bad:
+            raise DirectError(f"автотаргетинг не настроен у {len(bad)} групп: {bad[0].get('Errors')}")
         return len(auto)
 
     # ---------- проба формулировок на модерацию ----------
