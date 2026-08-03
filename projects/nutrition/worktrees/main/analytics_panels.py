@@ -101,11 +101,123 @@ def _tariffs(events: list[dict], payments: list[dict]) -> dict:
             "table": {"head": ["Тариф", "Выбрали", "Оплатили", "CVR", "Выручка"], "rows": rows}}
 
 
-def build(data_dir: str, payments: list[dict], counters: dict, since: str = "") -> list[dict]:
+def _steps_of(events: list[dict]) -> list[tuple[int, str]]:
+    """Шаги квиза в порядке прохождения. Берём из самих событий, а не из списка
+    в коде: квиз меняется, а дашборд не должен требовать правки следом."""
+    seen: dict[int, str] = {}
+    for e in events:
+        if e.get("name") != "quiz_step":
+            continue
+        raw = str(e.get("part") or "")
+        num, _, title = raw.partition("|")
+        try:
+            seen.setdefault(int(num), title or f"шаг {num}")
+        except ValueError:
+            continue
+    return sorted(seen.items())
+
+
+def _depth(events: list[dict], steps: list[tuple[int, str]]) -> dict | None:
+    """Насколько глубоко проходят квиз — в разрезе лендинга.
+
+    Отвечает на вопрос, который не виден в воронке: «начали 40%, дошли до почты
+    12%» не говорит, ушли люди на втором вопросе или на десятом. Средний шаг и
+    доля пройденного показывают, лендинг привёл не тех или квиз слишком длинный.
+    """
+    if not steps:
+        return None
+    total = len(steps)
+    reach: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for e in events:
+        if e.get("name") != "quiz_step":
+            continue
+        sid, ab = e.get("sid"), (e.get("ab") or "—")
+        if not sid:
+            continue
+        try:
+            n = int(str(e.get("part") or "").partition("|")[0])
+        except ValueError:
+            continue
+        cur = reach[ab]
+        cur[sid] = max(cur.get(sid, 0), n)
+    if not reach:
+        return None
+    rows = []
+    for ab, per_sid in sorted(reach.items(), key=lambda kv: -len(kv[1])):
+        vals = list(per_sid.values())
+        avg = sum(vals) / len(vals)
+        # Индекс шага 0 — это «прошёл ноль шагов», поэтому глубина считается от
+        # числа ПЕРЕХОДОВ (total-1), иначе даже закрывший заставку выглядел бы
+        # прошедшим 9% квиза.
+        pct = avg / (total - 1) * 100 if total > 1 else 0
+        done = sum(1 for v in vals if v >= total - 1)
+        rows.append([ab, len(vals), f"{avg:.1f} из {total - 1}", f"{pct:.0f}%",
+                     done, f"{done / len(vals) * 100:.0f}%"])
+    return {"title": "Глубина прохождения квиза", "tag": "по лендингам",
+            "table": {"head": ["Лендинг", "Начали", "Средний шаг", "Пройдено",
+                               "Дошли до конца", "%"], "rows": rows}}
+
+
+def _step_table(events: list[dict], steps: list[tuple[int, str]],
+                payments: list[dict], ab: str, token: str) -> dict | None:
+    """Шаг за шагом: сколько дошло и сколько потеряли ИМЕННО ЗДЕСЬ.
+
+    Последние строки — оплата: без них таблица обрывается на пейволле, а самый
+    дорогой отвал происходит уже после него.
+    """
+    if not steps:
+        return None
+    ev = [e for e in events if ab == "all" or (e.get("ab") or "") == ab]
+    by_step: dict[int, set] = defaultdict(set)
+    for e in ev:
+        if e.get("name") != "quiz_step" or not e.get("sid"):
+            continue
+        try:
+            by_step[int(str(e.get("part") or "").partition("|")[0])].add(e["sid"])
+        except ValueError:
+            continue
+    if not by_step:
+        return None
+    started = len(by_step.get(steps[0][0], set())) or 1
+    rows, prev = [], None
+    for n, title in steps:
+        cnt = len(by_step.get(n, set()))
+        drop = "—" if prev is None else (f"−{(prev - cnt) / prev * 100:.0f}%" if prev else "—")
+        rows.append([f"{n}. {title}", cnt, f"{cnt / started * 100:.0f}%", drop])
+        prev = cnt
+    # Оплата — теми же двумя колонками, что и шаги: доля от начавших квиз и
+    # потеря на этом переходе. Иначе пейволл и касса выпадают из картины.
+    for name, label in (("pay_click", "→ Нажали «Оформить»"),
+                        ("yookassa_reached", "→ Дошли до ЮKassa")):
+        cnt = len({e["sid"] for e in ev if e.get("name") == name and e.get("sid")})
+        drop = f"−{(prev - cnt) / prev * 100:.0f}%" if prev else "—"
+        rows.append([label, cnt, f"{cnt / started * 100:.0f}%", drop])
+        prev = cnt
+    paid = [p for p in payments if ab == "all" or (p.get("variant") or "") == ab]
+    rows.append(["→ Оплатили", len(paid), f"{len(paid) / started * 100:.1f}%",
+                 f"−{(prev - len(paid)) / prev * 100:.0f}%" if prev else "—"])
+    labels = ["all"] + sorted({(e.get("ab") or "") for e in events if e.get("ab")})
+    controls = [{"label": "Все лендинги" if x == "all" else x,
+                 "href": f"?token={token}&ab={x}", "active": x == ab} for x in labels]
+    return {"title": "Шаги квиза", "icon": "spark",
+            "tag": ("все лендинги" if ab == "all" else f"лендинг: {ab}"),
+            "controls": controls,
+            "table": {"head": ["Шаг", "Дошло", "% от начавших", "Потеря на шаге"],
+                      "rows": rows}}
+
+
+def build(data_dir: str, payments: list[dict], counters: dict, since: str = "",
+          ab: str = "all", token: str = "") -> list[dict]:
     """Все проектные панели. Пустые срезы не показываем: панель без строк —
     это не «нет данных», а шум, из-за которого не видно панелей с данными."""
     ev = _events(data_dir, since)
     panels = []
+    # Шаги квиза — первыми: между «зашли» и «оплатили» у нас одиннадцать
+    # вопросов, и именно там теряется большая часть людей.
+    steps = _steps_of(ev)
+    for p in (_step_table(ev, steps, payments, ab, token), _depth(ev, steps)):
+        if p:
+            panels.append(p)
     p = _tariffs(ev, payments)
     if any(r[1] or r[2] for r in p["table"]["rows"]):
         panels.append(p)

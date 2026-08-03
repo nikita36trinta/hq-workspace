@@ -5046,11 +5046,22 @@ ANALYTICS = analytics.AnalyticsConfig(
     signal_labels={"landing_view": "Просмотр лендинга",
                    "landing_cta": "Клик в квиз с лендинга",
                    "pay_click_sub": "Выбрал подписку",
-                   "pay_click_once": "Выбрал разовый"},
-    extra_events={"pay_click_sub", "pay_click_once", "pay_success"},
+                   "pay_click_once": "Выбрал разовый",
+                   "js_error": "Ошибка JS на странице"},
+    # quiz_step несёт номер и заголовок шага в поле part — из него собираются
+    # таблица «Шаги квиза» и глубина прохождения. В воронку он не входит: там
+    # вехи, а тут — весь путь по одиннадцати вопросам.
+    extra_events={"pay_click_sub", "pay_click_once", "pay_success", "quiz_step",
+                  # js_error шлёт сам analytics.js при любой ошибке на странице.
+                  # Без него в конфиге события молча отбрасывались — то есть
+                  # единственный канал, по которому боевые JS-ошибки вообще
+                  # доходят до нас, был заглушён. Ошибка на квизе стоит дороже
+                  # любой метрики: сломанный шаг человек не проходит.
+                  "js_error"},
     extra_kpis_provider=lambda ctx: _analytics_kpis(),
     panels_provider=lambda ctx: analytics_panels.build(
-        str(DATA), _analytics_payments(), _counters()),
+        str(DATA), _analytics_payments(), _counters(),
+        ab=(ctx.get("q") or {}).get("ab", "all"), token=ctx.get("token", "")),
 )
 
 

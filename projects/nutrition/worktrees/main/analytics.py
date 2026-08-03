@@ -693,10 +693,15 @@ def make_router(cfg: AnalyticsConfig) -> APIRouter:
         return resp
 
     @router.get("/admin/stats")
-    def dashboard(token: str = "", src: str = "all", campaign: str = "all") -> Response:
+    def dashboard(request: Request, token: str = "", src: str = "all",
+                  campaign: str = "all") -> Response:
         if not cfg.admin_token or token != cfg.admin_token:
             raise HTTPException(status_code=403, detail="forbidden")
-        ctx = {"src": src, "token": token, "campaign": campaign}
+        # q — весь запрос целиком: панели проекта умеют иметь СВОИ переключатели
+        # (например «шаги квиза по этому лендингу»), а через три фиксированных
+        # параметра такой переключатель не сделать — панель не знает, что выбрано.
+        ctx = {"src": src, "token": token, "campaign": campaign,
+               "q": {k: v for k, v in request.query_params.items()}}
         data = build_dashboard(cfg, ctx)
         data["selfcheck"] = selfcheck(cfg)   # состояние подключения — на той же странице
         data["campaign_token"] = token       # для ссылок фильтра матрицы
