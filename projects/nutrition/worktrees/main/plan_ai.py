@@ -482,7 +482,18 @@ def generate_plan(quiz: dict, timeout: int = 90, attempts: int = 2,
                 data = json.loads(r.read())
             content = data["choices"][0]["message"]["content"]
             parsed = json.loads(content)
-        except Exception:  # noqa: BLE001 — сеть/невалидный JSON: ретрай, после всех попыток → банк
+        except Exception as e:  # noqa: BLE001 — сеть/невалидный JSON: ретрай, после всех попыток → банк
+            # Причину НАДО назвать вслух. 2026-08-03: на первой боевой оплате план
+            # приехал заготовкой — без рецептов, БЖУ по нулям и с пустым списком
+            # покупок. Причина оказалась банальной: на OpenRouter кончились деньги,
+            # и он отбивал запрос заранее с «402 Payment Required». Найти это по
+            # логам было НЕЛЬЗЯ: здесь стоял голый `except: continue`, и полная
+            # остановка главной функции продукта выглядела как тишина.
+            # Печатаем код ответа: 401/402 — это счёт и ключ, а не «сеть моргнула»,
+            # и чинятся они за минуту, если знать.
+            code = getattr(e, "code", "")
+            print(f"[ALERT] план не собран моделью (попытка {attempt + 1}/{attempts}): "
+                  f"{type(e).__name__} {code} {str(e)[:200]}", flush=True)
             continue
         days = parsed.get("days") or []
         shopping = parsed.get("shopping") or []
@@ -501,6 +512,8 @@ def generate_plan(quiz: dict, timeout: int = 90, attempts: int = 2,
     if soft_best:
         return soft_best
     # банк-fallback (без рецептов/покупок) — деградация; cron дорегенерирует (source=bank)
+    print(f"[ALERT] отдаём банк-заготовку вместо плана: {attempts} попытки не удались. "
+          f"Проверь баланс OpenRouter и ключ — 402/401 отбиваются мгновенно.", flush=True)
     return {**base, "source": "bank", **_bank_shape(quiz, avoid)}
 
 

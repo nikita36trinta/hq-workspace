@@ -75,6 +75,22 @@ def _in_period(ts: str, days: list[str] | None) -> bool:
         return False
 
 
+def _llm_balance(orders_path: Path) -> dict:
+    """Остаток на OpenRouter — его пишет часовой тик крона рядом с журналом заказов.
+
+    Показываем даже протухшее значение, с датой: «данных нет» и «денег нет» —
+    разные новости, и путать их нельзя. Ради этого показателя и заведён блок:
+    2026-08-03 деньги кончились молча, и оплативший клиент получил вместо плана
+    заготовку без рецептов.
+    """
+    f = orders_path.parent / "llm_balance.json"
+    try:
+        d = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+        return d if isinstance(d, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def collect(counters: dict, orders_path: Path, landings: dict, period: str = "7d") -> dict:
     days = _days_of(period)
 
@@ -196,6 +212,7 @@ def collect(counters: dict, orders_path: Path, landings: dict, period: str = "7d
         # может кто угодно, и любое ненулевое значение в блоке здоровья читается
         # как «у нас сломалось». Держим отдельно и подписываем словами.
         "noise": {k: int(counters.get(k, 0) or 0) for k in ("webhook_junk",)},
+        "llm": _llm_balance(orders_path),
         # Возвраты вычитаем и здесь: строка в шапке — та, которую переносят в
         # отчёт, и «1 оплата на 299 ₽» при полном возврате означала бы деньги,
         # которых нет.
@@ -317,6 +334,26 @@ def render(d: dict, token: str) -> str:
     if junk:
         health += (f"<div class='empty'>Ещё {_n(junk)} — уведомления о платежах, которых у "
                    f"ЮKassa нет: кто-то стучится в публичную ручку. Это не наша поломка.</div>")
+
+    # Остаток на модели — первым, перед списком ошибок: когда он кончится, всё
+    # остальное в этом блоке станет неважным. Планы начнут собираться заготовкой
+    # без рецептов, а узнаем мы об этом от клиента, как 3 августа.
+    llm = d.get("llm") or {}
+    if "left" in llm:
+        left = llm["left"]
+        when = str(llm.get("at") or "")[:16].replace("T", " ")
+        crit = left <= 3
+        warn = 3 < left <= 10
+        color = "#DC2626" if crit else ("#B45309" if warn else "#0E7A36")
+        note = ("— на планы почти не осталось, сборка вот-вот пойдёт заготовкой без рецептов"
+                if crit else ("— пора пополнять" if warn else "— хватает"))
+        health = (f"<div style='display:flex;align-items:baseline;gap:10px;margin-bottom:12px'>"
+                  f"<span style='font-size:22px;font-weight:800;color:{color}'>${_e(f'{left:.2f}')}</span>"
+                  f"<span style='color:#6B7566;font-size:13.5px'>на OpenRouter {_e(note)}"
+                  f"<span style='opacity:.65'> · проверено {_e(when)} UTC</span></span></div>") + health
+    else:
+        health = ("<div class='empty'>Остаток на OpenRouter ещё не спрашивали — "
+                  "появится после ближайшего часового тика.</div>") + health
 
     ta = d["totals_all_time"]
     label = dict(PERIODS).get(p, p)

@@ -26,3 +26,7 @@
 	path = projects/tendery/worktrees/main
 	url = git@github.com:nikita36trinta/tendery.git
 	branch = main
+[submodule "projects/healy/worktrees/main"]
+	path = projects/healy/worktrees/main
+	url = git@github.com:digiterium/healy.git
+	branch = main

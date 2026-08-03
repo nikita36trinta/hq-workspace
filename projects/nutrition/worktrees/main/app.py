@@ -4671,7 +4671,51 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
         out["ym_conv"] = _upload_offline_conversions()
     except Exception as e:  # noqa: BLE001
         out["ym_conv"] = {"error": str(e)[:80]}
+    out["llm_balance"] = _refresh_llm_balance()
     return JSONResponse(out)
+
+
+LLM_BALANCE = DATA / "llm_balance.json"
+
+
+def _refresh_llm_balance() -> dict:
+    """Спросить у OpenRouter остаток и запомнить его для дашборда.
+
+    Появилось после аварии 2026-08-03: деньги на модели кончились молча, и
+    первый же оплативший клиент получил вместо плана банк-заготовку — без
+    рецептов, с нулевым БЖУ и пустым списком покупок. Узнали мы об этом от
+    самого клиента. Остаток расходуется незаметно, поэтому спрашиваем его тем
+    же часовым тиком, что уже ходит по подпискам: один запрос, зато «деньги
+    заканчиваются» видно за неделю, а не по жалобе.
+
+    Ошибку не поднимаем: не смогли спросить — покажем прошлое значение с датой,
+    это честнее, чем обнулить показатель из-за моргнувшей сети.
+    """
+    key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if not key:
+        return {"skipped": True}
+    try:
+        import urllib.request
+
+        import plan_ai
+        req = urllib.request.Request("https://openrouter.ai/api/v1/credits",
+                                     headers={"Authorization": f"Bearer {key}"})
+        # Через тот же прокси, что и сама генерация: с российского адреса
+        # OpenRouter отвечает 403 (проверено — прямой запрос из контейнера
+        # именно так и упал), и без прокси показатель был бы вечно пустым.
+        with plan_ai._urlopen(req, 20) as r:
+            d = (json.loads(r.read()) or {}).get("data") or {}
+        left = round(float(d.get("total_credits") or 0) - float(d.get("total_usage") or 0), 2)
+        rec = {"left": left, "at": datetime.now(timezone.utc).isoformat()}
+        with _json_locked(LLM_BALANCE):
+            _json_write(LLM_BALANCE, rec)
+        if left <= 3:
+            print(f"[ALERT] на OpenRouter осталось {left} $ — планы вот-вот начнут "
+                  f"собираться заготовкой без рецептов", flush=True)
+        return rec
+    except Exception as e:  # noqa: BLE001
+        print(f"[ALERT] не спросили остаток OpenRouter: {type(e).__name__} {str(e)[:120]}", flush=True)
+        return {"error": str(e)[:80]}
 
 
 def _sweep_unfulfilled(now: datetime, base: str, cap: int = 5) -> int:
@@ -4819,4 +4863,8 @@ def admin_stats(request: Request, token: str = "", period: str = "7d",
         "webhook_verify_fail": c.get("webhook_verify_fail", 0),  # не смогли перепроверить платёж
         "webhook_error": c.get("webhook_error", 0),         # исключение в обработчике
         "fulfill_fail": c.get("fulfill_fail", 0),           # оплата есть, доставка упала
-    }})
+    },
+        # Остаток на модели — и в JSON тоже. Страница его показывает, а ответ
+        # для скриптов не показывал: сверяться с дашбордом стало бы нельзя, а
+        # именно этот показатель захочется дёргать мониторингом.
+        "llm": (d.get("llm") if isinstance(d, dict) else None) or {}})
