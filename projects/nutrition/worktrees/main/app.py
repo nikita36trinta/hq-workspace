@@ -672,6 +672,13 @@ def _sub_unbound_email(base: str, sid: str, until: str) -> str:
 
 
 def _sub_started_email(base: str, sid: str, amount, next_charge: str) -> str:
+    """Письмо об оформлении подписки. НЕ ОТПРАВЛЯЕТСЯ с 2026-08-03 — снято по
+    решению владельца (см. вебхук payment.succeeded, ветка subscription).
+
+    Оставлено готовым, а не удалено: если ЮKassa при очередной проверке
+    рекуррентов спросит про подтверждение оформления, вернуть надо будет
+    одну строку вызова, а не писать письмо заново.
+    """
     return _mail_shell(
         "Подписка активирована",
         f"Стоимость — {amount} ₽ в месяц, следующее списание {_ru_date(next_charge)}.<br>"
@@ -680,6 +687,10 @@ def _sub_started_email(base: str, sid: str, amount, next_charge: str) -> str:
 
 
 def _sub_renew_soon_email(base: str, sid: str, amount, next_charge: str) -> str:
+    """Предупреждение за 3 дня до списания. НЕ ОТПРАВЛЯЕТСЯ с 2026-08-03 — снято
+    по решению владельца (см. cron_run, ветка биллинга). Оставлено готовым: если
+    пойдут споры по списаниям или ЮKassa попросит предупреждать заранее, вернуть
+    надо будет условие отправки, а не письмо."""
     return _mail_shell(
         "Через 3 дня продлим подписку",
         f"{_ru_date(next_charge)} спишем {amount} ₽ с привязанной карты — за следующий месяц.",
@@ -3146,13 +3157,17 @@ def _pay_webhook(payload: dict, request: Request, bg: BackgroundTasks) -> JSONRe
                            "next_plan": (now + timedelta(days=7)).isoformat()})
             _bump(f"sub_ok_{slug}")
             _bump(f"sub_ok_{slug}_{osrc}")
-            # Письмо об активации — отдельно от письма с планом: человек должен из почты
-            # знать сумму, дату следующего списания и куда идти отменять. В фон, чтобы
-            # мейлер не съел таймаут вебхука (иначе ЮKassa начнёт ретраить доставку).
-            s = _load_sub(oid)
-            bg.add_task(_sub_mail_once, oid, "mail_started", "Подписка активирована · NutriPlan",
-                        _sub_started_email(base, oid, s.get("amount", SUB_PRICE_RUB),
-                                           s.get("next_charge", "")), "sub_started")
+            # Письма «Подписка активирована» здесь БОЛЬШЕ НЕТ — снято по решению
+            # владельца 2026-08-03. Оно называло дату следующего списания, и
+            # почтовые клиенты (Mail.ru точно) заводили из неё событие в календаре
+            # с напоминанием накануне: «завтра с тебя спишут». За сутки до платежа
+            # это прямое приглашение отменить.
+            #
+            # Чем закрыт риск, ради которого письмо и было: за три дня до каждого
+            # списания уходит «Через 3 дня продлим подписку» (см. cron_run) — то
+            # есть человек предупреждён заранее в любом случае, а условия названы
+            # на карточке тарифа и в оферте. Если ЮKassa при проверке рекуррентов
+            # спросит про подтверждение оформления — вернуть отсюда.
             bg.add_task(_fulfill_once, email, quiz, oid, base)  # даже при пустом quiz → bank-план + письмо
         elif typ == "sub_renew":
             _bump(f"sub_renew_ok_{slug}")
@@ -4533,17 +4548,14 @@ def cron_run(request: Request, secret: str = "") -> JSONResponse:
             pend = sub.get("pending_charge_id") if billable else None
             nc = datetime.fromisoformat(sub["next_charge"])
             due = billable and now >= nc
-            # Предупреждение за 3 дня. Только если списание реально произойдёт (карта на
-            # месте) и ровно один раз на период — метка хранит тот next_charge, о котором
-            # уже предупредили, поэтому в следующем месяце предупредим снова.
-            if (active and sub.get("payment_method_id") and not pend and not due
-                    and nc - now <= timedelta(days=3)
-                    and sub.get("renew_notified_for") != sub["next_charge"]):
-                _sub_merge(sid, {"renew_notified_for": sub["next_charge"]})  # метка ДО отправки
-                _send_email(sub["email"], "Через 3 дня продлим подписку · NutriPlan",
-                            _sub_renew_soon_email(base, sid, sub.get("amount", SUB_PRICE_RUB),
-                                                  sub["next_charge"]), "sub_renew_soon")
-                out["renew_notified"] += 1
+            # Предупреждения за 3 дня БОЛЬШЕ НЕТ — снято по решению владельца
+            # 2026-08-03 вместе с письмом об активации. Обоснование то же: письмо
+            # накануне списания читается как приглашение отменить.
+            #
+            # Что осталось вместо него: письмо «Списание по подписке» ПОСЛЕ факта
+            # (см. _mail_charged) — то есть человек узнаёт о платеже в тот же день,
+            # а не через месяц из выписки. Счётчик renew_notified оставлен в ответе
+            # крона нулём, чтобы не ломать разбор ответа снаружи.
             if pend:
                 st = _yk_payment_status(pend)  # досматриваем незакрытый платёж, новый НЕ создаём
                 if st == "succeeded":
