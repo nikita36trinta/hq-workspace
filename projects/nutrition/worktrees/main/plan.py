@@ -764,15 +764,14 @@ def page_html(pl: dict, title: str = "Твой план питания", token: 
     acct = _acct_html(sub, token)
     # Вход в подписку — только если подписка есть. Разовому плану нечего там
     # показывать, а пустое окно раздражает сильнее отсутствующей ссылки.
-    # Это строка-карточка, а не ссылка в подвале: за отменой списаний человек
-    # идёт целенаправленно, и прятать её под полутора тысячами пикселей прокрутки
-    # мелким серым — способ получить не отписку, а возврат через банк.
-    subs_link = ("<a href='#sub' id='subsopen' class='subsbtn'>"
-                 "<span class='sbi'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' "
-                 "stroke-width='1.8' stroke-linecap='round'><rect x='2.5' y='5' width='19' height='14' rx='3'/>"
-                 "<path d='M2.5 10h19'/></svg></span>"
-                 "<span class='sbt'><b>Подписка</b><span>Статус, карта, отмена</span></span>"
-                 "<span class='sbc'>›</span></a>") if acct else ""
+    # Ссылка в ПОДВАЛЕ, рядом с офертой и политикой (решение владельца
+    # 2026-08-03). До этого была карточкой под параметрами плана — с рассуждением,
+    # что за отменой идут целенаправленно и прятать её дороже, чем показать.
+    # Теперь баланс выбран другой: не звать в отмену, но и не прятать. Поэтому
+    # ссылка обычного для подвала размера и контраста, стоит среди правовых, а
+    # НЕ спрятана за меню или мелким серым: окно отмены достижимо в два нажатия
+    # с любого экрана — этого требует и оферта, и здравый смысл.
+    subs_foot = ("<a href='#sub' id='subsopen'>Подписка</a>") if acct else ""
     # ver/started пишет app.py при сохранении плана; у планов, созданных раньше, их нет —
     # тогда ведём себя как прежде. Фильтруем символы, потому что ver уезжает в JS-строку.
     ver = "".join(c for c in str(pl.get("ver") or "") if c.isalnum() or c in "-_.")
@@ -1085,21 +1084,8 @@ h1{{font-family:Unbounded;font-weight:800;font-size:30px;letter-spacing:-.05em;l
 .resumeb{{display:block;margin-top:16px;width:100%;border:none;background:var(--g);color:#fff;
   font-weight:800;font-size:15px;padding:14px;border-radius:12px;text-align:center;text-decoration:none}}
 .cmsg{{margin-top:12px;font-size:14px;color:var(--gd);font-weight:700;display:none}}.cmsg.s{{display:block}}
-/* Вход в подписку. Был серой ссылкой 13px в самом низу профиля — до неё надо
-   было прокрутить полторы тысячи пикселей, а идут туда за отменой списаний,
-   то есть с раздражением. Теперь это строка-карточка того же размера, что и
-   остальные разделы, и стоит она сразу под параметрами плана. */
-.subsbtn{{display:flex;align-items:center;gap:12px;width:100%;margin-top:12px;
-  border-radius:var(--rl);padding:15px 16px;font:inherit;text-align:left;text-decoration:none;
-  color:var(--ink);border:1px solid var(--glass-line);background:var(--glass);
-  -webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);
-  box-shadow:inset 0 1px 0 var(--glass-edge),var(--sh-1);cursor:pointer}}
-.subsbtn .sbi{{width:22px;height:22px;flex:0 0 auto;color:var(--gd)}}
-.subsbtn .sbi svg{{width:100%;height:100%;display:block}}
-.subsbtn .sbt{{min-width:0}}
-.subsbtn .sbt b{{display:block;font-size:15px;font-weight:700}}
-.subsbtn .sbt span{{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}}
-.subsbtn .sbc{{margin-left:auto;color:var(--muted);font-size:18px;line-height:1}}
+/* Стилей карточки-строки подписки здесь больше нет: вход в подписку переехал
+   в подвал, к правовым ссылкам, и живёт на общем .plegal .plinks a. */
 .plegal{{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);text-align:center;font-size:13px;color:var(--muted)}}
 .plegal .plinks a{{color:var(--muted);margin:0 8px;text-decoration:underline;text-underline-offset:2px}}
 .plegal .preq{{margin-top:10px}}.plegal .preq a{{color:var(--muted)}}
@@ -1410,10 +1396,6 @@ body{{padding-bottom:104px}}
         <b id="pgv">0</b><span class="psub">стаканов сегодня</span></div>
     </div></section>
   {_params(pl, goal_code, water_goal)}
-  <!-- Подписка сразу под параметрами плана, а не серой ссылкой в самом низу:
-       её ищут, когда хотят отменить списание, и не найти её — дороже, чем
-       увидеть лишний раз. Само окно по-прежнему открывается поверх. -->
-  {subs_link}
   <section class="sec" id="weightsec"><h2>Твой вес</h2>
     <div class="wcard">
       <div class="wrow"><div class="wbig"><span id="wcur">—</span><small>кг</small></div>
@@ -1431,10 +1413,12 @@ body{{padding-bottom:104px}}
   {_tips(pl.get('tips') or [])}
   <footer class="plegal">
     <!-- «Войти по почте» отсюда убрана: страницу открывают уже вошедшими, и
-         ссылка предлагала сделать то, что уже сделано. Подписка тоже ушла
-         отсюда наверх, к параметрам плана: серые 13px под полутора тысячами
-         пикселей прокрутки — не то место, где ищут отмену списаний. -->
-    <div class="plinks"><a href="/offer">Оферта</a><a href="/privacy">Политика ПДн</a><a href="/consent">Согласие</a></div>
+         ссылка предлагала сделать то, что уже сделано.
+         Подписка стоит здесь, среди правовых ссылок, — по решению владельца
+         2026-08-03. До этого она была карточкой под параметрами плана; решение
+         сознательно меняет баланс: не звать в отмену, но и не прятать. Ссылка
+         обычного размера и контраста, окно открывается тем же нажатием. -->
+    <div class="plinks"><a href="/offer">Оферта</a><a href="/privacy">Политика ПДн</a><a href="/consent">Согласие</a>{subs_foot}</div>
     <!-- Оговорка в подвале, мелким шрифтом: то же, что уже есть в оферте и в
          письмах, но теперь и в самом продукте. Мелким — не значит спрятанным:
          текст читаемый и контрастный. Оговорка, которую суд признает скрытой,
