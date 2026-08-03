@@ -1,0 +1,2 @@
+{"order": "paidtest", "type": "subscription", "email": "e2e@example.com", "landing": "slim", "amount": "499", "ym_uid": "cid-e2e", "quiz": {"goal": "lose"}, "ts": "2026-08-03T10:00:00+00:00"}
+{"order": "paidtest", "event": "payment.succeeded", "status": "succeeded", "amount": "499.00", "ts": "2026-08-03T10:01:00+00:00"}

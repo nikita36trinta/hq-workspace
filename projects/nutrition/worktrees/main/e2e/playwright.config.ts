@@ -66,7 +66,12 @@ export default defineConfig({
 			// их шесть, и все они про деньги.
 			"-v \"$PWD/fixtures/plans/subended.json:/tmp/e2edata/plans/subended.json:ro\" " +
 			"-v \"$PWD/fixtures/plans/subcanceled.json:/tmp/e2edata/plans/subcanceled.json:ro\" " +
-			"-v \"$PWD/fixtures/subs:/tmp/e2edata/subs:ro\" nutriplan-e2e",
+			"-v \"$PWD/fixtures/subs:/tmp/e2edata/subs:ro\" " +
+			// Оплаченный заказ + его план: экран возврата иначе не показать —
+			// боевую оплату в наборе не сделать (ключей ЮKassa нет), а сам
+			// экран несёт форму пароля, единственную в продукте.
+			"-v \"$PWD/fixtures/plans/paidtest.json:/tmp/e2edata/plans/paidtest.json:ro\" " +
+			"-v \"$PWD/fixtures/orders.jsonl:/tmp/e2edata/orders.jsonl:ro\" nutriplan-e2e",
 		url: "http://localhost:8791/api/health",
 		reuseExistingServer: false,
 		timeout: 300_000,

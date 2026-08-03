@@ -450,15 +450,6 @@
   .tp b{display:block;font-size:22px;font-weight:800;color:var(--accent-d);line-height:1.1}
   .tp small{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
 
-  /* Подписка выбрана заранее — значит, она обязана объяснить себя ДО оплаты:
-     сумма, период и как отменить, рядом с кнопкой, а не мелким шрифтом в
-     оферте. Про повторное списание человек должен узнать здесь, а не из смс
-     через месяц. */
-  .renew{display:flex;align-items:flex-start;gap:9px;margin-top:16px;font-size:13.5px;line-height:1.4;
-    color:color-mix(in srgb,var(--ink) 80%,transparent)}
-  .renew svg{width:16px;height:16px;flex:0 0 auto;margin-top:1px;stroke:var(--accent-d)}
-  .renew b{font-weight:800}
-
   /* Честные опоры вместо мелкой серой строчки: то, что реально выполняется. */
   .pw-trust{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
   .pw-trust span{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
@@ -1207,14 +1198,13 @@ function renderPlan(){
   const perPlan = Math.round(SUB_PRICE / 4);
   const subDay = Math.round(SUB_PRICE / 30);
   const onceDay = Math.round(PRICE / 7);
-  // Текст про списание меняется вместе с тарифом: у разового плана обещать
-  // «отмену» нечего, а у подписки нельзя молчать о повторе.
-  const RENEW = {
-    // «В один клик» тут было бы неправдой: и кнопка в плане, и ссылка из письма
-    // ведут в раздел «Подписка», где отмена подтверждается вторым нажатием.
-    sub: `<b>${SUB_PRICE} ₽ спишется сегодня и дальше каждый месяц</b>, пока не отменишь. Отменить можно в любой момент — кнопкой в плане или по ссылке из письма.`,
-    once: `<b>${PRICE} ₽ один раз</b> — повторных списаний не будет.`,
-  };
+  // Строка про повторное списание убрана с пейволла по решению владельца
+  // (2026-08-03). Что при этом осталось сказано человеку до оплаты: на карточке
+  // тарифа стоит «499 ₽ / в месяц» и «Новый план каждую неделю», условия
+  // автопродления и отмены — в оферте, а после оплаты приходит письмо
+  // «Подписка активирована» со ссылкой на управление.
+  // Если ЮKassa при проверке спросит про раскрытие условий рекуррента — вернуть
+  // сюда одну короткую строку рядом с кнопкой, это дешевле спора.
   // Ровная линия для «держать форму» / «наладить питание»: у этих целей
   // снижения не обещано, значит и кривая никуда не идёт.
   const y0 = pg.dir==='flat' ? 75 : (pg.dir==='down' ? 34 : 116);
@@ -1372,7 +1362,6 @@ function renderPlan(){
           <div class="tp"><b>${PRICE} ₽</b><small>разово</small></div></label>
       </div>
 
-      <div class="renew">${IC.repeat}<span id="renewTx">${RENEW.sub}</span></div>
       <div class="foot"><button class="cta" id="pay">Оформить →</button></div>
       <div class="pw-trust">
         <span>${IC.check} Чек на почту</span>
@@ -1440,12 +1429,8 @@ function renderPlan(){
       leadEmail=v; planRevealed=true; saveState(); render(); window.scrollTo(0,0);
     });
   } else {
-    const renewTx=document.getElementById('renewTx');
     stage.querySelectorAll('.tar').forEach(el=>el.addEventListener('click', ()=>{
       stage.querySelectorAll('.tar').forEach(x=>x.classList.toggle('sel', x===el));
-      // Строка про списание всегда описывает ВЫБРАННЫЙ тариф, иначе предвыбор
-      // подписки превращается в обещание, которого человек не читал.
-      if(renewTx) renewTx.innerHTML = RENEW[el.dataset.t] || RENEW.sub;
     }));
     $('#pay').addEventListener('click', startPayment);
   }

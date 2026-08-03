@@ -4069,7 +4069,23 @@ def pay_success(o: str = "", request: Request = None, bg: BackgroundTasks = None
             "<script>(function(){var t=0;"
             f"var u='/api/plan/{oid}/ready',p='/plan/{oid}';"
             "function tick(){t+=3;fetch(u).then(function(r){return r.json()}).then(function(j){"
-            "if(j.ready){location.href=p;return;}"
+            # План готов — но если на экране висит форма пароля, УВОДИТЬ НЕЛЬЗЯ.
+            # Именно это и случилось на первой боевой оплате: человек начал
+            # вводить пароль, план собрался за секунды, и страница сменилась
+            # прямо под руками. Форма задумана как единственный момент, когда
+            # пароль вообще предлагают, — и она оказывалась недостижима у всех,
+            # у кого генерация уложилась в пару секунд.
+            # Вместо перехода показываем кнопку: человек решает сам, когда уйти.
+            "if(j.ready){var f=document.getElementById('pwf');"
+            "if(!f||f.dataset.done==='1'){location.href=p;return;}"
+            "var w=document.getElementById('wait');"
+            "if(w&&!w.dataset.ready){w.dataset.ready='1';"
+            "w.textContent='План готов — задай пароль и открывай. Или открой сразу.';"
+            "var a=document.createElement('a');a.href=p;a.textContent='Открыть план →';"
+            "a.style.cssText='display:inline-block;margin-top:14px;background:#16A34A;color:#fff;"
+            "text-decoration:none;font-weight:800;padding:13px 26px;border-radius:12px';"
+            "w.parentNode.insertBefore(a,w.nextSibling);}"
+            "return;}"
             "if(t<240){setTimeout(tick,3000);}else{"
             # textContent, а не innerHTML: текст здесь наш, но подставлять его как разметку
             # без нужды — лишний способ однажды получить XSS
@@ -4159,8 +4175,12 @@ def pay_success(o: str = "", request: Request = None, bg: BackgroundTasks = None
             "body:JSON.stringify({password:document.getElementById('pw1').value,"
             "password2:document.getElementById('pw2').value})})"
             ".then(function(r){return r.json()}).then(function(j){"
-            "if(j.ok){ok.style.display='block';f.querySelectorAll('input,button').forEach("
-            "function(x){x.disabled=true});return;}"
+            # Пароль сохранён — форма своё отработала, и держать человека на этой
+            # странице больше незачем: уводим на план сами. Метка done снимает и
+            # запрет на переход у поллера (см. выше).
+            "if(j.ok){ok.style.display='block';f.dataset.done='1';"
+            "f.querySelectorAll('input,button').forEach(function(x){x.disabled=true});"
+            f"setTimeout(function(){{location.href='/plan/{oid}';}},900);return;}}"
             "er.textContent=j.error||'Не удалось сохранить';er.style.display='block';"
             "b.disabled=false;b.textContent='Сохранить пароль';})"
             ".catch(function(){er.textContent='Нет связи — попробуй ещё раз';"
@@ -4168,8 +4188,11 @@ def pay_success(o: str = "", request: Request = None, bg: BackgroundTasks = None
             "});})();</script>")
 
     title = "Оплата получена!" if paid else "Платёж обрабатывается"
-    body = ("Авокадо собирает твой план (≈1 минута) — страница откроет его сама. "
-            "Ссылка придёт и на почту.") if paid else (
+    # «Страница откроет его сама» больше не обещаем: при показанной форме пароля
+    # она этого не делает намеренно, а обещание, которое иногда выполняется, —
+    # хуже отсутствия обещания.
+    body = ("Авокадо собирает твой план — это около минуты. "
+            "Ссылка на него придёт и на почту.") if paid else (
             "Банк ещё не подтвердил платёж. Если деньги спишутся, план соберётся "
             "автоматически и ссылка придёт на почту — эту страницу можно закрыть.")
     mark = ("<svg width='44' height='44' viewBox='0 0 24 24' fill='none' stroke='#fff' stroke-width='3' "
