@@ -86,18 +86,56 @@ def _an_since():
 
 
 def _an_extra_kpis(ctx: dict) -> list[dict]:
-    """Доп-плитки в верхнюю сводку: баланс поставщика данных (ops-сигнал)."""
+    """Доп-плитки в верхнюю сводку: баланс поставщика данных (ops-сигнал).
+
+    Поставщик здесь apipoint, а не NewDB: NewDB — ЕГРН и ФССП, к автомобилям
+    отношения не имеет, и его баланс на этом дашборде вводил в заблуждение.
+
+    Отдельного метода «покажи баланс» у apipoint нет, зато остаток приходит в
+    КАЖДОМ ответе — мы пишем его в журнал вызовов. Берём последнюю запись и
+    честно говорим, на какой момент число верно: спрашивать баланс отдельным
+    платным вызовом ради плитки было бы глупо.
+    """
     out = []
     try:
-        from modules import newdb
-        bal = newdb.balance()
+        import json as _json
+        from datetime import datetime, timezone
+        path = Path(os.getenv("APIPOINT_LOG", "data/apipoint_calls.jsonl"))
+        bal, ts = None, ""
+        if path.exists():
+            for line in reversed(path.read_text(encoding="utf-8").splitlines()):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = _json.loads(line)
+                except Exception:  # noqa: BLE001
+                    continue
+                if rec.get("balance") is not None:
+                    bal, ts = float(rec["balance"]), str(rec.get("ts") or "")
+                    break
         if bal is None:
-            out.append({"label": "NewDB баланс", "value": "н/д", "sub": "не удалось получить", "tone": "bad"})
-        else:
-            tone = "bad" if bal < 200 else "" if bal < 500 else "good"
-            sub = "при нуле проверки падают" if bal < 500 else "поставщик ЕГРН/ФССП"
-            out.append({"label": "NewDB баланс", "value": f"{bal:,}".replace(",", " ") + " ₽",
-                        "sub": sub, "tone": tone})
+            out.append({"label": "Баланс apipoint", "value": "н/д",
+                        "sub": "запросов ещё не было", "tone": ""})
+            return out
+        # ≈32 ₽ за полный отчёт — считаем, на сколько ещё хватит. Это понятнее
+        # рублей: «13 отчётов» говорит о риске, «419 ₽» — нет.
+        left = int(bal // 32)
+        tone = "bad" if left < 20 else "" if left < 60 else "good"
+        when = ""
+        try:
+            t = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            mins = int((datetime.now(timezone.utc) - t).total_seconds() // 60)
+            when = ("только что" if mins < 2 else
+                    f"{mins} мин назад" if mins < 90 else f"{mins // 60} ч назад")
+        except Exception:  # noqa: BLE001
+            pass
+        sub = f"хватит на ~{left} отчётов" + (f" · замер {when}" if when else "")
+        if left < 20:
+            sub = f"ХВАТИТ НА ~{left} ОТЧЁТОВ — при нуле сайт откажет в оплате"
+        out.append({"label": "Баланс apipoint",
+                    "value": f"{bal:,.2f}".replace(",", " ") + " ₽",
+                    "sub": sub, "tone": tone})
     except Exception:  # noqa: BLE001
         pass
     return out
