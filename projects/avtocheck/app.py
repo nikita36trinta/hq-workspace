@@ -3304,6 +3304,51 @@ def _find_stuck_paid() -> list[dict[str, Any]]:
     return sorted(out, key=lambda x: x.get("paid_at") or "")
 
 
+SCHEMES_DIR = Path(os.getenv("GENERATED_DIR", "data/generated")).parent / "schemes"
+
+
+def _save_dtp_schemes(report_id: str, checks: list) -> None:
+    """Скачать схемы повреждений и подменить ссылки на свои.
+
+    Схема — самая наглядная часть отчёта о ДТП: жёлтым закрашены зоны удара.
+    Отдаём её со своего домена, а не ссылкой на CDN поставщика.
+    """
+    import httpx          # локально, как и в остальных местах файла
+    SCHEMES_DIR.mkdir(parents=True, exist_ok=True)
+    n = 0
+    for c in checks:
+        if getattr(c, "key", "") != "dtp":
+            continue
+        for item in (getattr(c, "items", None) or []):
+            url = str((item or {}).get("schemeUrl") or "")
+            if not url.startswith("http"):
+                continue
+            n += 1
+            dest = SCHEMES_DIR / f"{report_id}-{n}.png"
+            try:
+                with httpx.Client(timeout=20, follow_redirects=True) as cl:
+                    r = cl.get(url)
+                if r.status_code == 200 and len(r.content) > 500:
+                    dest.write_bytes(r.content)
+                    item["schemeUrl"] = f"/report/{report_id}/scheme/{n}.png"
+                else:
+                    print(f"[scheme] {url} → HTTP {r.status_code}", flush=True)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[scheme] {type(exc).__name__}: {exc}", flush=True)
+
+
+@app.get("/report/{report_id}/scheme/{idx}.png")
+def report_scheme(report_id: str, idx: str) -> Any:
+    """Схема повреждений. Часть платного отчёта, поэтому под тем же гейтом."""
+    if report_id != "example" and not orders.is_report_paid(report_id):
+        raise HTTPException(status_code=402, detail="Отчёт доступен после оплаты.")
+    safe = re.sub(r"[^0-9]", "", idx) or "1"
+    path = SCHEMES_DIR / f"{report_id}-{safe}.png"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Схема не найдена.")
+    return FileResponse(str(path), media_type="image/png")
+
+
 @app.get("/example", response_class=HTMLResponse)
 def example_view() -> HTMLResponse:
     """Пример отчёта — открыт всем, без оплаты и без заявки.
@@ -3581,6 +3626,14 @@ def _do_finalize(report_id: str, object_only: bool | None = None) -> bool:
             tariff=rec.get("tariff", "base"), consent=True,
         )
         checks = _run_checks(req, preview=False, object_only=object_only)  # единый прогон без ретраев
+
+        # Схемы повреждений по ДТП забираем к себе. Ссылка ведёт на CDN
+        # поставщика: она может протухнуть, а до тех пор каждый открывший отчёт
+        # светит ему свой браузер. Картинка маленькая, скачивание бесплатно.
+        try:
+            _save_dtp_schemes(report_id, checks)
+        except Exception as exc:  # noqa: BLE001 — картинка не стоит отчёта
+            print(f"[scheme] {report_id}: {type(exc).__name__}: {exc}", flush=True)
 
         # Паспорт машины и периоды владения приезжают тем же вызовом gai, что и
         # ограничения — отдельных денег не стоят. _run_checks кладёт их сюда.
