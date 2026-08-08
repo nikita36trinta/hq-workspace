@@ -293,6 +293,43 @@ body{
 .v4-foot{padding:14px 18px 16px; background:var(--bg-soft); border-top:1px solid var(--line); font-size:12.5px; line-height:1.6; color:#4b5563}
 .v4-foot b{color:var(--ink)}
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ВАРИАНТЫ 6 и 7 — фотореалистичный рендер машины с подсветкой зоны удара.
+   Снимок сгенерирован под нас (Nano Banana Pro), поэтому лежит у нас и не
+   тянет за собой чужую лицензию, как сток.
+   ══════════════════════════════════════════════════════════════════════════ */
+/* Снимок заполняет плашку без полей. С полями был виден прямоугольник: фон
+   самой картинки чуть светлее плашки, и стык читался рамкой вокруг машины. */
+.shot{
+  position:relative; border-radius:18px; overflow:hidden;
+  background:#f3f4f6; margin:8px 0 4px;
+}
+.shot img{display:block; width:100%; height:auto}
+/* Скобка вокруг пострадавшего конца машины. Открыта в сторону кузова, как
+   указующая дуга: сама форма говорит «вот эта часть», без единого слова. */
+.shot-arc{
+  position:absolute; border:3px solid var(--warn); border-right:0;
+  border-radius:999px 0 0 999px; pointer-events:none;
+}
+.shot-tab{
+  position:absolute; background:var(--warn); color:#fff; border-radius:6px;
+  padding:9px 4px; font:700 10px/1 var(--sans); letter-spacing:.06em;
+  writing-mode:vertical-rl; text-orientation:mixed; transform:translateY(-50%);
+}
+/* Точка повреждения: янтарное ядро в белом кольце и мягком ореоле — на
+   светлом кузове иначе теряется. */
+.shot-dot{
+  position:absolute; width:13px; height:13px; border-radius:50%;
+  background:var(--warn); border:2.5px solid #fff; transform:translate(-50%,-50%);
+  box-shadow:0 0 0 5px rgba(217,119,6,.22), 0 2px 6px rgba(0,0,0,.28);
+}
+.shot-meta{
+  display:flex; align-items:center; gap:8px; padding:12px 18px 0;
+  font-size:13px; font-weight:700;
+}
+.shot-meta i{width:8px; height:8px; border-radius:50%; background:var(--bad); flex:none}
+.shot-sub{padding:4px 18px 0; font:500 11px/1.5 var(--mono); color:#9aa4b2; letter-spacing:.02em}
+
 /* Пятый вариант: настоящая схема из записи о ДТП вместо рисунка. */
 .v5-figure{padding:20px 18px 14px; background:linear-gradient(180deg,#f7faff,#fff); border-bottom:1px solid var(--line)}
 .v5-figure img{display:block; width:100%; max-width:250px; margin:6px auto 0; height:auto}
@@ -748,6 +785,111 @@ body{
                и подписан он всё равно как BMW. Плюс на лендинге это уже не выдача
                оплаченной услуги, а витрина: стоит уточнить у apipoint, покрывает ли
                наш договор такое использование.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ 6 ══════════════ -->
+    <div class="slot">
+      <div class="slot-head"><span class="slot-num">06</span><span class="slot-name">Фото сверху с зонами</span></div>
+      <p class="slot-why">Подача Автотеки: настоящий снимок машины сверху, точки на местах
+         удара и скобка, охватывающая пострадавший конец. Рендер сгенерирован под нас —
+         это не сток, лицензия ничья за собой не тянется.</p>
+      <div class="stage">
+        <div class="card">
+          <div class="v4">
+            <div class="v4-figure" style="padding-bottom:14px">
+              <div class="v4-fig-head">
+                <div>
+                  <div class="v4-model">BMW X1 xDrive 18d</div>
+                  <div class="v4-vin">VIN WBA11···9199 · 2020</div>
+                </div>
+                <a class="v4-link" href="/example">Пример →</a>
+              </div>
+              <div class="shot">
+                <img src="/static/cars/x1-top.webp" alt="BMW X1 сверху, отмечена зона удара спереди">
+                <div class="shot-arc" style="left:24px; top:22%; bottom:22%; width:34px"></div>
+                <div class="shot-tab" style="left:13px; top:50%">Спереди</div>
+                <div class="shot-dot" style="left:13%; top:35%"></div>
+                <div class="shot-dot" style="left:13%; top:65%"></div>
+              </div>
+              <div class="shot-meta"><i></i>ДТП: наезд на стоящее ТС</div>
+              <div class="shot-sub">02.06.2022 · Удмуртская Республика · 2 участника</div>
+            </div>
+
+            <div class="v4-verdict">
+              <span class="v4-vbadge">Средний</span>
+              <span class="v4-vtxt"><b>Есть к чему присмотреться</b>машина была в ДТП, владельцев трое</span>
+            </div>
+
+            <div class="v4-rows">
+              <div class="v4-row"><span class="v4-dot ok"></span><span class="n">Залог и лизинг<s>Реестр залогов ФНП · сегодня</s></span><span class="r ok">не найдено</span></div>
+              <div class="v4-row"><span class="v4-dot ok"></span><span class="n">Ограничения на регистрацию<s>ГИБДД · сегодня</s></span><span class="r ok">не найдено</span></div>
+              <div class="v4-row"><span class="v4-dot warn"></span><span class="n">ДТП<s>ГИБДД · данные на 01.01.2023</s></span><span class="r warn">1 ДТП</span></div>
+              <div class="v4-row"><span class="v4-dot warn"></span><span class="n">История владения<s>ГИБДД · сегодня</s></span><span class="r warn">3 владельца</span></div>
+            </div>
+
+            <div class="v4-foot">
+              <b>Второй владелец держал машину пять недель.</b> Так обычно сбрасывают проблемный
+              автомобиль — спросите продавца, почему он продаёт, и сверьте ответ с датами.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ 7 ══════════════ -->
+    <div class="slot">
+      <div class="slot-head"><span class="slot-num">07</span><span class="slot-name">Фото сбоку с зонами</span></div>
+      <p class="slot-why">То же, но в профиль. Машина крупнее и узнаётся сразу, зато сбоку
+         не показать, слева удар или справа, — а именно это чаще всего и хотят знать.</p>
+      <div class="stage">
+        <div class="card">
+          <div class="v4">
+            <div class="v4-figure" style="padding-bottom:14px">
+              <div class="v4-fig-head">
+                <div>
+                  <div class="v4-model">BMW X1 xDrive 18d</div>
+                  <div class="v4-vin">VIN WBA11···9199 · 2020</div>
+                </div>
+                <a class="v4-link" href="/example">Пример →</a>
+              </div>
+              <div class="shot">
+                <img src="/static/cars/x1-side.webp" alt="BMW X1 в профиль, отмечена зона удара спереди">
+                <div class="shot-arc" style="left:20px; top:24%; bottom:16%; width:30px"></div>
+                <div class="shot-tab" style="left:9px; top:52%">Спереди</div>
+                <div class="shot-dot" style="left:12%; top:62%"></div>
+                <div class="shot-dot" style="left:18%; top:78%"></div>
+              </div>
+              <div class="shot-meta"><i></i>ДТП: наезд на стоящее ТС</div>
+              <div class="shot-sub">02.06.2022 · Удмуртская Республика · 2 участника</div>
+            </div>
+
+            <div class="v4-verdict">
+              <span class="v4-vbadge">Средний</span>
+              <span class="v4-vtxt"><b>Есть к чему присмотреться</b>машина была в ДТП, владельцев трое</span>
+            </div>
+
+            <div class="v4-rows">
+              <div class="v4-row"><span class="v4-dot ok"></span><span class="n">Залог и лизинг<s>Реестр залогов ФНП · сегодня</s></span><span class="r ok">не найдено</span></div>
+              <div class="v4-row"><span class="v4-dot ok"></span><span class="n">Ограничения на регистрацию<s>ГИБДД · сегодня</s></span><span class="r ok">не найдено</span></div>
+              <div class="v4-row"><span class="v4-dot warn"></span><span class="n">ДТП<s>ГИБДД · данные на 01.01.2023</s></span><span class="r warn">1 ДТП</span></div>
+              <div class="v4-row"><span class="v4-dot warn"></span><span class="n">История владения<s>ГИБДД · сегодня</s></span><span class="r warn">3 владельца</span></div>
+            </div>
+
+            <div class="v4-foot">
+              <b>Второй владелец держал машину пять недель.</b> Так обычно сбрасывают проблемный
+              автомобиль — спросите продавца, почему он продаёт, и сверьте ответ с датами.
+            </div>
+          </div>
+
+          <div class="bodies">
+            <h4>Что нужно решить, если берём фото</h4>
+            <p>Снимок придётся генерировать под каждую марку и модель — иначе владельцу
+               Гранты покажут BMW. Один рендер стоит копейки и делается один раз на модель,
+               так что кэш по «марка+модель» решает вопрос. Плюс на карточке появляется
+               настоящий BMW: это чужой товарный знак, и решение по нему за вами.</p>
           </div>
         </div>
       </div>
