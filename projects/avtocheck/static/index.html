@@ -601,7 +601,7 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
 
       <div class="hero-badges">
         <span>Реестр залогов ФНП</span><span>Федресурс</span><span>ГИБДД</span>
-        <span>ФТС</span><span>ФГИС «Такси»</span>
+        <span>ФТС</span><span>Владельцы-юрлица</span>
       </div>
     </div>
 
@@ -736,7 +736,7 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
         <p>Сколько владельцев и как долго каждый держал машину. Четыре собственника за три года — почти всегда признак скрытой проблемы или перекупа.</p>
       </div>
       <div class="scard">
-        <span class="db">ФГИС «Такси»</span>
+        <span class="db">Владельцы-юрлица</span>
         <h3>Такси и каршеринг</h3>
         <p>Работала ли машина в найме. Ресурс у таксовавшего автомобиля выработан втрое быстрее, а в объявлении об этом не пишут.</p>
       </div>
@@ -891,7 +891,7 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
         <ul>
           <li>Всё из проверки на залог</li>
           <li>Ограничения, розыск, ДТП, история регистраций</li>
-          <li>Пробег, такси и каршеринг, таможня</li>
+          <li>Пробег, коммерческое использование, таможня</li>
           <li>Вердикт риска и рекомендации к осмотру</li>
         </ul>
         <button class="btn" data-tariff="base" data-cta>Проверить полностью</button>
@@ -919,7 +919,7 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
       </details>
       <details>
         <summary>Откуда вы берёте данные?</summary>
-        <p>Из государственных реестров и официальных источников: реестр уведомлений о залоге движимого имущества Федеральной нотариальной палаты, Федресурс, базы Госавтоинспекции, ЕАИСТО (диагностические карты), ФТС, ФГИС «Такси». Никаких «слитых баз» и серых источников не используем.</p>
+        <p>Из государственных реестров и официальных источников: реестр уведомлений о залоге движимого имущества Федеральной нотариальной палаты, Федресурс, базы Госавтоинспекции, ЕАИСТО (диагностические карты), ФТС. Никаких «слитых баз» и серых источников не используем.</p>
       </details>
       <details>
         <summary>Что если по машине ничего не нашлось?</summary>
@@ -1387,7 +1387,7 @@ function renderResult(res){
     : (res.headline || '');
   resultBody.textContent = isPreview
     ? (res.object_preview
-        ? 'Машина опознана по VIN. Залог, ограничения ГИБДД, розыск, ДТП, пробег, такси и таможню проверим после оплаты — с датой актуальности по каждой базе.'
+        ? 'Машина опознана по VIN. Залог, ограничения ГИБДД, розыск, ДТП, пробег, владельцев и таможню проверим после оплаты — с датой актуальности по каждой базе.'
         : (res.addr_unresolved
             ? 'По этому VIN машину не нашли. Проверьте номер: в VIN ровно 17 знаков, и в нём не бывает букв O, I и Q.'
             : 'Полную проверку по 8 базам с вердиктом запустим после оплаты.'))
@@ -1703,7 +1703,7 @@ function wizTeaser(){
     details +
     '<div style="font-size:12px;color:#6b7280;margin:'+(details?'9px':'3px')+' 0 11px 28px">Осталось проверить по реестрам:</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:15px">'+
-    chip('Залог и лизинг')+chip('Ограничения ГИБДД')+chip('Розыск и ДТП')+chip('Пробег и такси')+'</div>';
+    chip('Залог и лизинг')+chip('Ограничения ГИБДД')+chip('Розыск и ДТП')+chip('Пробег и владельцы')+'</div>';
 }
 function wizRender(step){
   window._wiz.step = step;
@@ -1746,7 +1746,7 @@ function wizRender(step){
       '<div style="display:flex;gap:11px;align-items:center;background:#fff;border:1px solid #bfdbfe;border-radius:12px;padding:10px 12px;margin:13px 0 2px">'+
       hexMark(40)+
       '<div><div style="font-size:12.3px;font-weight:750;color:#0a0a0a;margin-bottom:3px">Проверяем по 5 государственным реестрам</div>'+
-      '<div style="font-size:11.3px;color:#334155;line-height:1.45"><b>ГИБДД</b> · <b>Реестр залогов ФНП</b> · <b>Федресурс</b> · <b>ЕАИСТО</b> · <b>ФГИС «Такси»</b></div></div></div>';
+      '<div style="font-size:11.3px;color:#334155;line-height:1.45"><b>ГИБДД</b> · <b>Реестр залогов ФНП</b> · <b>Федресурс</b> · <b>ЕАИСТО</b> · <b>ФТС</b></div></div></div>';
     box.innerHTML =
       '<div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Проверка · шаг 1 из 2 пройден</div>'+
       '<div style="height:7px;background:#e3e9f2;border-radius:4px;overflow:hidden;margin-bottom:12px"><i style="display:block;height:100%;width:60%;background:linear-gradient(90deg,#2563eb,#4f83ff)"></i></div>'+
@@ -1961,7 +1961,7 @@ function wizFinal(){
     '<div style="font-size:11.5px;font-weight:800;color:#1d4ed8;text-transform:uppercase;letter-spacing:.04em;margin-bottom:9px">Что вы получите</div>'+
     '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">'+
       // Строка «Итоговый вердикт риска» убрана (решение владельца 05.08.2026).
-      getRow('#2563eb', svgSeller, 'Проверка по 8 реестрам', 'Залог и лизинг · ограничения ГИБДД · розыск · ДТП · пробег · такси · таможня')+
+      getRow('#2563eb', svgSeller, 'Проверка по 8 реестрам', 'Залог и лизинг · ограничения ГИБДД · розыск · ДТП · пробег · владельцы · таможня')+
       getRow('#15803d', svgDoc, 'PDF-отчёт с датами баз', 'По каждой проверке — когда источник в последний раз обновлялся')+
     '</div>'+
     // гарантия
@@ -2034,7 +2034,7 @@ function wizObjectOnly(){
     // её в отчёте. Иначе базовый тариф читается как «полный, но дешевле».
     '<div style="font-size:11.5px;color:#6b7280;background:#f8fafc;border:1px solid #e6e9ef;'+
     'border-radius:10px;padding:9px 11px;margin-bottom:13px;line-height:1.5">'+
-    'ДТП, пробег, история регистраций, работа в такси и таможня — в полном отчёте за '+
+    'ДТП, пробег, история владения и таможня — в полном отчёте за '+
     ((window.CS_PRICE||449)+' ₽')+'.</div>'+
     // Жёлтая рамка «Продавца не проверяем» убрана (решение владельца 05.08.2026):
     // человек и так выбрал объектный тариф осознанно, а ссылка «Знаю ФИО —
