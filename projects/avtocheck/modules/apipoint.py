@@ -163,6 +163,31 @@ def balance() -> float | None:
         return None
 
 
+def last_balance() -> float | None:
+    """Остаток из журнала вызовов — БЕСПЛАТНО и без похода в сеть.
+
+    balance() выше стоит 0,60 ₽ за замер, потому что у поставщика нет метода
+    баланса и цифру приходится добывать платным вызовом. Но остаток приходит в
+    ответе КАЖДОГО вызова и уже записан в журнал, а один отчёт — это восемь
+    вызовов. Поэтому там, где цифра нужна часто (гейт на оплате), берём
+    последнюю записанную: под трафиком она отстаёт на секунды.
+
+    None — журнала нет или в нём ни одной записи с остатком (первый запуск).
+    """
+    try:
+        lines = LOG_PATH.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines[-400:]):
+        try:
+            bal = json.loads(line).get("balance")
+        except ValueError:
+            continue
+        if bal is not None:
+            return _num(bal)
+    return None
+
+
 # ── прикладные обёртки ──────────────────────────────────────────────────────
 
 def identify(vin: str = "", plate: str = "") -> dict[str, Any]:

@@ -208,6 +208,18 @@
     .wrap{padding:0 16px 48px}
   }
 </style>
+<!-- Счётчик Метрики. Этот файл обслуживает и платный отчёт, и открытую
+     страницу-пример /example, которая лежит в sitemap и принимает поиск.
+     Без счётчика такой заход не виден вовсе: _ym_uid не ставится, а
+     последующий переход на главную Метрика записывает как внутренний — и
+     реальный источник (в том числе рекламный клик) теряется. -->
+<script>
+(function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+  m[i].l=1*new Date();k=e.createElement(t),a=e.getElementsByTagName(t)[0],
+  k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+  (window,document,"script","https://mc.yandex.ru/metrika/tag.js","ym");
+ym(111408587, "init", {clickmap:true, trackLinks:true, accurateTrackBounce:true});
+</script>
 </head>
 <body>
 <div class="wrap">

@@ -21,6 +21,11 @@ import os
 import threading
 import re
 import uuid
+
+# Паспорт машины и периоды владения из последней сборки — ПО ПОТОКУ.
+# Общая переменная здесь означала бы, что два одновременных платежа
+# перезапишут данные друг друга (см. _run_checks).
+_auto_extra = threading.local()
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -1221,6 +1226,13 @@ def _seller_addon_delta(variant: str) -> int:
 # сожжёт попытку из трёх, ничего не проверив.
 MIN_NEWDB_BALANCE = 5
 
+# Порог по автомобильному поставщику. Один отчёт стоит ~32 ₽ (восемь вызовов),
+# и при остатке меньше двух отчётов оплату мы всё равно пропускаем (см. ниже),
+# но обязаны об этом кричать: на пустом apipoint деньги возьмутся, а собрать
+# отчёт будет нечем. Это единственный расход, который реклама выжигает быстрее,
+# чем приносит, — 14 000 ₽/нед трафика против 400 ₽ остатка.
+MIN_APIPOINT_BALANCE = 64
+
 
 def _provider_degraded() -> bool:
     """Платные базы недоступны или баланс на нуле. НЕ блокирует оплату.
@@ -1237,18 +1249,22 @@ def _provider_degraded() -> bool:
     Поэтому правило перевёрнуто: деньги берём, отчёт довозим, а факт деградации
     помечаем в заказе и считаем метрикой.
     """
+    # Смотрим НА СВОЕГО поставщика. Здесь стоял баланс NewDB — базы недвижимости,
+    # к машинам отношения не имеющей: гейт исправно молчал, пока настоящий счёт,
+    # с которого собирается каждый автоотчёт, подходил к нулю.
     try:
-        from modules import newdb
-        bal = newdb.balance()          # кэш 60с, в горячем пути не висит
+        from modules import apipoint
+        bal = apipoint.last_balance()   # из журнала вызовов, бесплатно
     except Exception:  # noqa: BLE001 — импорт/окружение: считаем «не знаем»
         bal = None
-    if bal is None or bal < MIN_NEWDB_BALANCE:
+    if bal is None or bal < MIN_APIPOINT_BALANCE:
         # Метрика прежняя: по ней видно, сколько оплат прошло на деградации и
         # сколько отчётов из-за этого поехали с задержкой.
         _bump_metric("provider_degraded_no_answer" if bal is None else "provider_degraded_low_balance")
-        print(f"[provider] деградация: баланс NewDB "
-              f"{'неизвестен' if bal is None else bal} — оплату ПРОПУСКАЕМ, "
-              f"отчёт довезём ретраем", flush=True)
+        print(f"[ALERT] apipoint: остаток "
+              f"{'неизвестен' if bal is None else f'{bal:.0f} ₽ (~{bal / 32:.0f} отчётов)'}"
+              f" — оплату пропускаем, но ПОПОЛНИТЬ СРОЧНО: на нуле отчёт "
+              f"собрать будет нечем", flush=True)
         return True
     return False
 
@@ -1271,12 +1287,18 @@ def _run_checks(req: "CheckRequest", preview: bool = False, object_only: bool = 
     from modules import auto as _auto
     if preview:
         return _auto.to_legacy_checks(_auto.preview_checks(req.object_ref))
+    # Паспорт и владельцев кладём в ПОТОКОВОЕ хранилище, а не в модульную
+    # переменную. Каждый отчёт финализируется в своём потоке, и общий глобал
+    # означал бы, что два платежа в пределах десятка секунд перезапишут данные
+    # друг друга — человек получил бы оплаченный отчёт с чужим VIN в паспорте.
+    # Замок _finalizing от этого не спасает: он стережёт один report_id, а
+    # конфликтуют РАЗНЫЕ.
     # Поштучные методы вместо агрегата: дешевле (≈32 ₽ против 50) и, главное,
     # ограничения, розыск и история приходят ЖИВЫМИ, а не снимком 2023 года.
     checks, extra = _auto.run_alacarte(req.object_ref, basic=object_only)
     # Паспорт и владельцы едут с теми же данными — прячем их в модуль-глобал,
     # чтобы не менять сигнатуру _run_checks, которую зовут из шести мест.
-    globals()["_LAST_AUTO_EXTRA"] = extra
+    _auto_extra.value = extra
     return _auto.to_legacy_checks(checks)
 
     from concurrent.futures import ThreadPoolExecutor
@@ -3717,7 +3739,7 @@ def _do_finalize(report_id: str, object_only: bool | None = None) -> bool:
 
         # Паспорт машины и периоды владения приезжают тем же вызовом gai, что и
         # ограничения — отдельных денег не стоят. _run_checks кладёт их сюда.
-        extra = globals().get("_LAST_AUTO_EXTRA") or {}
+        extra = getattr(_auto_extra, "value", None) or {}
         for _k in ("passport", "owners", "vin_check", "facts"):
             if extra.get(_k):
                 rec[_k] = extra[_k]
@@ -4202,6 +4224,13 @@ def api_pay(req: PayRequest, request: Request) -> JSONResponse:
     variant = _cookie_v or "B"
     order_variant = _cookie_v or ""  # "" → не зачисляется ни в одно плечо A/B-панелей
     amount_override = None
+    # Допродажи недвижимости (bump «залоги ФНП по ФИО продавца» и «пакет к сделке
+    # по квартире») на машинах неисполнимы: ФИО мы не спрашиваем, квартиры нет.
+    # Из интерфейса их убрали, но у части посетителей в кэше лежит старый скрипт,
+    # и он всё ещё пришлёт эти флаги — тогда человек заплатит 748 ₽ вместо 449 ₽
+    # за услугу, которой не существует. Гасим на сервере: цену определяем мы.
+    req.bump = False
+    req.kit = False
     if req.object_only:
         # object-only — цена по варианту (A/B/C: 249/349/449). Вариант сохраняем на отчёт,
         # чтобы апселл продавца потом взял дельту по ЭТОМУ варианту (H2-safe, не из живой куки).

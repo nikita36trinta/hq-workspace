@@ -1078,12 +1078,11 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
 <script src="/static/price_variants.js?v=auto2"></script>
 <script>
 /* ================= tracking ================= */
-var METRIKA_ID = 111408587; // TODO: вставить номер счётчика Метрики
-var TARIFFS = {
-  base:    {title:'Базовая',     price:'1 490 ₽'},
-  ext:     {title:'Расширенная', price:'2 990 ₽'},
-  realtor: {title:'Риелторам — 10 проверок', price:'9 900 ₽'}
-};
+var METRIKA_ID = 111408587;
+// Значение до ответа /api/prices держим равным боевому. Здесь оставались
+// тарифы недвижимости (1 490 / 2 990 / 9 900 ₽): при медленном или упавшем
+// /api/variant человек видел на пейволле цену вчетверо выше настоящей.
+var TARIFFS = { base: {title:'Полная проверка', price:'449 ₽'} };
 // A/B/n тест цены (раунд 2: 299/490/690/5299-премиум) — вариант с сервера (кука cs_variant).
 // Значения до ответа /api/prices. Держим их равными боевым: пока грузится
 // конфиг, экран уже нарисован, и старые 499/299 мигали ценой, которой нет.
@@ -1304,7 +1303,7 @@ function openCheckout(tariff){
   modalTariff.style.display = 'block';
   // #3: экранируем пользовательский ввод объекта (XSS через adder/suggest-address).
   var _esc = function(s){ return String(s||'').replace(/[<>&"]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); };
-  modalTariff.innerHTML = 'Проверяем объект: <b>' + (_esc(coObj.value) || '—') + '</b>';
+  modalTariff.innerHTML = 'Проверяем машину: <b>' + (_esc(coObj.value) || '—') + '</b>';
   modalErr.classList.remove('show');
   modalTodo.classList.remove('show');
   resultBox.style.display = 'none';
@@ -1484,7 +1483,7 @@ function renderResult(res){
     resultPdfLink.style.display = 'none';
     if(mon) mon.style.display = 'none';
     if(unlock){
-      var price = (TARIFFS[currentTariff] && TARIFFS[currentTariff].price) || '1 490 ₽';
+      var price = (TARIFFS[currentTariff] && TARIFFS[currentTariff].price) || '449 ₽';
       var nf = res.n_flags || 0;
       var plural = function(n,a,b,c){ n=Math.abs(n)%100; var n1=n%10;
         if(n>10&&n<20)return c; if(n1>1&&n1<5)return b; if(n1==1)return a; return c; };
@@ -2095,18 +2094,20 @@ function wizPayObject(){
   goal('object_only_pay', {});
   window._sellerData = {email: window._wiz.email, consent: true, object_only: true,
     consent_text: CONSENT_TEXT, consent_version: CONSENT_V};
-  // Раньше объектный тариф уходил на оплату напрямую: апселла у него не было
-  // вообще — расширенный ищет залоги по ФИО продавца, а его тут не называли.
-  // Теперь своя развилка: пакет к сделке строится по объекту, ФИО не нужно.
-  showKitModal();
+  // Обе допродажи (showKitModal / showBumpModal) достались от недвижимости и на
+  // машинах ЛГАЛИ на самом дорогом экране — последнем перед оплатой: обещали
+  // «объект в ЕГРН», «доли», «пакет запросов по этой квартире», а доплата 299 ₽
+  // искала залоги по ФИО продавца, которое на авто вообще не спрашивается —
+  // деньги взяли бы за то, что нечем исполнить. Апселлы у машин свои и уже
+  // работают ПОСЛЕ покупки: доплата до полного (250 ₽) и перепроверка залога
+  // (99 ₽). Здесь — сразу к оплате.
+  proceedPay(false, false);
 }
 function wizPay(){
   window._sellerData = {seller_name: window._wiz.fio, seller_dob: window._wiz.dob,
     email: window._wiz.email, consent: true,
     consent_text: CONSENT_TEXT, consent_version: CONSENT_V};
-  // Bump-модалка ТОЛЬКО для базового тарифа при подтверждённой сервером цене. Иначе — сразу к оплате.
-  if(window.CS_PREMIUM || currentTariff !== 'base' || !window.CS_LOADED){ return proceedPay(false); }
-  showBumpModal();
+  proceedPay(false);
 }
 
 async function proceedPay(bump, kit){
