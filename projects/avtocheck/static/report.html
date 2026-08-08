@@ -1,1044 +1,481 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ваш риск-отчёт — ЧистаяСделка</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Отчёт по автомобилю — ЧистаяСделка Авто</title>
+<!--
+  Отчёт по автомобилю. Продуктовая подача вместо «бумажного бланка», который
+  достался от проверки недвижимости: там сериф и кремовый лист работали на
+  ощущение юридического заключения, здесь мешают — покупатель машины сканирует
+  отчёт глазами за минуту, а не читает его как документ.
+
+  Устройство каждой проверки: ЗАГОЛОВОК — это факт («Зафиксировано 1 ДТП»),
+  а текст под ним — что этот факт значит для покупателя. Раньше факт и
+  последствие были слиты в один абзац, и человек читал ленту одинаковых строк,
+  из которой невозможно выхватить главное.
+
+  Дата актуальности вынесена на КАЖДУЮ карточку отдельным бейджем — это наш
+  единственный настоящий отличительный признак против крупных сервисов, и
+  прятать его внутри абзаца было расточительно.
+-->
 <style>
-:root{--ink:#0a0a0a;--muted:#6b7280;--line:#e5e7eb;--bg:#f8fafc;--accent:#2563EB;--accent-soft:#eff6ff;
-  --ok:#16a34a;--warn:#d97706;--bad:#dc2626}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--ink);
-  line-height:1.55;-webkit-font-smoothing:antialiased;padding:28px 16px 60px}
-.wrap{max-width:640px;margin:0 auto}
-.brand{text-align:center;font-weight:800;font-size:20px;margin-bottom:18px}
-.brand span{color:var(--accent)}
-.card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 40px rgba(10,10,10,.06);
-  padding:24px 22px 26px}
-.rt{font-weight:800;font-size:19px}
-.robj{color:var(--muted);font-size:13.5px;margin-top:2px}
-.head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
-  border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:6px}
-.tag{background:#dcfce7;color:#15803d;font-size:11px;font-weight:800;letter-spacing:.06em;
-  padding:5px 10px;border-radius:20px;white-space:nowrap}
-/* ── Вывод вперёд (вместо гейджа) ────────────────────────────────────────── */
-.verdict{margin:14px 0 4px}
-.vchip{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;
-  letter-spacing:.05em;text-transform:uppercase;padding:5px 11px;border-radius:999px;
-  margin-bottom:10px;background:#fee2e2;color:#991b1b}
-.vchip i{width:7px;height:7px;border-radius:50%;background:var(--bad);flex:none}
-.vchip.ok{background:#dcfce7;color:#15803d} .vchip.ok i{background:var(--ok)}
-.vchip.warn{background:#fef3c7;color:#92400e} .vchip.warn i{background:var(--warn)}
-.vhead{font-size:23px;font-weight:800;line-height:1.18;letter-spacing:-.02em;
-  text-wrap:balance;margin-bottom:9px}
-.vwhy{border-left:3px solid var(--bad);padding:1px 0 1px 13px;font-size:13.5px;
-  line-height:1.5;color:#374151;max-width:60ch}
-.vwhy.ok{border-left-color:var(--ok)} .vwhy.warn{border-left-color:var(--warn)}
-.cap{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
-  color:var(--muted);margin:18px 0 6px}
-/* ── Правовые последствия ────────────────────────────────────────────────── */
-.cons{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-/* Пакет к сделке */
-.ksub{font-size:12px;font-weight:800;color:#334155;margin:14px 0 8px}
-.kitem{border:1px solid var(--line);border-left:3px solid var(--line);border-radius:10px;
-  padding:11px 13px;margin-bottom:8px;background:var(--bg)}
-.kitem.kurg{border-left-color:#d97706;background:#fffbeb}
-.ktitle{font-size:13.5px;font-weight:700;color:#0a0a0a;line-height:1.4}
-.kbadge{display:inline-block;margin-left:8px;padding:2px 7px;border-radius:20px;
-  background:#d97706;color:#fff;font-size:10px;font-weight:800;letter-spacing:.03em;
-  text-transform:uppercase;vertical-align:1px}
-.kwhy{font-size:12.5px;color:#475569;line-height:1.5;margin-top:5px}
-.klaw{display:block;margin-top:5px;font-size:11.5px;color:#64748b;font-weight:700}
-.kday{margin:0;padding-left:18px;font-size:13px;color:#334155;line-height:1.65}
-.kletter{border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:7px;
-  background:var(--bg);font-size:13px}
-.kletter summary{cursor:pointer;font-weight:700;color:#2563eb}
-.kletter pre{white-space:pre-wrap;font-family:inherit;font-size:12.5px;color:#334155;
-  line-height:1.55;margin:9px 0 2px}
-.knote{font-size:11.5px;color:#94a3b8;line-height:1.5;margin-top:12px}
-.cons .crow{display:flex;gap:11px;padding:9px 0;border-bottom:1px solid #e9edf2}
-.cons .crow:first-child{padding-top:0}
-.cons .crow:last-child{border-bottom:none;padding-bottom:0}
-.cons .cnum{flex:none;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--bad);
-  color:var(--bad);font-size:11px;font-weight:800;display:grid;place-items:center;margin-top:2px}
-.cons .cnum.warn{border-color:var(--warn);color:var(--warn)}
-.cons .ctext{font-size:13px;color:#374151;line-height:1.5}
-.cons .ctext b{color:var(--ink)}
-.cons .claw{display:block;font-size:11.5px;color:#8a92a0;margin-top:4px}
-.cons .claw a{color:inherit;text-decoration:none;border-bottom:1px dashed currentColor}
-.cons .claw a:hover{border-bottom-style:solid;color:var(--ink)}
-.cons .nnote{color:#a8b0bd}
-.body{font-size:14px;color:#374151;margin:12px 2px 4px;line-height:1.6}
-.rrows{margin-top:16px}
-.rrow{display:flex;align-items:center;gap:13px;padding:14px 0;border-bottom:1px solid #f1f5f9}
-.rrow:last-child{border-bottom:none}
-.ric{flex:none;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-weight:800;font-size:14px}
-.ric.ok{background:#dcfce7;color:var(--ok)}
-.ric.warn{background:#fef3c7;color:var(--warn)}
-.ric.bad{background:#fee2e2;color:var(--bad)}
-.ric.na{background:#f1f5f9;color:var(--muted)}
-.rmain{flex:1;min-width:0}
-.rname{font-weight:700;font-size:15px}
-.rsrc{color:var(--muted);font-size:12.5px}
-.rdetail{font-size:12.5px;color:#4b5563;margin-top:3px;line-height:1.45}
-.rres{font-weight:700;font-size:13.5px;white-space:nowrap;flex:none}
-.rres.ok{color:var(--ok)}.rres.warn{color:var(--warn)}.rres.bad{color:var(--bad)}.rres.na{color:var(--muted)}
-.recs{background:var(--bg);border-radius:12px;padding:16px 18px;margin-top:18px}
-.recs .rc{font-size:11.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
-.recs li{list-style:none;font-size:13.5px;color:#374151;padding-left:16px;position:relative;margin-bottom:7px}
-.recs li:before{content:'—';position:absolute;left:0;color:var(--muted)}
-.actions{margin-top:22px;display:flex;flex-direction:column;gap:12px}
-.btn{display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;
-  border:none;border-radius:10px;padding:14px 24px;font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;text-align:center}
-.btn.ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
-/* Апселлы лежат СНАРУЖИ .wrap (скрипт показывает их по id и рассчитывает на этот
-   уровень вложенности), поэтому ширину контейнера они не наследуют и растягивались
-   во весь экран — на широком мониторе плашка вдвое шире самого отчёта. Повторяем
-   здесь ограничение .wrap вместо переноса в DOM: так не трогаем разметку. */
-.upsell{max-width:640px;margin:20px auto 0;padding:20px;background:#fff;border:1.5px solid #fecaca;border-radius:14px}
-.up-top{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
-.up-ex{font-size:26px;flex:none;line-height:1.1}
-.upsell h3{font-size:16.5px;margin:0;color:var(--ink);line-height:1.3}
-.up-quote{background:#fef2f2;border-radius:10px;padding:12px 14px;font-size:13px;color:#7f1d1d;margin:0 0 14px}
-.up-btn{width:100%;background:var(--bad)}
-.up-btn:hover{background:#b91c1c}
-/* Модалка доп-проверки по ИНН */
-.addon-ovl{display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:50;align-items:center;justify-content:center;padding:20px}
-.addon-ovl.open{display:flex}
-.addon-modal{position:relative;background:#fff;border-radius:16px;max-width:440px;width:100%;padding:26px 24px 22px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
-.addon-modal h3{font-size:18px;margin-bottom:8px;padding-right:20px}
-.addon-modal p{font-size:13.5px;color:#374151;margin-bottom:16px;line-height:1.5}
-.addon-modal input:not([type=checkbox]){width:100%;box-sizing:border-box;padding:13px 14px;border:1.5px solid #cbd5e1;border-radius:9px;font-size:16px;margin-bottom:12px}
-/* Галочка согласия — тоже <input>, и общее правило растягивало её на всю ширину
-   вместе с рамкой и отступами. Текст рядом выдавливало вправо за края модалки:
-   на телефоне от него оставалась висящая на границе полоса. */
-.addon-modal input[type=checkbox]{width:17px;height:17px;flex:0 0 17px;margin:2px 0 0;accent-color:#7a1815}
-.addon-modal .btn{width:100%;box-sizing:border-box}
-.addon-modal .msg{font-size:13px;margin-top:10px;min-height:16px;text-align:center}
-.addon-x{position:absolute;top:12px;right:14px;background:none;border:none;font-size:26px;line-height:1;color:#94a3b8;cursor:pointer}
-/* «Дольше обычного»: спокойный, не тревожный тон — это не ошибка, а ожидание */
-.slow-ico{width:44px;height:44px;border-radius:50%;background:var(--accent-soft);
-  color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 0 14px}
-.slow-ico svg{width:24px;height:24px}
-#slowOvl .addon-modal p:last-of-type{margin-bottom:18px}
-.loading{text-align:center;padding:60px 0;color:var(--muted)}
-.spin{width:40px;height:40px;margin:0 auto 16px;border:4px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:sp .9s linear infinite}
-@keyframes sp{to{transform:rotate(360deg)}}
-.foot{text-align:center;color:var(--muted);font-size:12px;margin-top:20px}
-.foot a{color:var(--muted)}
+  :root{
+    --ink:#0b0d10; --ink-2:#3f4753; --mut:#8b95a3; --line:#e6e9ee;
+    --bg:#ffffff; --card:#f5f6f8; --card-line:#eceef2;
+    --brand:#2563eb;
+    --ok:#16a34a; --warn:#d97706; --bad:#dc2626; --na:#94a3b8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px 64px}
 
-/* ══════════════════════════════════════════════════════════════════════════
-   ЖАНР ЗАКЛЮЧЕНИЯ (макет D5). Отчёт перестаёт быть «карточкой с прибором»
-   и становится документом: бумажный фон, серифный набор, резолютивная часть
-   бордовой плашкой, реквизиты записей ЕГРН моноширинным, печать в подвале.
-   Действия и апселлы ниже остаются в системном шрифте — это интерфейс,
-   а не часть документа, и мешать их с бланком нельзя.
-   ══════════════════════════════════════════════════════════════════════════ */
-:root{--paper:#fffefb; --paper-bg:#e3e0d9; --doc-ink:#171614; --doc-mut:#7a766e;
-  --doc-line:#ddd8cf; --burgundy:#8c1d18;
-  --serif:'Iowan Old Style','Palatino Linotype',Palatino,'Book Antiqua',Georgia,serif;
-  --mono:'SF Mono',ui-monospace,'Menlo',Consolas,monospace}
-body{background:var(--paper-bg);font-family:var(--serif);color:var(--doc-ink);
-  line-height:1.45;padding:16px 14px 40px}
-.wrap{max-width:720px}
-.brand{display:none}                     /* уезжает в шапку документа */
-.card{background:var(--paper);border:none;border-radius:14px;overflow:hidden;padding:0;
-  box-shadow:0 1px 0 #d2cec6,0 12px 34px rgba(0,0,0,.11)}
-/* шапка бланка */
-.head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
-  padding:14px 38px 11px;border-bottom:1px solid var(--doc-line);margin:0}
-/* Название и реквизиты лежат в одной обёртке (.head > div), а она сжималась
-   по содержимому — реквизиты вставали под названием у его правого края,
-   а не у края листа. Разводим по ширине шапки. */
-.head>div{flex:1;min-width:0;display:flex;justify-content:space-between;
-  align-items:baseline;gap:18px;flex-wrap:wrap}
-.rt{font-size:13px;font-weight:700;letter-spacing:.02em}
-.rt::before{content:'ЧистаяСделка · ';font-weight:700}
-.robj{font-family:var(--mono);font-size:10.5px;color:var(--doc-mut);margin:0;
-  text-align:right;white-space:nowrap}
-.tag{display:none}
-/* резолютивная часть */
-.verdict{background:var(--burgundy);color:var(--paper);padding:18px 38px 20px;margin:0}
-.vchip{background:none;color:rgba(255,255,255,.72);padding:0;margin-bottom:7px;
-  font-size:9.5px;letter-spacing:.2em;font-weight:400;font-family:system-ui,sans-serif}
-.vchip i{display:none}
-.vchip.ok,.vchip.warn{background:none;color:rgba(255,255,255,.72)}
-.verdict.ok{background:#2c6640} .verdict.warn{background:#9a6212}
-.vhead{font-family:var(--serif);font-size:26px;font-weight:400;line-height:1.14;
-  letter-spacing:.004em;margin-bottom:8px}
-.vwhy{border:none;padding:0;font-size:13.5px;color:rgba(255,255,255,.93);max-width:60ch}
-/* тело */
-.cap{font-size:9.5px;letter-spacing:.15em;font-family:system-ui,sans-serif;
-  color:var(--doc-mut);margin:15px 38px 7px}
-.rrows{margin:0;padding:0 38px}
-.rrow{align-items:flex-start;gap:0;padding:7px 0;border-bottom:1px solid #efece5;
-  display:grid;grid-template-columns:1fr 104px;column-gap:12px}
-.rrow:last-child{border-bottom:none}
-.ric{display:none}
-.rmain{grid-column:1}
-.rname{font-family:var(--serif);font-size:12.5px;font-weight:400;color:var(--doc-mut)}
-.rsrc{display:none}
-.rdetail{font-size:12.5px;color:var(--doc-ink);margin-top:1px;line-height:1.4}
-.rres{grid-column:2;justify-self:end;font-family:system-ui,sans-serif;font-size:10.5px;
-  font-weight:700;text-align:right}
-.rres.bad{color:var(--burgundy)} .rres.warn{color:#9a6212} .rres.ok{color:#2c6640}
-/* правовые последствия */
-#consBox{padding:0 38px}
-.cons{background:#fdf9f1;border:1px solid #e0d5c4;border-radius:11px;padding:12px 14px}
-.cons .crow{border-bottom:1px solid #efe6d7}
-.cons .cnum{border-color:var(--burgundy);color:var(--burgundy);
-  font-family:system-ui,sans-serif}
-.cons .cnum.warn{border-color:#9a6212;color:#9a6212}
-.cons .ctext{font-family:var(--serif);font-size:12.5px;color:#3d3a34}
-.cons .ctext b{color:var(--doc-ink)}
-.cons .claw{font-family:system-ui,sans-serif;font-size:10.5px;color:#8c7a5e}
-.cons .nnote{color:#a89880}
-/* рекомендации */
-.recs{background:none;border-radius:0;padding:0 38px;margin:14px 0 0}
-.recs .rc{font-size:9.5px;letter-spacing:.15em;font-family:system-ui,sans-serif;
-  color:var(--doc-mut);margin-bottom:5px}
-.recs li{font-family:var(--serif);font-size:12.5px;color:#3d3a34;margin-bottom:4px}
-/* подвал с печатью */
-.card::after{content:'';display:block;height:1px;background:var(--doc-line);margin:15px 0 0}
-.docfoot{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;
-  padding:12px 38px 16px}
-.docfoot p{font-family:system-ui,sans-serif;font-size:10.5px;color:var(--doc-mut);
-  max-width:50ch;line-height:1.5}
-.seal{flex:none;width:62px;height:62px;border-radius:50%;border:1.5px solid var(--burgundy);
-  color:var(--burgundy);display:flex;flex-direction:column;align-items:center;
-  justify-content:center;font-family:system-ui,sans-serif;text-align:center;
-  transform:rotate(-6deg)}
-.seal b{font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;line-height:1.25}
-.seal span{font-size:7.5px;font-family:var(--mono);margin-top:2px}
-/* действия — интерфейс, не документ */
-.actions{flex-direction:row;gap:9px;margin-top:14px}
-.actions .btn{flex:1;font-family:system-ui,sans-serif;font-size:13px;font-weight:600;
-  padding:11px 12px;border-radius:10px;background:var(--paper);color:var(--doc-ink);
-  border:1.5px solid #c6c1b8}
-.actions .btn.buy{background:var(--burgundy);color:var(--paper);border-color:var(--burgundy);
-  font-weight:700;gap:8px}
-.upsell,.recs li,.body{font-family:var(--serif)}
-.upsell{font-family:system-ui,sans-serif;background:var(--paper);border-color:#e0d5c4}
-#innBlock,#monitorTop{font-family:system-ui,sans-serif}
-@media (max-width:560px){
-  body{padding:10px 10px 30px}
-  .head,.verdict,.cap,.rrows,#consBox,.recs,.docfoot{padding-left:18px;padding-right:18px}
-  .cap,.recs{margin-left:0;margin-right:0}
-  .vhead{font-size:21px}
-  .rrow{grid-template-columns:1fr auto}
-  .actions{flex-direction:column}
-  /* на узком реквизиты переносятся под название — тогда они прижимаются
-     влево, иначе номер и дата встают лесенкой у случайного края */
-  .head>div{gap:3px}
-  .robj{width:100%;text-align:left}
-}
+  /* ── шапка сайта ─────────────────────────────────────────────────────── */
+  .top{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:18px 0 22px}
+  .logo{font-weight:800;font-size:18px;letter-spacing:-.02em;text-decoration:none;color:var(--ink)}
+  .logo span{color:var(--brand)}
+  .topact{display:flex;gap:10px;align-items:center}
+  .btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;
+    padding:10px 16px;font-size:14px;font-weight:650;cursor:pointer;
+    text-decoration:none;border:1px solid var(--line);background:#fff;color:var(--ink);
+    font-family:inherit}
+  .btn:hover{border-color:#cbd5e1}
+  .btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn.pri:hover{background:#1d4ed8}
 
-/* кнопка покупки — бордовая, в цвет резолютивной плашки (как в D5) */
-.up-btn{background:var(--burgundy)} .up-btn:hover{background:#761712}
-.upsell{border-color:#e0d5c4}
-.up-quote{background:#fdf6e8;color:#6b4a12}
-/* облачко: объясняет разницу между ФССП и Федресурсом — иначе «чисто у приставов»
-   человек читает как «продавец чист» и мимо проверки проходит */
-.bub{position:relative;background:#fdf6e8;border:1px solid #e6d3ac;border-radius:11px;
-  padding:11px 13px 12px;margin-top:10px;font-family:system-ui,sans-serif}
-.bub::before,.bub::after{content:'';position:absolute;left:46%;width:12px;height:12px;
-  transform:rotate(45deg)}
-.bub::before{top:-7px;background:#e6d3ac}
-.bub::after{top:-5.5px;background:#fdf6e8}
-.bub b{display:block;font-size:12.5px;color:#6b4a12;margin-bottom:3px}
-.bub p{font-size:12px;color:#5c5344;line-height:1.45}
-.bub p em{font-style:normal;color:var(--burgundy);font-weight:600}
-.bub .w{display:block;font-size:11px;color:#8d8579;margin-top:6px}
+  /* ── состояние загрузки ──────────────────────────────────────────────── */
+  .loading{padding:80px 0;text-align:center;color:var(--mut);font-size:15px}
+  .spin{width:26px;height:26px;border:3px solid #e5e9f0;border-top-color:var(--brand);
+    border-radius:50%;margin:0 auto 14px;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
 
-/* ── незакрытый третий реестр (апселл банкротства) ────────────────────── */
-.bar{height:5px;border-radius:3px;background:#eae5db;overflow:hidden;margin-bottom:7px}
-.bar i{display:block;height:100%;background:var(--burgundy)}
-.barlab{display:flex;justify-content:space-between;font-family:var(--mono);
-  font-size:10.5px;color:var(--doc-mut);margin-bottom:13px}
-.steps{margin:0 0 13px}
-.step{display:grid;grid-template-columns:20px 1fr auto;align-items:center;gap:11px;
-  padding:9px 0;border-bottom:1px solid #efece5}
-.step:last-child{border-bottom:none}
-.step .ic{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
-  font-size:11px;font-weight:700}
-.step .ic.done{background:#e6efe7;color:#2c6640}
-.step .ic.open{border:1.5px dashed #c2a37a;color:#a9834a}
-.step .nm{font-family:var(--serif);font-size:14px;line-height:1.25}
-.step .nm i{display:block;font-style:normal;font-size:11.5px;color:var(--doc-mut);
-  font-family:system-ui,sans-serif;margin-top:1px}
-.step .st{font-family:var(--mono);font-size:10.5px;color:var(--doc-mut);text-align:right}
-.step.open .st{color:#9a6212}
-/* ── модалка апселла: тот же документ, а не другой интерфейс ──────────── */
-.addon-modal{background:var(--paper);border-radius:14px}
-.addon-modal h3{font-family:var(--serif);font-size:20px;font-weight:600;
-  letter-spacing:-.01em;color:var(--doc-ink)}
-.addon-modal p{font-family:var(--serif);font-size:13.5px;line-height:1.55;color:#3d3a34}
-.addon-modal p b{color:var(--doc-ink)}
-.addon-modal .btn{background:var(--burgundy);font-size:14.5px;font-weight:600}
-.addon-modal .btn:hover{background:#761712}
-.addon-modal input:not([type=checkbox]){border-color:#ddd6c8;background:#fffefb}
+  /* ── карточка автомобиля ─────────────────────────────────────────────── */
+  .carhead{padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:24px}
+  .asof-top{font-size:13px;color:var(--warn);margin-bottom:10px;display:flex;
+    align-items:center;gap:7px}
+  .asof-top.fresh{color:var(--ok)}
+  .h1{font-size:34px;line-height:1.1;font-weight:800;letter-spacing:-.025em;margin:0 0 10px;
+    text-wrap:balance}
+  .idline{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:13.5px;color:var(--ink-2)}
+  .idline b{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600;
+    letter-spacing:.01em;color:var(--ink)}
+  .idline i{font-style:normal;color:var(--mut)}
 
-/* ── ПРИЛОЖЕНИЯ К ЗАКЛЮЧЕНИЮ ─────────────────────────────────────────────
-   Мониторинг и апселлы — не часть документа, но и не чужие ему. Раньше это
-   были синяя градиентная карточка и белая карточка с эмодзи: под бумажным
-   бланком читались как баннеры с другого сайта. Тот же лист, серифные
-   заголовки, надзаголовок вместо восклицательного знака. */
-.upsell,.offer{margin-top:14px;padding:17px 20px 19px;background:var(--paper);
-  border:1px solid #ddd6c8;border-radius:14px;font-family:system-ui,sans-serif}
-.eyebrow{font-family:system-ui,sans-serif;font-size:9.5px;letter-spacing:.15em;
-  text-transform:uppercase;color:var(--doc-mut);margin-bottom:7px}
-.upsell h3,.offer h3{font-family:var(--serif);font-size:18px;font-weight:600;
-  color:var(--doc-ink);line-height:1.25;margin:0 0 10px;letter-spacing:-.01em}
-.up-top{display:block;margin-bottom:0}
-.up-ex{display:none}                       /* ⚠️-эмодзи заменён надзаголовком */
-.offer .t{font-family:var(--serif);font-size:13.5px;color:#3d3a34;
-  line-height:1.55;margin:0 0 13px}
-.offer .t b{color:var(--doc-ink)}
-.up-quote{font-family:var(--serif);font-size:13.5px;line-height:1.55;
-  background:#fdf9f1;border:none;border-left:2px solid #e0d5c4;
-  border-radius:0 8px 8px 0;padding:10px 14px;color:#5c5344;margin:0 0 13px}
-.offer .btn{width:100%;box-sizing:border-box;font-size:14px;font-weight:600;
-  border-radius:10px;padding:13px;background:var(--doc-ink);color:var(--paper)}
-.offer .btn:hover{background:#413a31}
-/* Подпись несёт цену, поэтому чуть крупнее прежних 11px — читаемость важнее
-   компактности, а сумму человек должен видеть без усилий. */
-.offer .fine{font-family:system-ui,sans-serif;font-size:12px;color:var(--doc-mut);
-  text-align:center;margin-top:9px}
-/* строка статуса под кнопкой: раньше жила в модалке, теперь в самом блоке */
-.offer .msg{font-family:system-ui,sans-serif;font-size:12.5px;color:var(--doc-mut);
-  text-align:center;margin-top:8px;min-height:16px}
-/* мониторинг уже оплачен — спокойная зелень, не сигнальная */
-.offer.done{display:flex;gap:11px;align-items:flex-start;background:#f7faf6;
-  border-color:#cfdcd0}
-.offer.done svg{flex:none;width:19px;height:19px;stroke:#3f6b4a;fill:none;
-  stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;margin-top:1px}
-.offer.done .t{margin:0;color:#33553d}
-.offer.done .t b{color:#2b4633}
-.offer .btn.tg{margin-top:11px}
-/* бордовая — только кнопка про риск; наблюдение чернильной, иначе две
-   одинаково кричащие кнопки подряд */
-.offer .btn.up-btn{background:var(--burgundy)}
-.offer .btn.up-btn:hover{background:#761712}
-/* доплаченная проверка по ИНН — раздел бланка */
-.capnote{font-family:var(--mono);font-size:9px;letter-spacing:0;text-transform:none;
-  color:#a89880;margin-left:8px}
-.innan{font-family:var(--serif);font-size:12.5px;color:#3d3a34;line-height:1.55;
-  background:#fdf9f1;border-left:2px solid #e0d5c4;padding:10px 14px;margin:10px 38px 0}
-@media (max-width:560px){ .innan{margin-left:18px;margin-right:18px} }
+  /* ── вердикт ─────────────────────────────────────────────────────────── */
+  .layout{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+  .verdict{background:var(--card);border-radius:16px;padding:22px 24px}
+  .vlabel{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--mut);margin-bottom:9px}
+  .vpill{display:inline-flex;align-items:center;gap:8px;border-radius:999px;
+    padding:7px 15px;font-size:14px;font-weight:700;margin-bottom:14px}
+  .vpill.low{background:#dcfce7;color:#14532d}
+  .vpill.mid{background:#fef3c7;color:#7c2d12}
+  .vpill.high{background:#fee2e2;color:#7f1d1d}
+  .vpill i{width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 auto}
+  .vhead{font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.2;
+    margin:0 0 12px;text-wrap:balance}
+  .vbody{font-size:14.5px;color:var(--ink-2);line-height:1.6;margin-top:16px;
+    padding-top:16px;border-top:1px solid var(--card-line)}
+  .vflags{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:9px}
+  .vflags li{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;font-weight:650}
+  .vflags li::before{content:"";width:8px;height:8px;border-radius:50%;margin-top:7px;
+    flex:0 0 auto;background:var(--bad)}
+  .vflags li.warn::before{background:var(--warn)}
 
+  /* ── боковая сводка ──────────────────────────────────────────────────── */
+  .side{background:var(--card);border-radius:16px;padding:20px 22px}
+  .sidet{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--mut);margin-bottom:14px}
+  .srow{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+    padding:9px 0;border-bottom:1px solid var(--card-line);font-size:14px}
+  .srow:last-of-type{border-bottom:none}
+  .srow .sk{color:var(--ink-2)}
+  .srow .sv{font-weight:700;white-space:nowrap}
+  .sv.ok{color:var(--ok)} .sv.bad{color:var(--bad)} .sv.warn{color:var(--warn)}
+  .sv.na{color:var(--na)}
+
+  /* ── секции и плитки ─────────────────────────────────────────────────── */
+  .sec{margin-top:38px}
+  .sech{font-size:22px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+  .secsub{font-size:14px;color:var(--mut);margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(272px,1fr));gap:14px}
+  .tile{background:var(--card);border-radius:14px;padding:17px 18px 18px;
+    display:flex;flex-direction:column;gap:8px}
+  .tile.flag{background:#fef6f6}
+  .tile.na{background:#f8fafc}
+  .tiletop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .tilefact{font-size:15.5px;font-weight:750;line-height:1.3;letter-spacing:-.01em}
+  .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;margin-top:6px;background:var(--ok)}
+  .dot.bad{background:var(--bad)} .dot.warn{background:var(--warn)} .dot.na{background:var(--na)}
+  .tilemeans{font-size:13.5px;color:var(--ink-2);line-height:1.5}
+  .tilefoot{margin-top:auto;padding-top:6px;display:flex;flex-wrap:wrap;gap:6px;
+    align-items:center;font-size:11.5px;color:var(--mut)}
+  .asof{display:inline-flex;align-items:center;gap:5px;border-radius:7px;padding:3px 8px;
+    background:#fff;border:1px solid var(--card-line);font-weight:600;white-space:nowrap}
+  .asof.old{color:#92400e;background:#fffbeb;border-color:#fde68a}
+  .asof.fresh{color:#166534;background:#f0fdf4;border-color:#bbf7d0}
+  .src{color:var(--mut)}
+
+  /* ── таблица (ДТП, владение) ─────────────────────────────────────────── */
+  .tblwrap{overflow-x:auto;border-radius:14px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:14px}
+  th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--mut);padding:14px 18px 8px;white-space:nowrap}
+  td{padding:11px 18px;border-top:1px solid var(--card-line);vertical-align:top}
+  td b{font-weight:700}
+
+  /* ── рекомендации ────────────────────────────────────────────────────── */
+  .recs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
+  .recs li{display:flex;gap:11px;font-size:14.5px;color:var(--ink-2);line-height:1.55}
+  .recs li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--brand);
+    margin-top:8px;flex:0 0 auto}
+
+  /* ── доплата ─────────────────────────────────────────────────────────── */
+  .upsell{margin-top:38px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:16px;
+    padding:22px 24px}
+  .upsell h3{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:0 0 8px}
+  .upsell p{font-size:14.5px;color:var(--ink-2);margin:0 0 16px;line-height:1.55}
+
+  .foot{margin-top:44px;padding-top:22px;border-top:1px solid var(--line);
+    font-size:12.5px;color:var(--mut);line-height:1.6}
+  .acts{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
+
+  @media (max-width:820px){
+    .layout{grid-template-columns:1fr}
+    .h1{font-size:27px}
+    .wrap{padding:0 16px 48px}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="brand">Чистая<span>Сделка</span></div>
-
-  <div id="loading" class="loading">
-    <div class="spin"></div>
-    Загружаем ваш отчёт…
+  <div class="top">
+    <a class="logo" href="/">Чистая<span>Сделка</span> Авто</a>
+    <div class="topact" id="topact" style="display:none">
+      <a class="btn" id="pdfBtn" href="#" rel="noopener">Скачать PDF</a>
+    </div>
   </div>
 
-  <div class="card" id="card" style="display:none">
-    <div class="head">
-      <div><div class="rt">Риск оспаривания сделки</div><div class="robj" id="robj">—</div></div>
-      <span class="tag" id="tag">ВАШ ОТЧЁТ</span>
+  <div id="loading" class="loading"><div class="spin"></div>Загружаем ваш отчёт…</div>
+
+  <div id="doc" style="display:none">
+    <!-- машина -->
+    <div class="carhead">
+      <div class="asof-top" id="asofTop"></div>
+      <h1 class="h1" id="carName">—</h1>
+      <div class="idline" id="idline"></div>
     </div>
 
-    <!-- ВЫВОД ПЕРВЫМ. Раньше здесь стоял гейдж со стрелкой: 230 px прибора,
-         из-за которого ответ на вопрос клиента уезжал под сгиб. Теперь вердикт
-         читается сразу, а уровень риска передаёт чип и цвет полосы. -->
-    <div class="verdict" id="verdictBox">
-      <span class="vchip" id="vChip"><i></i><span id="vChipText">Вывод</span></span>
-      <div class="vhead" id="vHead">—</div>
-      <div class="vwhy" id="vBody"></div>
-      <b id="vRisk" hidden>—</b>
-    </div>
-
-    <div class="cap" id="capChecks">Установлено по данным реестров</div>
-    <div class="rrows" id="rrows"></div>
-
-    <!-- Правовые последствия: что произойдёт при сделке и на основании чего.
-         Собирается из modules/legal — норма подбирается под находку, не зашита. -->
-    <div id="consBox" style="display:none">
-      <div class="cap">Правовые последствия при совершении сделки</div>
-      <div class="cons" id="cons"></div>
-    </div>
-
-    <!-- Пакет к сделке: что запросить у продавца именно по этому объекту.
-         Приходит только если оплачен (см. _deal_kit_payload). -->
-    <div id="kitBox" style="display:none">
-      <div class="cap">Пакет к сделке</div>
-      <div id="kitAsk"></div>
-      <div id="kitSelf"></div>
-      <div id="kitDay"></div>
-      <div id="kitLetters"></div>
-      <div class="knote">Это перечень того, что стоит проверить, собранный по данным
-        реестров, а не юридическая консультация.</div>
-    </div>
-
-    <!-- Результат доплаченной проверки по ИНН — это ЧАСТЬ заключения, поэтому
-         разделом бланка, а не сиреневой карточкой поверх бумаги. -->
-    <div id="innBlock" style="display:none">
-      <div class="cap">Углублённая проверка продавца
-        <span class="capnote" id="innMask">доплаченная услуга</span></div>
-      <div class="rrows" id="innRows"></div>
-      <div id="innAnalysis" class="innan"></div>
-    </div>
-
-    <div class="recs" id="recsBox" style="display:none">
-      <div class="rc">Рекомендации</div>
-      <ul id="recs"></ul>
-    </div>
-
-    <div class="docfoot">
-      <p>Составлено автоматически по сведениям ГИБДД, реестра залогов ФНП, Федресурса,
-         ЕАИСТО, ФГИС «Такси» и ФТС. У каждой проверки указана своя дата актуальности —
-         сведения реестров изменяются. Не является юридической консультацией.</p>
-      <div class="seal"><b>Прове&shy;рено</b><span id="sealDate">—</span></div>
-    </div>
-
-  </div><!-- /.card — лист заканчивается печатью -->
-
-    <div class="actions">
-      <!-- Без target="_blank": встроенные браузеры почтовых приложений открывают
-           пустую вкладку и не отдают файл (жалоба по отчёту 1bc9a30808d7). Атрибут
-           download оставляет привычное сохранение на десктопе, а сервер отдаёт PDF
-           как inline — на телефоне он открывается смотрелкой, а не пропадает. -->
-      <a class="btn" id="pdfBtn" href="#" download rel="noopener">Скачать PDF-заключение</a>
-      <a class="btn ghost" href="/">← Проверить другой объект</a>
-    </div>
-
-    </div>
-
-    <!-- Мониторинг — ПОСЛЕ документа: это предложение услуги, а не часть заключения.
-         Раньше стоял первым и ломал бланк синей карточкой поверх бумаги. -->
-    <div id="monitorTop" style="display:none;margin-top:16px"></div>
-
-    <!-- Апселл банкротства: незакрытый третий реестр. Две строки уже с
-         галочками, третья пустая — счёт закрытых считаем по фактическим
-         checks, иначе «две из трёх» соврёт на частичной выдаче. -->
-    <div class="upsell offer" id="upsell" style="display:none">
-      <div class="up-top">
-        <div class="eyebrow" id="upEyebrow">Проверка завершена на две трети</div>
-        <h3 id="upHead">Две базы из трёх закрыты</h3>
+    <!-- вердикт + сводка -->
+    <div class="layout">
+      <div class="verdict">
+        <div class="vlabel">Вывод по проверке</div>
+        <span class="vpill" id="vPill"><i></i><span id="vPillText">—</span></span>
+        <h2 class="vhead" id="vHead">—</h2>
+        <ul class="vflags" id="vFlags"></ul>
+        <div class="vbody" id="vBody"></div>
       </div>
-      <div class="bar"><i id="upBar"></i></div>
-      <div class="barlab"><span id="upBarL">2 / 3 реестра</span><span id="upBarR">осталась одна</span></div>
-      <div class="steps" id="upSteps"></div>
-      <p class="t" id="upWhy">Реестры не связаны между собой: чистая ФССП
-         <b>не означает</b> отсутствия дела о банкротстве. Именно третья строка
-         отвечает за то, смогут ли отменить вашу сделку задним числом.</p>
-      <!-- Цена — в модалке: на кнопке она отвлекает от того, что человек
-           закрывает пробел, а не покупает ещё одну услугу. -->
-      <!-- Прямо в оплату: модалка была лишним экраном между интересом и кассой,
-           оба клика 26.07 умерли именно в ней. Цена ОБЯЗАНА быть на кнопке —
-           уводить в ЮKassa, не показав сумму, нельзя. -->
-      <button class="btn up-btn" id="upBtn" onclick="startAddon()">Проверить банкротство</button>
-      <div class="msg" id="addonMsg"></div>
-      <!-- Цена ушла с кнопки в подпись под ней: на кнопке сумма перебивала
-           смысл действия. Но остаться на экране до клика она обязана —
-           уводить в кассу, не показав цену, нельзя. -->
-      <div class="fine" id="upFine">249&nbsp;₽ · ФИО и дата рождения уже у нас ·
-         результат за 1–2 минуты</div>
+      <aside class="side">
+        <div class="sidet">Главное из отчёта</div>
+        <div id="sideRows"></div>
+      </aside>
     </div>
 
-  <!-- Апселл ПРОДАВЦА для object-only отчёта (проверка объекта была без ФИО) -->
-  <div class="upsell offer" id="sellerUpsell" style="display:none">
-    <div class="up-top">
-      <!-- Заголовок и текст подставляет renderUpsell по составу закрытых блоков:
-           обещать конкретные проверки в разметке нельзя, они зависят от тарифа. -->
-      <div class="eyebrow">Базовый тариф</div>
-      <h3>Открыть остальные проверки</h3>
+    <!-- проверки плитками -->
+    <div class="sec">
+      <h2 class="sech">Что установлено по реестрам</h2>
+      <p class="secsub" id="secsub">У каждой проверки — своя дата актуальности.</p>
+      <div class="grid" id="tiles"></div>
     </div>
-    <p class="up-quote">В базовый тариф вошли залог, ограничения и розыск.</p>
-    <button class="btn up-btn" onclick="startUpgrade()">Открыть полный отчёт — 250 ₽</button>
-  </div>
 
-  <!-- Идёт проверка продавца (после оплаты апселла) -->
-  <div class="upsell offer" id="sellerPending" style="display:none">
-    <div class="up-top">
-      <div class="eyebrow">Выполняется</div>
-      <h3>Проверяем продавца…</h3>
+    <!-- детали ДТП -->
+    <div class="sec" id="dtpSec" style="display:none">
+      <h2 class="sech">Дорожно-транспортные происшествия</h2>
+      <p class="secsub">Записи ГИБДД. Отсутствие записи не гарантирует, что машина не была в аварии.</p>
+      <div class="tblwrap"><table id="dtpTable"></table></div>
     </div>
-    <p class="up-quote">Идёт проверка по ФССП, банкротству, судам и залогам — обычно меньше минуты. Страница обновится сама.</p>
-  </div>
 
-  <!-- Проверка идёт дольше обычного. Показывается через 5 минут ожидания:
-       раньше на этом месте был бесконечный спиннер без объяснений. -->
-  <div class="addon-ovl" id="slowOvl" onclick="if(event.target===this)closeSlowNotice()">
-    <div class="addon-modal" role="dialog" aria-modal="true" aria-labelledby="slowTitle">
-      <button class="addon-x" onclick="closeSlowNotice()" aria-label="Закрыть">×</button>
-      <div class="slow-ico" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-             stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.2 2"></path>
-        </svg>
-      </div>
-      <h3 id="slowTitle">Проверка занимает больше времени</h3>
-      <p>Государственный реестр отвечает медленнее обычного. Ваш запрос принят
-         и выполняется — <b>оплата в силе, ничего повторять не нужно</b>.</p>
-      <p>Мы пришлём готовый отчёт на вашу почту, как только он будет готов.
-         Обычно это занимает до 30&nbsp;минут. Страницу можно закрыть.</p>
-      <button class="btn" onclick="closeSlowNotice()">Понятно</button>
+    <!-- таможня -->
+    <div class="sec" id="cusSec" style="display:none">
+      <h2 class="sech">Таможенное оформление</h2>
+      <p class="secsub">Данные ФТС по ввозу автомобиля.</p>
+      <div class="tblwrap"><table id="cusTable"></table></div>
+    </div>
+
+    <!-- рекомендации -->
+    <div class="sec" id="recSec" style="display:none">
+      <h2 class="sech">Что сделать перед сделкой</h2>
+      <ul class="recs" id="recs"></ul>
+    </div>
+
+    <!-- доплата до полного -->
+    <div class="upsell" id="upsell" style="display:none">
+      <h3 id="upHead">Открыть остальные проверки</h3>
+      <p id="upText"></p>
+      <button class="btn pri" id="upBtn" type="button" onclick="startUpgrade()">Открыть полный отчёт — 250 ₽</button>
+    </div>
+
+    <div class="acts">
+      <a class="btn" id="pdfBtn2" href="#" rel="noopener">Скачать PDF-заключение</a>
+      <a class="btn" href="/">← Проверить другую машину</a>
+    </div>
+
+    <div class="foot">
+      Составлено автоматически по сведениям ГИБДД, реестра залогов ФНП, Федресурса,
+      ЕАИСТО, ФГИС «Такси» и ФТС. У каждой проверки указана своя дата актуальности —
+      сведения реестров изменяются. Не является юридической консультацией.
+      <div style="margin-top:8px">ЧистаяСделка Авто · <a href="/" style="color:var(--mut)">avto.chistasdelka.ru</a></div>
     </div>
   </div>
-
-  <!-- Модалка сбора ФИО продавца для апселла -->
-  <div class="addon-ovl" id="sellerOvl" onclick="if(event.target===this)closeSellerModal()">
-    <div class="addon-modal" role="dialog" aria-modal="true">
-      <button class="addon-x" onclick="closeSellerModal()" aria-label="Закрыть">×</button>
-      <h3>Добавить проверку продавца</h3>
-      <p>Проверим продавца по ФССП (долги), банкротству (ЕФРСБ), судам (КАД&nbsp;Арбитр) и залогам. Результат добавим в этот отчёт с итоговым вердиктом.</p>
-      <input id="selFio" placeholder="ФИО продавца (как в паспорте)" autocomplete="off">
-      <input id="selDob" placeholder="Дата рождения — ДД.ММ.ГГГГ" inputmode="numeric" maxlength="10" autocomplete="off">
-      <p style="font-size:12px;color:#6b7280;margin:-6px 0 12px">Без даты рождения проверку провести нельзя: по одним ФИО в реестрах находятся десятки однофамильцев.</p>
-      <label style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:#475569;cursor:pointer;margin:4px 0 10px">
-        <input type="checkbox" id="selPdn">
-        <span>Согласен(на) на обработку персональных данных согласно <a href="/consent" target="_blank" rel="noopener">Согласию</a> и <a href="/privacy" target="_blank" rel="noopener">Политике</a>.</span></label>
-      <button class="btn" id="selPayBtn" onclick="startSellerAddon()">Добавить продавца — 491&nbsp;₽</button>
-      <div class="msg" id="selMsg"></div>
-    </div>
-  </div>
-
-
-  <div class="foot">ЧистаяСделка · <a href="/">chistasdelka.ru</a></div>
 </div>
 
-<script>
-// Яндекс.Метрика — та же, что на лендинге (id 111408587)
-(function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})(window,document,'script','https://mc.yandex.ru/metrika/tag.js','ym');
-try{ ym(111408587,'init',{clickmap:true,trackLinks:true,accurateTrackBounce:true}); }catch(e){}
-</script>
-<script>
-// Наша аналитика на странице отчёта. Раньше её здесь не было вообще: события
-// апселлов уходили ТОЛЬКО в Метрику, поэтому в собственном дашборде вся жизнь
-// после оплаты была слепым пятном — конверсию апселлов приходилось считать
-// руками по журналу платежей, без разбивки по кампаниям и без воронки.
-//
-// visitEvent переопределён: 'visit' — первый шаг воронки лендинга, и если бы
-// его слал ещё и отчёт, знаменатель раздулся бы уже оплатившими людьми, а
-// конверсия сайта поехала бы вниз на ровном месте.
-window.ANALYTICS_CONFIG = {endpoint:'/api/goal', metrika:111408587, visitEvent:'report_open'};
-</script>
+<script>window.ANALYTICS_CONFIG = {endpoint:'/api/goal', metrika:111408587, visitEvent:'report_open'};</script>
 <script src="/static/analytics.js"></script>
 <script>
-// goal() шлёт и в Метрику, и к нам — поэтому прямые вызовы ym('reachGoal')
-// ниже заменены на него, чтобы цели Метрики не задваивались.
 function goal(name, params){ try{ return window.Analytics && Analytics.goal(name, params||{}); }catch(e){} }
-
 var RID = location.pathname.split('/')[2] || '';
+var IS_EXAMPLE = location.pathname.indexOf('/example') === 0;
 
-// Цель pay_success НЕ палим на клиенте: после возврата с ЮKassa визит
-// атрибутируется как «прямой заход» и теряет рекламный клик. Вместо этого
-// сервер грузит offline-конверсию по ClientId (см. _record_paid_order).
+function esc(s){ return String(s==null?'':s).replace(/[<>&"]/g,function(c){
+  return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]; }); }
 
-var ICON = {found:['bad','!'], not_found:['ok','✓'], not_checked:['warn','?']};
-var RESCLS = {found:'bad', not_found:'ok', not_checked:'warn'};
+/* Что факт значит ДЛЯ ПОКУПАТЕЛЯ. Живёт отдельно от detail намеренно: detail —
+   это данные источника, а здесь наше объяснение последствий. Смешивать их в
+   одну строку значит получить восемь одинаковых абзацев, из которых не видно,
+   где деньги, а где мелочь. Ключи совпадают с AUTO_CHECKS в modules/auto.py. */
+var MEANS = {
+  pledge:{
+    found:'Залог переходит к покупателю вместе с машиной: по ст. 353 ГК банк заберёт её уже у вас. Сделку заключать нельзя, пока залог не снят.',
+    not_found:'Ни банк, ни лизинговая компания прав на машину не заявляли. Это единственная проверка, которую мы делаем в реестре в момент запроса.',
+    not_checked:'Реестр залогов не ответил. Это главный риск покупки — проверьте его вручную на reestr-zalogov.ru, там бесплатно.'},
+  restrict:{
+    found:'Машину не переоформят на вас в ГИБДД, пока ограничение не снимут. Деньги отдадите, а собственником не станете.',
+    not_found:'Запретов на регистрационные действия не числится — препятствий поставить машину на учёт нет.',
+    not_checked:'Данных об ограничениях получить не удалось. Проверьте на портале Госуслуг перед сделкой, это бесплатно.'},
+  wanted:{
+    found:'Автомобиль числится в розыске. Сделка невозможна: машину изымут, а деньги придётся возвращать через суд.',
+    not_found:'В розыске автомобиль не значится.',
+    not_checked:'Сведений о розыске получить не удалось — сверьтесь на сайте ГИБДД.'},
+  dtp:{
+    found:'Была авария. Смотрите геометрию кузова и качество ремонта на подъёмнике: скрытые повреждения силовых элементов влияют на безопасность и цену.',
+    not_found:'Записей об авариях в базе ГИБДД нет. Учтите: туда попадают только оформленные ДТП — мелкий ремонт без ГИБДД в базе не появится.',
+    not_checked:'Данные о ДТП получить не удалось.'},
+  mileage:{
+    found:'Есть зафиксированные значения пробега. Сравните их с показаниями одометра — расхождение вниз означает скрутку.',
+    not_found:'Записей о пробеге в источнике нет.',
+    not_checked:'Диагностических карт по машине не нашлось. Это НЕ значит, что пробег честный: просто сверить его нам не с чем. Просите у продавца сервисную книжку.'},
+  history:{
+    found:'Чем чаще машину перепродают, тем выше шанс, что от неё избавляются из-за проблемы. Спросите продавца, почему владельцы менялись.',
+    not_found:'Записей о смене владельцев не найдено.',
+    not_checked:'История регистраций недоступна.'},
+  taxi:{
+    found:'Работа в такси или каршеринге — это пробег и износ в разы выше обычного при том же возрасте. Торгуйтесь и проверяйте подвеску и двигатель.',
+    not_found:'В такси и каршеринге машина не числилась.',
+    not_checked:'Сведения о работе в такси получить не удалось.'},
+  customs:{
+    found:'Машина ввезена из-за границы. Запросите копию ГТД и сверьте комплектацию: так выявляют «конструкторы» и документы от другого автомобиля.',
+    not_found:'Сведений о ввозе из-за границы нет.',
+    not_checked:'Данные таможни недоступны.'},
+  locked:{}
+};
 
-function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+/* Заголовок плитки при чистом результате. Первая фраза из detail — это
+   отрицание («Ограничений на регистрационные действия не найдено»), и восемь
+   таких заголовков подряд читаются как список того, чего нет. Утверждение
+   короче и сканируется быстрее. Для находок заголовок берём из detail как
+   есть: там число («Зафиксировано ДТП: 1»), и придумывать ему замену нельзя. */
+var TITLES = {
+  restrict:{not_found:'Ограничений на регистрацию нет', not_checked:'Ограничения проверить не удалось'},
+  pledge:{not_found:'Не в залоге и не в лизинге', not_checked:'Залог проверить не удалось'},
+  wanted:{not_found:'В розыске не значится', not_checked:'Розыск проверить не удалось'},
+  dtp:{not_found:'ДТП в базе ГИБДД нет', not_checked:'ДТП проверить не удалось'},
+  mileage:{not_found:'Записей о пробеге нет', not_checked:'Пробег сверить не с чем'},
+  history:{not_found:'Записей о смене владельцев нет', not_checked:'История регистраций недоступна'},
+  taxi:{not_found:'В такси и каршеринге не работала', not_checked:'Работу в такси проверить не удалось'},
+  customs:{not_found:'Из-за границы не ввозилась', not_checked:'Данные таможни недоступны'}
+};
+
+/* Дату актуальности кладёт в текст _tail() из modules/auto.py — формат наш и
+   фиксированный. Вынимаем её в отдельный бейдж, чтобы она читалась с одного
+   взгляда, а не терялась в конце абзаца. Меняете _tail — правьте и это. */
+var ASOF_RE = /\s*(⚠️\s*)?Данные актуальны на (\d{2}\.\d{2}\.\d{4})[^.]*\.\s*(Сведения могли измениться;[^.]*\.)?/;
+function splitDetail(detail){
+  var t = String(detail||''); var m = t.match(ASOF_RE);
+  if(!m) return {text:t.trim(), date:'', old:false};
+  return {text:t.replace(ASOF_RE,' ').trim(), date:m[2], old:!!m[1]};
+}
+
+var STATUS_WORD = {found:'обнаружено', not_found:'чисто', not_checked:'нет данных', locked:'не входит в тариф'};
+var DOTCLS = {found:'bad', not_found:'', not_checked:'na', locked:'na'};
+/* Находка в этих блоках сделку не запрещает, а влияет на цену — точка жёлтая,
+   а не красная. Иначе «был в такси» кричит так же, как «в залоге». */
+var SOFT = {dtp:1, history:1, taxi:1, customs:1, mileage:1};
 
 function render(d){
   document.getElementById('loading').style.display='none';
-  document.getElementById('card').style.display='block';
-  /* Сброс блоков: render вызывается повторно (после доплаты по ИНН, после
-     закрытия «дольше обычного»). Без сброса состояние протекает — объектный
-     отчёт мог показать апселл по ИНН, оставшийся от прошлой отрисовки. */
-  ['consBox','upsell','sellerUpsell','sellerPending','innBlock','recsBox'].forEach(function(id){
-    var el=document.getElementById(id); if(el) el.style.display='none';
-  });
-  var _c=document.getElementById('cons'); if(_c) _c.innerHTML='';
-  if(d.addon_pending){
-    var b = document.getElementById('addonPending');
-    if(!b){ b=document.createElement('div'); b.id='addonPending';
-      b.style.cssText='margin-bottom:16px;padding:13px 16px;background:#fef9c3;border:1px solid #fde047;border-radius:12px;font-size:13.5px;color:#713f12;text-align:center';
-      document.getElementById('card').prepend(b); }
-    b.innerHTML='Проверяем банкротство продавца — отчёт дополнится через 1–2 минуты. Страница обновится сама.';
-    setTimeout(function(){ location.reload(); }, 30000);
-  }
-  /* Бэкенд отдаёт только «низкий/средний/высокий». Но печатать вслепую то, что
-     пришло, нельзя: пустое или незнакомое значение дало бы на ОПЛАЧЕННОМ отчёте
-     непонятное слово чёрным и стрелку, показывающую не туда. Незнакомое
-     трактуем как «средний» — это осторожная сторона: лучше лишний раз призвать
-     к внимательности, чем нарисовать «низкий» там, где мы не уверены. */
-  var RISK_COL = {'низкий':'#16a34a','средний':'#d97706','высокий':'#dc2626'};
-  var RISK_CLS = {'низкий':'ok','средний':'warn','высокий':''};
-  var RISK_WORD = {'низкий':'Существенных рисков не выявлено',
-                   'средний':'Сделка требует внимания',
-                   'высокий':'Приобретение объекта не рекомендуется'};
-  var risk = (d.risk||'').toLowerCase();
-  if(!RISK_COL[risk]) risk = 'средний';
-  var cls = RISK_CLS[risk];
-  var _now = new Date();
-  var _dd = String(_now.getDate()).padStart(2,'0')+'.'+String(_now.getMonth()+1).padStart(2,'0')
-            +'.'+_now.getFullYear();
-  document.getElementById('robj').innerHTML = 'Заключение № '+esc(d.report_id||'')+'<br>'+_dd;
-  var _sd = document.getElementById('sealDate'); if(_sd) _sd.textContent = _dd;
-  document.getElementById('vRisk').textContent = risk.toUpperCase();   // для PDF/тестов
-  var chip = document.getElementById('vChip');
-  chip.className = 'vchip' + (cls ? ' '+cls : '');
-  /* Цвет резолютивной плашки. Класс ставился только на чип — плашка при любом
-     исходе оставалась бордовой, и «рисков не выявлено» читалось как приговор. */
-  var vbox = document.getElementById('verdictBox');
-  if(vbox) vbox.className = 'verdict' + (cls ? ' '+cls : '');
-  document.getElementById('vChipText').textContent = 'Риск ' + risk;
-  /* Заголовок вывода — это и есть ответ на вопрос клиента. Берём формулировку
-     сервера, если она есть; иначе подставляем по уровню риска, чтобы человек
-     не увидел пустоту на оплаченном отчёте. */
-  document.getElementById('vHead').textContent = d.headline || RISK_WORD[risk];
-  var why = document.getElementById('vBody');
-  why.className = 'vwhy' + (cls ? ' '+cls : '');
-  why.textContent = d.body||'';
-  why.style.display = (d.body||'').trim() ? 'block' : 'none';
+  document.getElementById('doc').style.display='block';
+  document.getElementById('topact').style.display='flex';
 
-  // Правовые последствия — только если сервер их прислал (норма выверена).
-  var cons = d.consequences||[];
-  var cbox = document.getElementById('consBox');
-  if(cons.length){
-    cbox.style.display='block';
-    document.getElementById('cons').innerHTML = cons.map(function(c,i){
-      var laws = (c.norms||[]).map(function(n){
-        return '<a href="'+esc(n.url)+'" target="_blank" rel="noopener">'+esc(n.label)+'</a>'+
-               (n.note ? ' <span class="nnote">'+esc(n.note)+'</span>' : '');
-      }).join(' · ');
-      return '<div class="crow"><div class="cnum'+(c.severity==='block'?'':' warn')+'">'+(i+1)+'</div>'+
-             '<div class="ctext">'+c.text+
-             (laws ? '<span class="claw">'+laws+'</span>' : '')+'</div></div>';
-    }).join('');
-  } else { cbox.style.display='none'; }
+  var car = d.car || {};
+  var name = [car.marka, car.model].filter(Boolean).join(' ');
+  document.getElementById('carName').textContent = name || 'Автомобиль';
 
-  // Пакет к сделке — приходит только оплатившим.
-  var kit = d.deal_kit;
-  var kbox = document.getElementById('kitBox');
-  if(kit && ((kit.ask_seller||[]).length || (kit.check_self||[]).length)){
-    kbox.style.display='block';
-    var list = function(items){
-      return (items||[]).map(function(i){
-        return '<div class="kitem'+(i.urgent?' kurg':'')+'">'+
-               '<div class="ktitle">'+esc(i.title)+(i.urgent?'<span class="kbadge">до аванса</span>':'')+'</div>'+
-               '<div class="kwhy">'+esc(i.why)+(i.law?'<span class="klaw">'+esc(i.law)+'</span>':'')+'</div></div>';
-      }).join('');
-    };
-    document.getElementById('kitAsk').innerHTML =
-      '<div class="ksub">Запросить у продавца</div>' + list(kit.ask_seller);
-    document.getElementById('kitSelf').innerHTML =
-      '<div class="ksub">Проверить самому — эти сведения реестры нам не отдают</div>' + list(kit.check_self);
-    document.getElementById('kitDay').innerHTML = (kit.day_of||[]).length
-      ? '<div class="ksub">В день сделки</div><ul class="kday">'+
-        (kit.day_of||[]).map(function(x){ return '<li>'+esc(x)+'</li>'; }).join('')+'</ul>'
-      : '';
-    var lt = kit.letters||{};
-    document.getElementById('kitLetters').innerHTML = Object.keys(lt).length
-      ? '<div class="ksub">Готовые тексты — скопируйте и отправьте</div>'+
-        Object.keys(lt).map(function(k){
-          return '<details class="kletter"><summary>Письмо '+esc(k)+'</summary>'+
-                 '<pre>'+esc(lt[k])+'</pre></details>';
-        }).join('')
-      : '';
-  } else if(kbox){ kbox.style.display='none'; }
+  var idp = [];
+  if(d.vin) idp.push('<span>VIN <b>'+esc(d.vin)+'</b></span>');
+  if(car.year) idp.push('<span><i>'+(String(car.year).indexOf('с ')===0?'поколение':'год')+'</i> '+esc(car.year)+'</span>');
+  if(car.engine) idp.push('<span><i>двигатель</i> '+esc(car.engine)+'</span>');
+  if(car.body) idp.push('<span><i>кузов</i> '+esc(car.body)+'</span>');
+  if(d.created_at) idp.push('<span><i>отчёт от</i> '+esc(String(d.created_at).slice(0,10).split('-').reverse().join('.'))+'</span>');
+  document.getElementById('idline').innerHTML = idp.join('');
 
-  var rows = document.getElementById('rrows'); rows.innerHTML='';
-  (d.checks||[]).forEach(function(c){
-    var ic = ICON[c.status]||['na','?'];
-    // «чисто», а не «не найдено»: статус относится к тому, ЧТО ИСКАЛИ (обременения,
-    // производства, банкротство), а не к самому объекту. Клиент 396a91ded0c4 прочёл
-    // бейдж «не найдено» рядом с текстом «объект найден в ЕГРН» и потребовал возврат
-    // за противоречие. В modules/verdict.py то же состояние давно подписано «✓ чисто».
-    var resText = {found:'обнаружено', not_found:'чисто', not_checked:'не проверено'}[c.status]||c.status;
-    var el = document.createElement('div'); el.className='rrow'+(c.status==='found'?' flag':'');
-    el.innerHTML = '<span class="ric '+ic[0]+'">'+ic[1]+'</span>'+
-      '<div class="rmain"><div class="rname">'+esc(c.name)+'</div><div class="rsrc">'+esc(c.source)+'</div>'+
-      (c.detail?'<div class="rdetail">'+esc(c.detail)+'</div>':'')+'</div>'+
-      '<span class="rres '+(RESCLS[c.status]||'na')+'">'+resText+'</span>';
-    rows.appendChild(el);
-  });
-  var recs = d.recommendations||[];
-  if(recs.length){
-    document.getElementById('recsBox').style.display='block';
-    document.getElementById('recs').innerHTML = recs.map(function(r){return '<li>'+esc(r)+'</li>';}).join('');
-  }
-  document.getElementById('pdfBtn').href = '/api/report/'+RID;
+  var checks = d.checks || [];
+  var parsed = checks.map(function(c){ var s = splitDetail(c.detail); return {c:c, s:s}; });
 
-  // Отдельный блок доп-проверки по ИНН (если куплена и выполнена).
-  if(d.addon_result){
-    var ib = document.getElementById('innBlock'); ib.style.display='block';
-    if(d.addon_result.inn_mask) document.getElementById('innMask').textContent = 'По ИНН '+d.addon_result.inn_mask+' · доплаченная услуга';
-    var ir = document.getElementById('innRows'); ir.innerHTML='';
-    (d.addon_result.checks||[]).forEach(function(c){
-      var ic = ICON[c.status]||['na','?'];
-      // «чисто», а не «не найдено»: статус относится к тому, ЧТО ИСКАЛИ (обременения,
-    // производства, банкротство), а не к самому объекту. Клиент 396a91ded0c4 прочёл
-    // бейдж «не найдено» рядом с текстом «объект найден в ЕГРН» и потребовал возврат
-    // за противоречие. В modules/verdict.py то же состояние давно подписано «✓ чисто».
-    var resText = {found:'обнаружено', not_found:'чисто', not_checked:'не проверено'}[c.status]||c.status;
-      var el = document.createElement('div'); el.className='rrow';
-      el.innerHTML = '<span class="ric '+ic[0]+'">'+ic[1]+'</span>'+
-        '<div class="rmain"><div class="rname">'+esc(c.name)+'</div><div class="rsrc">'+esc(c.source)+'</div>'+
-        (c.detail?'<div class="rdetail">'+esc(c.detail)+'</div>':'')+'</div>'+
-        '<span class="rres '+(RESCLS[c.status]||'na')+'">'+resText+'</span>';
-      ir.appendChild(el);
-    });
-    var an = document.getElementById('innAnalysis');
-    if(d.addon_result.analysis){ an.innerHTML = '<b>Вывод юриста:</b><br>'+esc(d.addon_result.analysis); }
-    else{ an.style.display='none'; }
-  }
+  // Самая старая дата — вверх, до вердикта. Это первое, что человек должен знать.
+  var dates = parsed.filter(function(p){ return p.s.date; }).map(function(p){ return p.s.date; });
+  var top = document.getElementById('asofTop');
+  if(dates.length){
+    var oldest = dates.slice().sort(function(a,b){
+      return a.split('.').reverse().join('') > b.split('.').reverse().join('') ? 1 : -1; })[0];
+    var anyOld = parsed.some(function(p){ return p.s.old; });
+    top.className = 'asof-top' + (anyOld ? '' : ' fresh');
+    top.textContent = anyOld
+      ? 'Часть сведений архивные — самые старые от ' + oldest + '. Даты указаны у каждой проверки.'
+      : 'Все проверки выполнены по актуальным данным.';
+  } else { top.style.display='none'; }
 
-  window._premium = !!d.premium;
+  // вердикт
+  var risk = String(d.risk||'').toLowerCase();
+  var pillCls = risk.indexOf('высок')>=0 ? 'high' : (risk.indexOf('средн')>=0 ? 'mid' : 'low');
+  document.getElementById('vPill').className = 'vpill '+pillCls;
+  document.getElementById('vPillText').textContent = 'Риск ' + (d.risk || '—');
+  document.getElementById('vHead').textContent = d.headline || '';
+  document.getElementById('vBody').textContent = d.body || '';
 
-  // АВТО. Апселлы недвижимости (проверка продавца по ФИО, доп-проверка по ИНН)
-  // здесь продавать нечего: по машине мы этого не делаем и выполнить не сможем.
-  // Взять за них деньги — гарантированный возврат, поэтому ветка обрывается
-  // здесь, до всех property-апселлов. Единственная честная доплата — открыть
-  // блоки, не входившие в базовый тариф; их и предлагаем.
-  var locked = (d.checks||[]).filter(function(c){ return c && c.status === 'locked'; });
-  if(locked.length){
-    var up = document.getElementById('sellerUpsell');
-    if(up){
-      up.querySelector('h3').textContent = 'Открыть остальные ' + locked.length + ' проверки';
-      var q = up.querySelector('.up-quote');
-      if(q) q.textContent = 'В базовый тариф вошли залог, ограничения и розыск. ' +
-        locked.map(function(c){ return c.name; }).join(', ') +
-        ' — проверяются по тому же VIN, доплата до полного отчёта.';
-      var b = up.querySelector('.up-btn');
-      if(b){ b.textContent = 'Открыть полный отчёт — 250 ₽'; b.onclick = startUpgrade; }
-      up.style.display = 'block';
-      goal('auto_full_upsell_view');
-    }
-  }
-  renderMonitorTop(d);
-  return;
-
-  if(d.seller_addon_pending){
-    document.getElementById('sellerPending').style.display='block';
-    // проверка продавца обычно < минуты — перезагружаем страницу, чтобы показать дополненный отчёт
-    if(!window._sellerReloadTimer){ window._sellerReloadTimer = setTimeout(function(){ location.reload(); }, 45000); }
-    renderMonitorTop(d); return;
-  }
-  if(d.object_only){
-    document.getElementById('sellerUpsell').style.display='block';
-    /* Показ блока раньше не отслеживался вовсе — были только клики, да и те
-       уходили в незаведённые цели и молча терялись. Без показа нельзя понять,
-       где отваливаются: не доходят до блока, не кликают или не платят. */
-    goal('seller_addon_view');
-    // цена доплаты за продавца — по варианту (дельта до полной цены), приходит из API
-    if(d.seller_addon_price){ var sb=document.getElementById('selPayBtn');
-      if(sb) sb.innerHTML='Добавить продавца — '+d.seller_addon_price+'&nbsp;₽'; }
-    renderMonitorTop(d); return;
-  }
-  // Апселл — доп-проверка по ИНН (если ещё не куплена и не выполняется).
-  // Тизер статичный (риск-фрейминг), БЕЗ цены; ИНН и цена — в модалке.
-  // ПРЕМИУМ (вариант D): проверка включена в пакет — другой текст, без цены.
-  /* Не продаём то, что уже отдано: если банкротство в заключении есть,
-     апселл и его облачко («в заключении не отражены») станут неправдой. */
-  var hasBankr = (d.checks||[]).some(function(c){
-    return c && c.key==='bankruptcy' && c.status && c.status!=='pending' && !c.locked;
-  });
-  if(!d.addon_pending && !d.addon_applied && !hasBankr){
-    document.getElementById('upsell').style.display='block';
-    renderUpsellSteps(d.checks||[]);
-    goal('addon_view');   // см. seller_addon_view
-    if(d.premium){
-      var uh = document.querySelector('#upsell h3');
-      var uq = document.getElementById('upWhy');
-      var ub = document.querySelector('#upsell .up-btn');
-      if(uh) uh.textContent = 'Третий реестр включён в ваш Премиум-пакет';
-      if(uq) uq.innerHTML = 'Проверка по Федресурсу и КАД Арбитр уже оплачена — '+
-        'доплат нет. Укажите ИНН продавца, и мы закроем третью строку.';
-      if(ub) ub.textContent = 'Запустить проверку — включено в пакет';
-      var uf = document.getElementById('upFine');
-      if(uf) uf.textContent = 'Входит в Премиум-пакет · доплат нет';
-    }
-  }
-
-  renderMonitorTop(d);
-}
-
-/* Три реестра апселла: сколько закрыто — считаем по фактическим checks.
-   «Две из трёх» на частичной выдаче было бы неправдой: там объект не опознан
-   и закрыт только один реестр. */
-function renderUpsellSteps(checks){
-  var box = document.getElementById('upSteps');
-  if(!box) return;
-  function closed(key){
-    return (checks||[]).some(function(c){
-      return c && c.key===key && c.status && c.status!=='pending' && !c.locked;
-    });
-  }
-  var rows = [
-    {ok:closed('object'), nm:'Единый государственный реестр недвижимости',
-     sub:'обременения, аресты, доли'},
-    {ok:closed('enforcement'), nm:'ФССП России',
-     sub:'исполнительные производства продавца'},
-    {ok:false, nm:'Федресурс (ЕФРСБ)', sub:'дела о банкротстве продавца'}
-  ];
-  box.innerHTML = rows.map(function(r){
-    return '<div class="step'+(r.ok?'':' open')+'">'+
-      '<div class="ic '+(r.ok?'done':'open')+'">'+(r.ok?'✓':'—')+'</div>'+
-      '<div class="nm">'+esc(r.nm)+'<i>'+esc(r.sub)+'</i></div>'+
-      '<div class="st">'+(r.ok?'закрыто':'не запрашивалось')+'</div></div>';
+  var flags = parsed.filter(function(p){ return p.c.status==='found'; });
+  document.getElementById('vFlags').innerHTML = flags.map(function(p){
+    return '<li'+(SOFT[p.c.key]?' class="warn"':'')+'>'+esc(p.s.text.split('.')[0])+'</li>';
   }).join('');
 
-  var n = rows.filter(function(r){ return r.ok; }).length;
-  var WORD = {0:'Ни один реестр не закрыт', 1:'Одна база из трёх закрыта',
-              2:'Две базы из трёх закрыты'};
-  var EYE  = {0:'Проверка не завершена', 1:'Проверка завершена на треть',
-              2:'Проверка завершена на две трети'};
-  document.getElementById('upHead').textContent = WORD[n] || WORD[2];
-  document.getElementById('upEyebrow').textContent = EYE[n] || EYE[2];
-  document.getElementById('upBar').style.width = (n/3*100).toFixed(1)+'%';
-  document.getElementById('upBarL').textContent = n + ' / 3 реестра';
-  // при частичной выдаче незакрытых две — «осталась одна» было бы враньём
-  document.getElementById('upBarR').textContent =
-    (3-n) === 1 ? 'осталась одна' : 'осталось ' + (3-n);
-  // «ФИО уже у нас» — только если продавца действительно проверяли
-  var fine = document.getElementById('upFine');
-  if(fine && !closed('enforcement')){
-    fine.textContent = 'Проверим по ФИО, указанному в заявке · результат за 1–2 минуты';
+  // боковая сводка
+  document.getElementById('sideRows').innerHTML = parsed.map(function(p){
+    var cls = p.c.status==='found' ? (SOFT[p.c.key]?'warn':'bad')
+            : (p.c.status==='not_found' ? 'ok' : 'na');
+    return '<div class="srow"><span class="sk">'+esc(p.c.name)+'</span>'+
+      '<span class="sv '+cls+'">'+esc(STATUS_WORD[p.c.status]||p.c.status)+'</span></div>';
+  }).join('');
+
+  // плитки
+  document.getElementById('tiles').innerHTML = parsed.map(function(p){
+    var c = p.c, s = p.s;
+    var dotcls = c.status==='found' ? (SOFT[c.key]?'warn':'bad') : (DOTCLS[c.status]||'');
+    var tilecls = c.status==='found' ? (SOFT[c.key]?'tile':'tile flag')
+                : (c.status==='not_found' ? 'tile' : 'tile na');
+    var means = (MEANS[c.key]||{})[c.status] || '';
+    var badge = s.date
+      ? '<span class="asof '+(s.old?'old':'fresh')+'">'+(s.old?'данные на ':'проверено ')+esc(s.date)+'</span>'
+      : '';
+    var title = (TITLES[c.key]||{})[c.status] || s.text.split('.')[0];
+    return '<div class="'+tilecls+'">'+
+      '<div class="tiletop"><div class="tilefact">'+esc(title)+'</div>'+
+      '<span class="dot '+dotcls+'"></span></div>'+
+      (means?'<div class="tilemeans">'+esc(means)+'</div>':'')+
+      '<div class="tilefoot">'+badge+'<span class="src">'+esc(c.source)+'</span></div></div>';
+  }).join('');
+
+  // ДТП таблицей
+  var dtp = (checks.filter(function(c){ return c.key==='dtp'; })[0]||{}).items || [];
+  if(dtp.length){
+    document.getElementById('dtpSec').style.display='block';
+    document.getElementById('dtpTable').innerHTML =
+      '<tr><th>Дата</th><th>Тип</th><th>Регион</th><th>Состояние</th></tr>' +
+      dtp.map(function(a){
+        var dt = String(a.Date||'').slice(0,10).split('-').reverse().join('.');
+        return '<tr><td><b>'+esc(dt)+'</b></td><td>'+esc(a.Type||'—')+'</td>'+
+          '<td>'+esc(a.Region||'—')+'</td><td>'+esc(a.State||'—')+'</td></tr>';
+      }).join('');
   }
-}
 
-/* ===== Мониторинг продавца до сделки — блок сверху отчёта ===== */
-function renderMonitorTop(d){
-  var box = document.getElementById('monitorTop');
-  if(!box) return;
-  window._reportEmail = '';  // email не приходит из API (минимизация ПДн) — юзер вводит сам
-  var m = d.monitoring;
-  // Щит рисуем линией, а не эмодзи: эмодзи на бланке выглядит инородно
-  // и на разных системах отрисовывается по-разному.
-  var SHIELD = '<svg viewBox="0 0 24 24" aria-hidden="true">'+
-    '<path d="M12 3l7 3v5.5c0 4.3-2.9 7.6-7 8.5-4.1-.9-7-4.2-7-8.5V6z"></path>'+
-    '<path d="M9 12l2 2 4-4"></path></svg>';
-  var html = '';
-  if(m && m.status === 'active' && m.tg_linked){
-    html = '<div class="offer done">'+SHIELD+
-      '<p class="t"><b>Наблюдение активно.</b> Ежедневно перепроверяем продавца — '+
-      'сводка «изменений нет» или тревога придут в ваш Telegram.</p></div>';
-  } else if(m && m.status === 'active'){
-    html = '<div class="offer">'+
-      '<div class="eyebrow">Оплачено · остался один шаг</div>'+
-      '<h3>Подключите Telegram для оповещений</h3>'+
-      '<p class="t">Наблюдение оплачено и запущено. Укажите, куда присылать '+
-      'ежедневные сводки и срочные тревоги.</p>'+
-      '<a class="btn tg" href="'+m.tg_link+'" target="_blank" rel="noopener" '+
-      'onclick="try{ym(111408587,\'reachGoal\',\'monitor_tg_connect\')}catch(e){}">'+
-      'Подключить Telegram →</a></div>';
-  } else {
-    // Предложение наблюдения со страницы отчёта снято. За 30 дней: 36 человек
-    // увидели блок, кликнул 1, купил 0 — при 50 оплативших отчёт. Просить ещё
-    // 990 ₽ сразу после покупки — не тот момент, и второе предложение рядом
-    // размывало апселл проверки банкротства за 249 ₽, который по теме.
-    // Сама услуга жива: подписки, планировщик и Telegram-бот работают,
-    // и статус подписки ниже показывается тем, у кого она есть.
-    box.style.display = 'none';
-    return;
+  // таможня таблицей
+  var cus = (checks.filter(function(c){ return c.key==='customs'; })[0]||{}).items || [];
+  if(cus.length){
+    document.getElementById('cusSec').style.display='block';
+    document.getElementById('cusTable').innerHTML =
+      '<tr><th>Дата оформления</th><th>Модель по декларации</th><th>Страна</th></tr>' +
+      cus.map(function(a){
+        return '<tr><td><b>'+esc(a.CustomsDate||'—')+'</b></td>'+
+          '<td>'+esc(a.MarkaModel||'—')+'</td><td>'+esc(a.Country||'не указана')+'</td></tr>';
+      }).join('');
   }
-  box.innerHTML = html;
-  box.style.display = 'block';
-  goal('monitor_view');
-}
 
-function openMonitorModal(){
-  goal('monitor_click');
-  var ovl = document.getElementById('monOvl');
-  if(!ovl){
-    ovl = document.createElement('div');
-    ovl.id = 'monOvl';
-    ovl.className = 'addon-ovl';
-    ovl.addEventListener('click', function(e){ if(e.target===ovl) ovl.classList.remove('open'); });
-    document.body.appendChild(ovl);
+  var recs = d.recommendations || [];
+  if(recs.length){
+    document.getElementById('recSec').style.display='block';
+    document.getElementById('recs').innerHTML = recs.map(function(r){ return '<li>'+esc(r)+'</li>'; }).join('');
   }
-  ovl.innerHTML = '<div class="addon-modal">'+
-    '<button class="addon-x" onclick="document.getElementById(\'monOvl\').classList.remove(\'open\')">×</button>'+
-    '<h3>Мониторинг продавца — 30 дней</h3>'+
-    '<p>Каждый день автоматически перепроверяем продавца по реестрам. В Telegram придёт сводка «изменений нет» или тревога при новых записях (банкротство, долги, залоги). После оплаты вернётесь сюда — останется нажать «Подключить Telegram».</p>'+
-    '<input id="monEmail" type="email" placeholder="Email для дублирования оповещений" value="'+(window._reportEmail||'')+'">'+
-    '<label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:#6b7280;margin-bottom:12px;cursor:pointer;text-align:left">'+
-    '<input id="monConsent" type="checkbox" style="width:16px;height:16px;margin-top:1px"> <span>Согласен(а) на обработку персональных данных (152-ФЗ)</span></label>'+
-    '<button class="btn" style="width:100%" onclick="startMonitorPay()">Подключить за 990 ₽</button>'+
-    '<div class="msg" id="monMsg"></div></div>';
-  ovl.classList.add('open');
+
+  // доплата: показываем ТОЛЬКО когда в отчёте реально есть закрытые блоки
+  var locked = checks.filter(function(c){ return c.status==='locked'; });
+  if(locked.length && !IS_EXAMPLE){
+    document.getElementById('upsell').style.display='block';
+    document.getElementById('upHead').textContent = 'Открыть остальные ' + locked.length + ' проверки';
+    document.getElementById('upText').textContent =
+      'В базовый тариф вошли залог, ограничения и розыск. ' +
+      locked.map(function(c){ return c.name; }).join(', ') +
+      ' — проверяются по тому же VIN, доплата до полного отчёта.';
+    goal('auto_full_upsell_view');
+  }
+
+  var pdf = IS_EXAMPLE ? '/report/sample.pdf' : '/api/report/'+RID;
+  document.getElementById('pdfBtn').href = pdf;
+  document.getElementById('pdfBtn2').href = pdf;
 }
 
-async function startMonitorPay(){
-  var msg = document.getElementById('monMsg');
-  var email = (document.getElementById('monEmail').value||'').trim();
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ msg.style.color='#dc2626'; msg.textContent='Укажите корректный email.'; return; }
-  if(!document.getElementById('monConsent').checked){ msg.style.color='#dc2626'; msg.textContent='Нужно согласие на обработку ПД.'; return; }
-  msg.style.color='#374151'; msg.textContent='Переходим к оплате…';
-  try{
-    var r = await fetch('/api/monitor',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({report_id:RID, email:email, days:30, consent:true})});
-    var d = await r.json();
-    if(!r.ok){ msg.style.color='#dc2626'; msg.textContent=d.detail||'Ошибка'; return; }
-    goal('monitor_pay_click');
-    if(d.confirmation_url){ location.href = d.confirmation_url; }
-    else if(d.mode==='bypass'){ msg.style.color='#15803d'; msg.textContent='Мониторинг активирован (демо-режим).'; setTimeout(function(){location.reload();},1500); }
-  }catch(e){ msg.style.color='#dc2626'; msg.textContent='Сетевая ошибка'; }
-}
-
-
-var _addonBusy = false;
-/* Доплата с базового тарифа до полного. Отдельный платёж на разницу — не
-   повторная покупка: за один автомобиль человек в сумме платит ровно столько,
-   сколько стоил бы полный отчёт сразу. */
-var _upgradeBusy = false;
+/* Доплата с базового тарифа до полного — отдельный платёж на разницу, а не
+   повторная покупка: за один автомобиль человек платит столько же, сколько
+   стоил бы полный отчёт сразу. */
+var _upBusy = false;
 async function startUpgrade(){
-  if(_upgradeBusy) return;
-  _upgradeBusy = true;
+  if(_upBusy) return; _upBusy = true;
   goal('upgrade_click');
-  var box = document.getElementById('sellerUpsell');
-  var btn = box ? box.querySelector('.up-btn') : null;
-  if(btn){ btn.disabled = true; btn.textContent = 'Переходим к оплате…'; }
+  var b = document.getElementById('upBtn');
+  b.disabled = true; b.textContent = 'Переходим к оплате…';
   try{
     var r = await fetch('/api/upgrade', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({report_id: RID})});
     var d = await r.json();
     if(d.already){ location.reload(); return; }
-    if(!r.ok){
-      _upgradeBusy = false;
-      if(btn){ btn.disabled = false; btn.textContent = 'Открыть полный отчёт — 250 ₽'; }
-      alert(d.detail || 'Не получилось начать оплату. Попробуйте ещё раз.');
-      return;
-    }
-    if(d.confirmation_url){ goal('pay_start', {tariff: 'upgrade'}); location.href = d.confirmation_url; }
-  }catch(e){
-    _upgradeBusy = false;
-    if(btn){ btn.disabled = false; btn.textContent = 'Открыть полный отчёт — 250 ₽'; }
-  }
-}
-
-async function startAddon(){
-  if(_addonBusy) return;             // защита от повторных кликов (дубли проверок)
-  // Трекинг интереса переехал сюда из openAddonModal — модалки больше нет.
-  goal('addon_click');
-  try{ fetch('/api/addon-interest',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({report_id:RID})}); }catch(e){}
-  /* ИНН не собираем вовсе: поиск по Федресурсу идёт по ФИО, а сам ИНН приходит
-     в ответе реестра. Поле удалено вместе с модалкой — шлём пустую строку. */
-  var inn = '';
-  var msg = document.getElementById('addonMsg');
-  _addonBusy = true;
-  var mbtn = document.getElementById('upBtn'); if(mbtn) mbtn.disabled = true;
-  msg.style.color='#374151'; msg.textContent = window._premium ? 'Запускаем проверку…' : 'Переходим к оплате…';
-  try{
-    var r = await fetch('/api/addon-inn',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({report_id:RID, inn:inn})});
-    var d = await r.json();
-    if(!r.ok){ _addonBusy=false; if(mbtn) mbtn.disabled=false; msg.style.color='#dc2626'; msg.textContent=d.detail||'Ошибка'; return; }
-    if(d.included){
-      // Премиум: проверка запущена без оплаты — ждём и перезагружаем отчёт.
-      goal('addon_included_start');
-      msg.style.color='#15803d';
-      msg.textContent='Запустили проверку по ИНН (включено в пакет). Обычно 1–2 минуты — страница обновится сама.';
-      setTimeout(function(){ location.reload(); }, 75000);
-      return;
-    }
-    if(d.confirmation_url){
-      goal('addon_pay_click');
-      goal('pay_start', {tariff: 'addon'});   // см. лендинг: цель была мёртвой
-      location.href = d.confirmation_url;
-    }
-  }catch(e){ _addonBusy=false; if(mbtn) mbtn.disabled=false; msg.style.color='#dc2626'; msg.textContent='Сетевая ошибка'; }
-}
-
-/* ===== Апселл продавца к object-only отчёту ===== */
-function openSellerModal(){
-  document.getElementById('sellerOvl').classList.add('open');
-  document.body.style.overflow='hidden';
-  setTimeout(function(){ var i=document.getElementById('selFio'); if(i) i.focus(); }, 60);
-  goal('seller_addon_click');
-  // маска даты ДД.ММ.ГГГГ
-  var dd=document.getElementById('selDob');
-  if(dd && !dd._masked){ dd._masked=true; dd.addEventListener('input', function(){
-    var x=(dd.value||'').replace(/\D/g,'').slice(0,8), o='';
-    if(x.length>0)o=x.slice(0,2); if(x.length>=3)o+='.'+x.slice(2,4); if(x.length>=5)o+='.'+x.slice(4,8);
-    dd.value=o; }); }
-}
-function closeSellerModal(){
-  document.getElementById('sellerOvl').classList.remove('open');
-  document.body.style.overflow='';
-}
-var _sellerBusy = false;
-async function startSellerAddon(){
-  if(_sellerBusy) return;
-  var fio=(document.getElementById('selFio').value||'').trim();
-  var dob=(document.getElementById('selDob').value||'').trim();
-  var pdn=document.getElementById('selPdn').checked;
-  var msg=document.getElementById('selMsg');
-  if(fio.split(/\s+/).filter(Boolean).length<2){ msg.style.color='#dc2626'; msg.textContent='Укажите ФИО продавца полностью (фамилия и имя).'; return; }
-  // Дата рождения обязательна. Без неё проверка продавца невозможна ФИЗИЧЕСКИ, а не
-  // «менее точна»: ФССП без ДР отказывает, банкротство находит десятки однофамильцев
-  // и не может выбрать нужного, арбитраж требует ИНН. Пока поле было необязательным,
-  // человек платил 250 ₽ и гарантированно получал три «не проверено» (28.07, Тамбов).
-  if(!/^\d{2}\.\d{2}\.\d{4}$/.test(dob)){
-    msg.style.color='#dc2626';
-    msg.textContent='Нужна дата рождения продавца в формате ДД.ММ.ГГГГ — без неё однофамильцев не различить.';
-    return;
-  }
-  if(!pdn){ msg.style.color='#dc2626'; msg.textContent='Нужно согласие на обработку персональных данных.'; return; }
-  _sellerBusy=true;
-  var btn=document.getElementById('selPayBtn'); if(btn) btn.disabled=true;
-  msg.style.color='#374151'; msg.textContent='Переходим к оплате…';
-  try{
-    var r=await fetch('/api/addon-seller',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({report_id:RID, seller_name:fio, seller_dob:dob, consent:true})});
-    var d=await r.json();
-    if(!r.ok){ _sellerBusy=false; if(btn) btn.disabled=false; msg.style.color='#dc2626'; msg.textContent=d.detail||'Ошибка'; return; }
-    if(d.already || d.retry){ msg.style.color='#15803d'; msg.textContent=d.message||'Проверяем продавца…'; setTimeout(function(){ location.reload(); }, 2500); return; }
-    if(d.confirmation_url){ goal('seller_addon_pay'); goal('pay_start', {tariff: 'seller'}); location.href=d.confirmation_url; }
-  }catch(e){ _sellerBusy=false; if(btn) btn.disabled=false; msg.style.color='#dc2626'; msg.textContent='Сетевая ошибка'; }
-}
-
-/* Источник (Росреестр/ФССП) отвечает без верхней границы времени: обычно
-   меньше минуты, но иногда десятки минут. Раньше клиент в этом случае просто
-   смотрел на бесконечный спиннер и не знал, ждать ему или деньги пропали.
-   Через 5 минут честно говорим, что происходит, и отпускаем со страницы —
-   отчёт придёт на почту. */
-var WAIT_START = Date.now();
-var SLOW_AFTER_MS = 5 * 60 * 1000;
-var SLOW_AFTER_SEC = 300;
-var slowShown = false;
-
-function showSlowNotice(){
-  if(slowShown) return;
-  slowShown = true;
-  var ovl = document.getElementById('slowOvl');
-  if(ovl) ovl.classList.add('open');
-}
-
-function closeSlowNotice(){
-  var ovl = document.getElementById('slowOvl');
-  if(ovl) ovl.classList.remove('open');
+    if(!r.ok){ _upBusy=false; b.disabled=false; b.textContent='Открыть полный отчёт — 250 ₽';
+      alert(d.detail || 'Не получилось начать оплату.'); return; }
+    if(d.confirmation_url){ goal('pay_start', {tariff:'upgrade'}); location.href = d.confirmation_url; }
+  }catch(e){ _upBusy=false; b.disabled=false; b.textContent='Открыть полный отчёт — 250 ₽'; }
 }
 
 function loadReport(){
-  fetch('/api/check/full/'+RID).then(function(r){
-    if(r.status===402){ document.getElementById('loading').textContent='Отчёт доступен после оплаты.'; return null; }
+  var url = IS_EXAMPLE ? '/api/example-report' : '/api/check/full/'+RID;
+  fetch(url).then(function(r){
+    if(r.status===402){ document.getElementById('loading').innerHTML=
+      'Отчёт доступен после оплаты.<div style="margin-top:16px"><a class="btn pri" href="/">Проверить машину</a></div>'; return null; }
     if(!r.ok){ document.getElementById('loading').textContent='Отчёт не найден.'; return null; }
     return r.json();
   }).then(function(d){
     if(!d) return;
     if(d.status==='finalizing'){
       var el=document.getElementById('loading');
-      if(el) el.textContent = d.headline || 'Формируем полный отчёт…';
-      /* Считаем от старта ПРОВЕРКИ (время с сервера), а не от загрузки вкладки:
-         иначе F5 обнулял бы отсчёт ровно у того, кто уже устал ждать.
-         Часы вкладки — запасной вариант, если сервер поле не прислал. */
-      var waited = (typeof d.waiting_sec === 'number' && d.waiting_sec > 0)
-        ? d.waiting_sec
-        : (Date.now() - WAIT_START) / 1000;
-      if(waited > SLOW_AFTER_SEC) showSlowNotice();
-      setTimeout(loadReport, 4000);  // догоняем полную проверку — опрашиваем
+      if(el) el.innerHTML='<div class="spin"></div>'+(d.headline || 'Формируем полный отчёт…');
+      setTimeout(loadReport, 4000);
       return;
     }
-    closeSlowNotice();   // ответ пришёл, пока читал — убираем предупреждение
     render(d);
   }).catch(function(){
     document.getElementById('loading').textContent='Не удалось загрузить отчёт.';
   });
 }
 loadReport();
-
 </script>
 </body>
 </html>

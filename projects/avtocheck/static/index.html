@@ -572,6 +572,7 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
   <div class="wrap nav">
     <div class="logo">Чистая<span>Сделка</span></div>
     <div class="nav-links">
+      <a class="mini" href="/example">Пример отчёта</a>
       <a class="mini" href="#sources">Что проверяем</a>
       <a class="mini" href="#compare">Сравнение</a>
       <a class="mini" href="#pricing">Тарифы</a>
@@ -611,7 +612,10 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
           <div class="rt">Риск при покупке автомобиля</div>
           <div class="robj" id="reportObj">BMW X1, 2020 · VIN WBA1…9199</div>
         </div>
-        <span class="rtag" id="reportTag">ПРИМЕР ОТЧЁТА</span>
+        <!-- Кликабельный: карточка и так выглядит как отчёт, и первое желание —
+             посмотреть его целиком. Раньше это желание упиралось в ничто. -->
+        <a class="rtag" id="reportTag" href="/example"
+           style="text-decoration:none;cursor:pointer">ПРИМЕР ОТЧЁТА →</a>
       </div>
 
       <div class="gauge" aria-hidden="true">

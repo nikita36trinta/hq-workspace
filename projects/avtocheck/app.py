@@ -2375,6 +2375,12 @@ def api_check_full(report_id: str) -> JSONResponse:
         "risk": rec.get("risk"), "headline": rec.get("headline"), "body": rec.get("body"),
         "recommendations": rec.get("recommendations", []), "checks": rec.get("checks", []),
         "report_url": f"/api/report/{report_id}",
+        # Карточка машины (марка, модель, двигатель, кузов) — шапка отчёта. Без
+        # неё страница начиналась с вердикта, и человек не видел подтверждения,
+        # что проверяли ИМЕННО его автомобиль.
+        "car": rec.get("object_preview") or {},
+        "vin": rec.get("object_ref") or "",
+        "created_at": rec.get("created_at") or "",
         "addon_pending": bool(rec.get("addon_pending")),
         "addon_applied": bool(rec.get("addon_applied")),
         "addon_result": rec.get("addon_result"),
@@ -3291,6 +3297,29 @@ def _find_stuck_paid() -> list[dict[str, Any]]:
     return sorted(out, key=lambda x: x.get("paid_at") or "")
 
 
+@app.get("/example", response_class=HTMLResponse)
+def example_view() -> HTMLResponse:
+    """Пример отчёта — открыт всем, без оплаты и без заявки.
+
+    Главный аргумент в нише: человек не понимает, за что платит, пока не увидел
+    готовый отчёт. Конкуренты держат такую страницу на видном месте, и это
+    единственная их страница, которую можно показать в рекламе как есть.
+    """
+    return HTMLResponse((STATIC_DIR / "report.html").read_text(encoding="utf-8"))
+
+
+@app.get("/api/example-report")
+def api_example_report() -> JSONResponse:
+    """Данные страницы-примера. Настоящий отчёт по реальной машине, снятый
+    один раз и сохранённый файлом: VIN замаскирован, платных запросов ноль.
+    Показывать выдуманные находки на витрине нельзя — это то же враньё, что и
+    в платном отчёте, только на входе."""
+    path = STATIC_DIR / "example_report.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Пример пока не подготовлен.")
+    return JSONResponse(json.loads(path.read_text(encoding="utf-8")))
+
+
 @app.get("/report/{report_id}/view", response_class=HTMLResponse)
 def report_view(report_id: str) -> HTMLResponse:
     """Красивая страница отчёта (спидометр + проверки + апселл). Данные тянет
@@ -3545,70 +3574,34 @@ def _do_finalize(report_id: str, object_only: bool | None = None) -> bool:
             tariff=rec.get("tariff", "base"), consent=True,
         )
         checks = _run_checks(req, preview=False, object_only=object_only)  # единый прогон без ретраев
-        # Фиксируем «объекта по этому номеру в ЕГРН нет» СРАЗУ, до гейтов ниже:
-        # иначе при одновременном сбое проверок продавца выйдем по их гейту, и знание
-        # о ненайденном объекте потеряется — оператор будет перезапускать вслепую.
-        _obj = next((c for c in checks if c.key == "object"), None)
-        if _obj is not None and getattr(_obj, "permanent", False):
+
+        # ГЕЙТ ВЫДАЧИ — АВТОМОБИЛЬНЫЙ. Ниже по функции остался гейт недвижимости:
+        # он ищет блок с ключом «object» и, не найдя, выбрасывает ВЕСЬ отчёт. У
+        # машины таких ключей нет вовсе (restrict/pledge/wanted/...), поэтому
+        # падала КАЖДАЯ платная сборка: 50 ₽ поставщику мы платили, отчёт
+        # выбрасывали, клиент не получал ничего. Проверено 08.08.2026 живым
+        # прогоном — до него платный путь ни разу не гоняли целиком.
+        #
+        # Правило простое: отдаём, если хоть один блок реально проверен.
+        # Молчание ВСЕХ источников — единственный случай, когда отдавать нечего;
+        # он же единственный, где ретрай осмыслен.
+        real = [c for c in checks if c.status in ("found", "not_found")]
+        if not real:
+            rec["finalize_failed"] = datetime.utcnow().isoformat() + "Z"
             rec["object_missing"] = True
-        # object-only: гейт «продавец» не применяем (продавца намеренно не проверяем).
-        # Иначе — если НИ ОДНА проверка продавца не прошла (все not_checked: пустой баланс/
-        # выключен источник) — это не отчёт, за который платили. Помечаем на ретрай.
-        if not object_only:
-            seller_checks = [c for c in checks if c.key in ("bankruptcy", "enforcement", "arbitration", "pledges")]
-            if seller_checks and all(c.status == "not_checked" for c in seller_checks):
-                rec["finalize_failed"] = datetime.utcnow().isoformat() + "Z"
-                _save_report_record(rec)
-                _bump_metric("finalize_failed")
-                print(f"[ALERT] finalize: все проверки продавца not_checked (баланс?) report={report_id}", flush=True)
-                return False
-            # #4 (6-й прогон): объект тоже обязан быть проверен — полный отчёт «объект+продавец»
-            # с объектом not_checked это не тот продукт, за который заплатили 499-699₽.
-            obj_full = next((c for c in checks if c.key == "object"), None)
-            obj_permanent = obj_full is not None and getattr(obj_full, "permanent", False)
-            # Объект НАШЁЛСЯ — снимаем метку прошлой неудачи. Без этого клиент,
-            # приславший кадастр по нашей же просьбе, получал отчёт с найденным
-            # объектом И с просьбой прислать кадастр в первой строке (07.08,
-            # a907a7ec859a): флаг переживал перезапуск и подставлял текст,
-            # противоречащий содержимому того же отчёта.
-            if obj_full is not None and obj_full.status != "not_checked":
-                rec.pop("object_unresolved", None)
-            if obj_full is None or obj_full.status == "not_checked":
-                # ЧАСТИЧНАЯ ВЫДАЧА. Если объекта по указанному номеру в ЕГРН просто НЕТ
-                # (permanent — источник ответил «не найдено», а не промолчал), то чаще
-                # всего клиент ошибся при вводе: «95:30:0000000:9987» — характерная
-                # ручная опечатка. Раньше мы в этом случае выбрасывали ВЕСЬ отчёт,
-                # включая уже оплаченные и успешно прошедшие проверки продавца.
-                # Теперь отдаём то, что проверили, и просим уточнить номер.
-                if obj_permanent and not all(c.status == "not_checked" for c in seller_checks):
-                    rec["object_unresolved"] = True
-                    checks = [c for c in checks if c.key != "object"]
-                    print(f"[partial] объекта нет в ЕГРН, выдаём проверку продавца "
-                          f"report={report_id} obj={rec.get('object_ref')}", flush=True)
-                    _bump_metric("partial_object_unresolved")
-                else:
-                    rec["finalize_failed"] = datetime.utcnow().isoformat() + "Z"
-                    if obj_permanent:
-                        rec["finalize_permanent"] = True  # объекта нет в ЕГРН → ретрай не поможет
-                        _bump_metric("finalize_permanent")
-                        print(f"[ALERT] ВОЗВРАТ: объекта нет в ЕГРН, отчёт невозможен report={report_id} obj={rec.get('object_ref')}", flush=True)
-                    _save_report_record(rec)
-                    _bump_metric("finalize_failed")
-                    print(f"[ALERT] finalize base: объект not_checked report={report_id}", flush=True)
-                    return False
-        else:
-            # object-only: объект обязан реально проверенным быть, иначе платить не за что.
-            obj_c = next((c for c in checks if c.key == "object"), None)
-            if obj_c is None or obj_c.status == "not_checked":
-                rec["finalize_failed"] = datetime.utcnow().isoformat() + "Z"
-                if obj_c is not None and getattr(obj_c, "permanent", False):
-                    rec["finalize_permanent"] = True  # объекта нет в ЕГРН → ретрай не поможет
-                    _bump_metric("finalize_permanent")
-                    print(f"[ALERT] ВОЗВРАТ: объекта нет в ЕГРН, отчёт невозможен report={report_id} obj={rec.get('object_ref')}", flush=True)
-                _save_report_record(rec)
-                _bump_metric("finalize_failed")
-                print(f"[ALERT] finalize object-only: объект not_checked report={report_id}", flush=True)
-                return False
+            _save_report_record(rec)
+            _bump_metric("finalize_failed")
+            print(f"[ALERT] finalize авто: источник молчит по всем блокам "
+                  f"report={report_id} ref={str(rec.get('object_ref'))[:24]!r}", flush=True)
+            return False
+        # Часть блоков могла не ответить — это нормально и честно отражено в отчёте
+        # («не проверено» + причина). Отчёт отдаём: остальные проверки оплачены.
+        if len(real) < len([c for c in checks if c.status != "locked"]):
+            print(f"[partial] авто: проверено {len(real)} блоков из "
+                  f"{len([c for c in checks if c.status != 'locked'])} report={report_id}", flush=True)
+            _bump_metric("partial_auto")
+        rec.pop("object_missing", None)
+
         # Тип объекта («Квартира», «Здание», «Земельный участок») — из превью НСПД:
         # в детали блока ЕГРН лежит только назначение («жилое»), и по нему квартиру
         # от здания не отличить.
