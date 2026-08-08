@@ -34,7 +34,7 @@ from pydantic import BaseModel, EmailStr, Field
 from modules.efrsb import check_bankruptcy
 from modules.fssp import check_enforcement
 from modules.courts import check_courts
-from modules.verdict import Check, build_verdict
+from modules.verdict import Check, Verdict, build_verdict
 from modules.pdf import render_report
 from modules.payment import (
     TARIFFS,
@@ -3733,11 +3733,20 @@ def _do_finalize(report_id: str, object_only: bool | None = None) -> bool:
                     "preview": False, "checks": [_serialize_check(c) for c in checks]})
         rec.pop("finalize_failed", None)
         try:
+            # Паспорт, владельцы и схемы повреждений — в PDF тоже. Он у нас
+            # продаётся как документ ДЛЯ СДЕЛКИ, и отдавать в нём меньше, чем
+            # человек уже видел на странице, — обман ожиданий.
+            _schemes = [str(SCHEMES_DIR / f"{report_id}-{i}.png")
+                        for i in range(1, 6)
+                        if (SCHEMES_DIR / f"{report_id}-{i}.png").exists()]
             render_report(str(REPORTS_DIR / f"{report_id}.pdf"), report_id=report_id,
                           seller_name=req.seller_name, seller_dob=req.seller_dob,
                           object_ref=req.object_ref, email=req.email or "",
                           checks=checks, verdict=verdict,
-                          deal_kit=_deal_kit_payload(report_id, rec))
+                          deal_kit=_deal_kit_payload(report_id, rec),
+                          passport=rec.get("passport") or {},
+                          owners=rec.get("owners") or [],
+                          schemes=_schemes)
         except Exception:  # noqa: BLE001
             pass  # PDF не критичен — веб-версия отчёта доступна
         _save_report_record(rec)
@@ -3941,28 +3950,34 @@ def api_sample_report() -> FileResponse:
     """Демонстрационный образец отчёта (вымышленные данные) — снимает страх
     «заплачу и получу пустышку», показывает реальный формат результата."""
     sample_path = REPORTS_DIR / "sample.pdf"
-    if not sample_path.exists():
-        demo_checks = [
-            Check(key="passport", name="Паспорт → ИНН (ФНС)", source="ФНС", status="not_found",
-                  detail="Паспорт сопоставлен с реестром ФНС, ИНН получен (5001…). По ИНН выполнены проверки банкротства и арбитража.", items=[]),
-            Check(key="bankruptcy", name="Банкротство продавца", source="ЕФРСБ / Федресурс", status="not_found",
-                  detail="В реестре банкротств (Федресурс) записей не найдено.", items=[]),
-            Check(key="enforcement", name="Исполнительные производства", source="ФССП", status="found",
-                  detail="ФССП: найдено производств — 2; действующих — 1. Непогашенный остаток — 43 500 ₽ (взыскание по кредиту).",
-                  items=[{"number": "12345/24/77001-ИП", "subject": "Взыскание по кредитному договору", "amount": "43 500 ₽"}]),
-            Check(key="arbitration", name="Арбитражные дела", source="КАД Арбитр", status="not_found",
-                  detail="Арбитражных дел не найдено.", items=[]),
-            Check(key="pledges", name="Залоги и обременения", source="Реестр залогов ФНП", status="not_found",
-                  detail="Залогов и обременений по физлицу не найдено.", items=[]),
-        ]
-        verdict = build_verdict(demo_checks, seller_name="Демонстрационный Пример Иванович")
+    src = STATIC_DIR / "example_report.json"
+    # Собираем из ТОГО ЖЕ примера, что показан на /example. Раньше здесь лежал
+    # выдуманный продавец недвижимости с кадастровым номером и долгом у
+    # приставов — под автомобильной шапкой. Это был первый файл, который
+    # скачивал человек, решающий, платить ли нам.
+    if src.exists() and (not sample_path.exists()
+                         or sample_path.stat().st_mtime < src.stat().st_mtime):
+        d = json.loads(src.read_text(encoding="utf-8"))
+        checks = [Check(key=c.get("key", ""), name=c.get("name", ""),
+                        source=c.get("source", ""), status=c.get("status", ""),
+                        detail=c.get("detail", ""), items=c.get("items") or [])
+                  for c in (d.get("checks") or [])]
+        verdict = Verdict(risk=d.get("risk", ""), headline=d.get("headline", ""),
+                          body=d.get("body", ""),
+                          recommendations=d.get("recommendations") or [],
+                          llm_used=True)
         REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        schemes = [str(SCHEMES_DIR / "example-1.png")] if (SCHEMES_DIR / "example-1.png").exists() else []
         render_report(
-            str(sample_path), report_id="SAMPLE-DEMO",
-            seller_name="Демонстрационный Пример Иванович (образец)",
-            seller_dob="01.01.1980", object_ref="77:01:0001001:1234",
-            email="", checks=demo_checks, verdict=verdict,
+            str(sample_path), report_id="ОБРАЗЕЦ",
+            seller_name="", seller_dob="",
+            object_ref=d.get("vin") or "", email="",
+            checks=checks, verdict=verdict,
+            passport=d.get("passport") or {}, owners=d.get("owners") or [],
+            schemes=schemes,
         )
+    if not sample_path.exists():
+        raise HTTPException(status_code=404, detail="Образец пока не подготовлен.")
     return FileResponse(str(sample_path), media_type="application/pdf",
                         headers={"Content-Disposition": "inline; filename=obrazec-otcheta.pdf"})
 

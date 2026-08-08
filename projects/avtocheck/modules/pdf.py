@@ -17,6 +17,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     HRFlowable,
+    Image,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -82,6 +83,9 @@ def render_report(
     verdict: Verdict,
     addon: dict | None = None,
     deal_kit: dict | None = None,
+    passport: dict | None = None,
+    owners: list | None = None,
+    schemes: list | None = None,
 ) -> str:
     font = _register_font()
 
@@ -301,9 +305,92 @@ def render_report(
         tbl.setStyle(ts)
         return tbl
 
+    # --- паспорт автомобиля по данным ГИБДД ---
+    # PDF мы продаём как документ ДЛЯ СДЕЛКИ — именно его человек берёт с собой
+    # к продавцу и сверяет с ПТС. До 08.08.2026 паспорта, владельцев и схемы
+    # повреждений в нём не было вовсе: они жили только на веб-странице, и
+    # покупатель получал документ беднее того, что видел в браузере.
+    if passport:
+        story += section("Паспорт автомобиля")
+        _ps = [
+            ("Модель по ПТС", passport.get("model")),
+            ("Год выпуска", passport.get("year")),
+            ("Цвет", passport.get("color")),
+            ("Объём двигателя", f"{passport['volume']} см³" if passport.get("volume") else ""),
+            ("Мощность", " · ".join(x for x in (
+                f"{passport['power_hp']} л.с." if passport.get("power_hp") else "",
+                f"{passport['power_kw']} кВт" if passport.get("power_kw") else "") if x)),
+            ("Категория ТС", passport.get("category")),
+            ("Экологический класс", passport.get("eco")),
+            ("Масса снаряжённая", f"{passport['mass']} кг" if passport.get("mass") else ""),
+            ("Разрешённая масса", f"{passport['mass_max']} кг" if passport.get("mass_max") else ""),
+            ("Номер двигателя", passport.get("engine_no")),
+        ]
+        rows = [(k, str(v)) for k, v in _ps if v]
+        # В две колонки пар: столбец меток и столбец значений, как в метаданных.
+        data_p, buf = [], []
+        for k, v in rows:
+            buf += [Paragraph(_esc(k), cell_res), Paragraph(_esc(v), cell)]
+            if len(buf) == 4:
+                data_p.append(buf)
+                buf = []
+        if buf:
+            data_p.append(buf + [Paragraph("", cell), Paragraph("", cell)])
+        t_p = Table(data_p, colWidths=[38 * mm, 49 * mm, 38 * mm, 49 * mm])
+        t_p.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5), ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("LINEBELOW", (0, 0), (-1, -2), 0.4, LINE),
+        ]))
+        story.append(t_p)
+        if passport.get("as_of"):
+            story.append(Spacer(1, 4))
+            story.append(Paragraph(
+                "Данные ГИБДД на " + _esc(str(passport["as_of"]).split("-")[::-1] and
+                                          ".".join(str(passport["as_of"]).split("-")[::-1])) +
+                ". Сверьте с ПТС продавца.", muted))
+
+    # --- периоды владения ---
+    if owners:
+        story += section("Периоды владения")
+        head = [Paragraph("<b>Владелец</b>", cell), Paragraph("<b>С какой даты</b>", cell),
+                Paragraph("<b>По какую</b>", cell), Paragraph("<b>Регистрационное действие</b>", cell)]
+        rows_o = [head]
+        for o in owners:
+            ru = lambda s: ".".join(str(s)[:10].split("-")[::-1]) if s else "—"
+            rows_o.append([
+                Paragraph(_esc(o.get("kind") or "—"), cell),
+                Paragraph(_esc(ru(o.get("from"))), cell),
+                Paragraph(_esc(ru(o.get("to")) if o.get("to") else "по настоящее время"), cell),
+                Paragraph(_esc(o.get("op") or "—"), cell_res),
+            ])
+        t_o = Table(rows_o, colWidths=[36 * mm, 28 * mm, 34 * mm, 76 * mm], repeatRows=1)
+        t_o.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6), ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("LINEBELOW", (0, 0), (-1, -2), 0.4, LINE),
+        ]))
+        story.append(t_o)
+
     # --- таблица проверок (базовые: объект + ФССП) ---
     story += section("Результаты проверок")
     story.append(_checks_table(checks))
+
+    # --- схемы повреждений по ДТП ---
+    # Жёлтым закрашены зоны удара. Самая наглядная часть отчёта об аварии, и
+    # в документе для сделки она нужнее всего: с ней идут к кузовщику.
+    for path in (schemes or []):
+        try:
+            if not os.path.exists(path):
+                continue
+            story.append(Spacer(1, 10))
+            story.append(Paragraph("Схема повреждений по данным ГИБДД", muted))
+            story.append(Spacer(1, 4))
+            story.append(Image(path, width=78 * mm, height=72 * mm, kind="proportional"))
+        except Exception:  # noqa: BLE001 — картинка не стоит всего документа
+            pass
 
     # --- углублённая проверка по ИНН (доплаченная доп-услуга) ---
     addon_checks: list = []
