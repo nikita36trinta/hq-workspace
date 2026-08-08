@@ -61,6 +61,16 @@ class Brief:
     network: bool = False            # True → РСЯ (сети), Search off
     negatives: list[str] = field(default_factory=lambda: list(DEFAULT_NEGATIVES))
     start_date: str | None = None    # ISO; дефолт — сегодня (передавай явно, Date.now недоступен)
+    # Потолок цены клика, ₽. Страховка от выброса, а НЕ инструмент экономии: ставить
+    # его на уровень ожидаемой средней нельзя — отсечётся половина аукционов, останутся
+    # самые дешёвые показы, то есть околоцелевой мусор. Ориентир — вдвое выше средней
+    # (ЧистаяСделка 08.2026: средняя по регионам ~6–8 ₽ → потолок 15 ₽). 0 = без потолка.
+    bid_ceiling_rub: int = 0
+    # Счётчик Метрики. Без него кампания показывает НОЛЬ конверсий и ноль дохода
+    # не потому, что продаж нет, а потому что Директу некуда смотреть. Ровно так
+    # 29.07 две кампании числились пустыми, дав по нашей атрибуции 33 оплаты из
+    # 46 — лучшие из трёх. README про это предупреждал, а код не проставлял.
+    counter_id: int = 0
 
     def href(self) -> str:
         sep = "&" if "?" in self.landing else "?"
@@ -128,17 +138,34 @@ class Direct:
         return (r.get("result", {}) or {}).get("Keywords", [])
 
     # ---------- создание (черновик — НЕ тратит до launch) ----------
-    def _strategy(self, weekly_rub: int, network: bool) -> dict:
-        wmc = {"BiddingStrategyType": "WB_MAXIMUM_CLICKS",
-               "WbMaximumClicks": {"WeeklySpendLimit": int(weekly_rub) * _MICRO}}
+    def _strategy(self, weekly_rub: int, network: bool, bid_ceiling_rub: int = 0) -> dict:
+        params = {"WeeklySpendLimit": int(weekly_rub) * _MICRO}
+        if bid_ceiling_rub:
+            params["BidCeiling"] = int(bid_ceiling_rub) * _MICRO
+        wmc = {"BiddingStrategyType": "WB_MAXIMUM_CLICKS", "WbMaximumClicks": params}
         off = {"BiddingStrategyType": "SERVING_OFF"}
         return {"Search": (off if network else wmc), "Network": (wmc if network else off)}
 
+    def set_bid_ceiling(self, campaign_id: int, rub: int, weekly_rub: int,
+                        network: bool = False) -> None:
+        """Поставить потолок цены клика уже существующей кампании.
+
+        Недельный лимит передаётся обязательно: Директ принимает стратегию целиком,
+        и без него лимит сбросился бы в дефолт.
+        """
+        self.call("campaigns", {"method": "update", "params": {"Campaigns": [
+            {"Id": campaign_id,
+             "TextCampaign": {"BiddingStrategy": self._strategy(weekly_rub, network, rub)}}]}})
+
     def create_campaign(self, brief: Brief) -> int:
         """Создать кампанию→группы→ключи→объявления. Возвращает campaign_id. Черновик."""
+        tc = {"BiddingStrategy": self._strategy(
+            brief.weekly_rub, brief.network, brief.bid_ceiling_rub)}
+        if brief.counter_id:
+            tc["CounterIds"] = {"Items": [int(brief.counter_id)]}
         camp = {"Name": brief.name[:255],
                 "StartDate": brief.start_date or date.today().isoformat(),
-                "TextCampaign": {"BiddingStrategy": self._strategy(brief.weekly_rub, brief.network)},
+                "TextCampaign": tc,
                 "NegativeKeywords": {"Items": [k for k in brief.negatives if k]}}
         cid = self._add_ids(self.call("campaigns", {"method": "add", "params": {"Campaigns": [camp]}}), "campaign")[0]
         for g in brief.groups:
