@@ -293,6 +293,23 @@ body{
 .v4-foot{padding:14px 18px 16px; background:var(--bg-soft); border-top:1px solid var(--line); font-size:12.5px; line-height:1.6; color:#4b5563}
 .v4-foot b{color:var(--ink)}
 
+/* Пятый вариант: настоящая схема из записи о ДТП вместо рисунка. */
+.v5-figure{padding:20px 18px 14px; background:linear-gradient(180deg,#f7faff,#fff); border-bottom:1px solid var(--line)}
+.v5-figure img{display:block; width:100%; max-width:250px; margin:6px auto 0; height:auto}
+.v5-cap{margin-top:10px; text-align:center; font:500 10.5px/1.5 var(--mono); color:#9aa4b2; letter-spacing:.02em}
+
+/* Набор кузовов. Силуэт на карточке подставляется под машину посетителя, а не
+   рисует BMW всем подряд, — поэтому рисунок должен существовать в нескольких
+   типах кузова, а не в одном. */
+.bodies{margin-top:22px; border:1px solid var(--line); border-radius:14px; background:#fff; padding:16px 18px}
+.bodies h4{margin:0 0 4px; font-size:13.5px; font-weight:700}
+.bodies p{margin:0 0 12px; font-size:12.5px; line-height:1.55; color:var(--muted)}
+.bodies-row{display:grid; grid-template-columns:repeat(4,1fr); gap:12px}
+.body-cell{text-align:center}
+.body-cell svg{display:block; width:100%; height:auto}
+.body-cell span{display:block; margin-top:4px; font:600 10px/1 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:#9aa4b2}
+.body-cell.cur span{color:var(--accent)}
+
 @media (max-width:520px){
   .page{padding:32px 16px 64px}
   .stage{padding:16px}
@@ -543,36 +560,48 @@ body{
                 </div>
                 <a class="v4-link" href="/example">Пример →</a>
               </div>
-              <svg viewBox="0 0 340 132" role="img" aria-label="Силуэт автомобиля с отмеченной зоной повреждения">
+              <svg viewBox="16 16 312 116" role="img" aria-label="Силуэт автомобиля с отмеченной зоной повреждения">
                 <defs>
                   <radialGradient id="v4hit">
                     <stop offset="0%" stop-color="#d97706" stop-opacity=".38"/>
                     <stop offset="100%" stop-color="#d97706" stop-opacity="0"/>
                   </radialGradient>
                 </defs>
-                <circle cx="66" cy="70" r="46" fill="url(#v4hit)"/>
+                <circle cx="68" cy="80" r="54" fill="url(#v4hit)"/>
                 <g fill="none" stroke="#0a0a0a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <!-- кузов: бампер → капот → лобовое → крыша → корма → бампер -->
-                  <path d="M26 92V78c0-6 3-9 10-10l60-8 26-26c1.5-1.3 3-2 5-2h86c2.5 0 5 1 7 3l24 25 58 6c9 1 13 5 13 12v14"/>
-                  <!-- колёсные арки -->
-                  <path d="M60 92a24 24 0 0 1 48 0"/>
-                  <path d="M234 92a24 24 0 0 1 48 0"/>
-                  <!-- пороги между арками -->
-                  <path d="M26 92h34M108 92h126M282 92h34"/>
-                  <!-- линия окон и стойки -->
-                  <path d="M96 60h149"/>
-                  <path d="M127 33 108 60M172 33v27M215 33l16 27"/>
-                  <!-- ручка двери -->
-                  <path d="M150 70h13"/>
+                  <!-- Кузов. Пропорции взяты от настоящего компактного кроссовера:
+                       4,45 м длины на 1,6 м высоты при колёсной базе 2,67 м. Первый
+                       рисунок был длиннее и ниже — читался седаном из восьмидесятых. -->
+                  <path d="M31 100V80c0-6 3-10 9-11l64-7 34-34c1-.8 2.5-1 4-1h98c4 0 7 1 9 4l19 29 32 3c6 1 9 5 9 11v26"/>
+                  <!-- арки в пластике — примета кроссовера -->
+                  <path d="M58 100a26 26 0 0 1 52 0" stroke-width="3.4"/>
+                  <path d="M226 100a26 26 0 0 1 52 0" stroke-width="3.4"/>
+                  <!-- пороги -->
+                  <path d="M31 100h27M110 100h116M278 100h31"/>
+                  <!-- линия окон -->
+                  <path d="M104 62h164"/>
+                  <!-- средняя и задняя стойки -->
+                  <path d="M178 28v34M216 27v35"/>
+                  <!-- разъёмы дверей -->
+                  <path d="M116 66v34M178 62v38M234 62v38"/>
+                  <!-- ручки -->
+                  <path d="M148 74h14M194 74h14"/>
+                  <!-- фара и фонарь -->
+                  <path d="M35 77l14-3M303 69v10"/>
                 </g>
+                <!-- Зеркало убрано намеренно: в этом масштабе любая его форма
+                     садится ровно на конец янтарной линии и читается стрелкой,
+                     указывающей не туда. Машина без него узнаётся не хуже. -->
                 <g fill="none" stroke="#0a0a0a" stroke-width="2.2">
-                  <circle cx="84" cy="92" r="20"/><circle cx="84" cy="92" r="7.5"/>
-                  <circle cx="258" cy="92" r="20"/><circle cx="258" cy="92" r="7.5"/>
+                  <circle cx="84" cy="100" r="22"/><circle cx="84" cy="100" r="9"/>
+                  <circle cx="252" cy="100" r="22"/><circle cx="252" cy="100" r="9"/>
                 </g>
-                <!-- отметка зоны удара: передняя часть -->
-                <g stroke="#d97706" stroke-width="3.2" stroke-linecap="round">
-                  <path d="M31 74h16"/><path d="M34 83h11"/>
-                </g>
+                <!-- Зона удара нарисована ПО КОНТУРУ кузова, а не абстрактными
+                     чёрточками рядом: подсвечена ровно та часть машины, о которой
+                     говорит подпись, — передний бампер и левое крыло. -->
+                <path d="M31 100V80c0-6 3-10 9-11l64-7"
+                      fill="none" stroke="#d97706" stroke-width="3.6"
+                      stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
               <div class="v4-callout">Удар спереди слева</div>
             </div>
@@ -594,6 +623,131 @@ body{
               <b>Второй владелец держал машину пять недель.</b> Так обычно сбрасывают проблемный
               автомобиль — спросите продавца, почему он продаёт, и сверьте ответ с датами.
             </div>
+          </div>
+
+          <div class="bodies">
+            <h4>Силуэт подставляется под кузов</h4>
+            <p>Рисовать всем один и тот же BMW нельзя: половина проверок — это Гранта,
+               Солярис и Веста. Четыре типа покрывают почти весь российский рынок.</p>
+            <div class="bodies-row">
+              <div class="body-cell cur">
+                <svg viewBox="0 0 200 82" aria-hidden="true">
+                  <g fill="none" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 58V47c0-5 2-8 8-9l37-4 20-19c1-.8 2-1.2 3.5-1.2h46c2.4 0 4.2.6 6 2.4l13 17.8 32 2.4c6 .6 9.4 3.6 10 8.4V58"/>
+                    <path d="M33 58a15.4 15.4 0 0 1 31 0" stroke-width="3.2"/>
+                    <path d="M133 58a15.4 15.4 0 0 1 31 0" stroke-width="3.2"/>
+                    <path d="M12 58h21M64 58h69M164 58h24"/>
+                    <path d="M57 33h89M99 13v20M123 12v21"/>
+                  </g>
+                  <g fill="none" stroke="#0a0a0a" stroke-width="2.4">
+                    <circle cx="48.5" cy="58" r="13"/><circle cx="48.5" cy="58" r="5.2"/>
+                    <circle cx="148.5" cy="58" r="13"/><circle cx="148.5" cy="58" r="5.2"/>
+                  </g>
+                </svg>
+                <span>Кроссовер</span>
+              </div>
+
+              <div class="body-cell">
+                <svg viewBox="0 0 200 82" aria-hidden="true">
+                  <g fill="none" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 58V49c0-4.6 2-7.4 7-8.4l40-4.6 20-17c1-.9 2.2-1.4 3.8-1.4h42c2.2 0 4 .7 5.6 2.2L148 36l32 1.6c5.6.4 8.6 3 9 7.6V58"/>
+                    <path d="M33 58a15 15 0 0 1 30 0"/>
+                    <path d="M131 58a15 15 0 0 1 30 0"/>
+                    <path d="M12 58h21M63 58h68M161 58h28"/>
+                    <path d="M59 36h89M97 17v19M120 17v19"/>
+                  </g>
+                  <g fill="none" stroke="#0a0a0a" stroke-width="2.4">
+                    <circle cx="48" cy="58" r="12.4"/><circle cx="48" cy="58" r="5"/>
+                    <circle cx="146" cy="58" r="12.4"/><circle cx="146" cy="58" r="5"/>
+                  </g>
+                </svg>
+                <span>Седан</span>
+              </div>
+
+              <div class="body-cell">
+                <svg viewBox="0 0 200 82" aria-hidden="true">
+                  <g fill="none" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 58V49c0-4.6 2-7.4 7-8.4l38-4.6 19-17c1-.9 2.2-1.4 3.8-1.4h42c2.6 0 4.6.9 6.4 2.8L152 36c4 4 6 7.6 6.4 13V58"/>
+                    <path d="M41 58a15 15 0 0 1 30 0"/>
+                    <path d="M117 58a15 15 0 0 1 30 0"/>
+                    <path d="M22 58h19M71 58h46M147 58h11"/>
+                    <path d="M67 36h72M102 17v19M126 16v20"/>
+                  </g>
+                  <g fill="none" stroke="#0a0a0a" stroke-width="2.4">
+                    <circle cx="56" cy="58" r="12.4"/><circle cx="56" cy="58" r="5"/>
+                    <circle cx="132" cy="58" r="12.4"/><circle cx="132" cy="58" r="5"/>
+                  </g>
+                </svg>
+                <span>Хэтчбек</span>
+              </div>
+
+              <div class="body-cell">
+                <svg viewBox="0 0 200 82" aria-hidden="true">
+                  <g fill="none" stroke="#0a0a0a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 58V49c0-4.6 2-7.4 7-8.4l38-4.6 19-17c1-.9 2.2-1.4 3.8-1.4h62c2.6 0 4.6.9 6 2.6l6 7.4c3.6 4.4 5.4 8.4 5.6 14V58"/>
+                    <path d="M33 58a15 15 0 0 1 30 0"/>
+                    <path d="M129 58a15 15 0 0 1 30 0"/>
+                    <path d="M12 58h21M63 58h66M159 58h29"/>
+                    <path d="M57 36h103M97 17v19M124 17v19M148 17v19"/>
+                  </g>
+                  <g fill="none" stroke="#0a0a0a" stroke-width="2.4">
+                    <circle cx="48" cy="58" r="12.4"/><circle cx="48" cy="58" r="5"/>
+                    <circle cx="144" cy="58" r="12.4"/><circle cx="144" cy="58" r="5"/>
+                  </g>
+                </svg>
+                <span>Универсал</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ 5 ══════════════ -->
+    <div class="slot">
+      <div class="slot-head"><span class="slot-num">05</span><span class="slot-name">Настоящая схема ДТП</span></div>
+      <p class="slot-why">То же, что и 04, но вместо рисованного силуэта — <b>реальная схема
+         из записи ГИБДД</b>, которая уже приходит вместе с данными о ДТП и за которую мы
+         платим. Жёлтым закрашена зона удара. Это не иллюстрация, а сам документ.</p>
+      <div class="stage">
+        <div class="card">
+          <div class="v4">
+            <div class="v5-figure">
+              <div class="v4-fig-head">
+                <div>
+                  <div class="v4-model">BMW X1 xDrive 18d</div>
+                  <div class="v4-vin">VIN WBA11···9199 · 2020</div>
+                </div>
+                <a class="v4-link" href="/example">Пример →</a>
+              </div>
+              <img src="/report/example/scheme/1.png" alt="Схема повреждений из записи о ДТП: закрашена зона удара">
+              <div class="v5-cap">Наезд на стоящее ТС · 02.06.2022 · Удмуртская Республика</div>
+            </div>
+
+            <div class="v4-verdict">
+              <span class="v4-vbadge">Средний</span>
+              <span class="v4-vtxt"><b>Есть к чему присмотреться</b>машина была в ДТП, владельцев трое</span>
+            </div>
+
+            <div class="v4-rows">
+              <div class="v4-row"><span class="v4-dot ok"></span><span class="n">Залог и лизинг<s>Реестр залогов ФНП · сегодня</s></span><span class="r ok">не найдено</span></div>
+              <div class="v4-row"><span class="v4-dot ok"></span><span class="n">Ограничения на регистрацию<s>ГИБДД · сегодня</s></span><span class="r ok">не найдено</span></div>
+              <div class="v4-row"><span class="v4-dot warn"></span><span class="n">ДТП<s>ГИБДД · данные на 01.01.2023</s></span><span class="r warn">1 ДТП</span></div>
+              <div class="v4-row"><span class="v4-dot warn"></span><span class="n">История владения<s>ГИБДД · сегодня</s></span><span class="r warn">3 владельца</span></div>
+            </div>
+
+            <div class="v4-foot">
+              <b>Второй владелец держал машину пять недель.</b> Так обычно сбрасывают проблемный
+              автомобиль — спросите продавца, почему он продаёт, и сверьте ответ с датами.
+            </div>
+          </div>
+
+          <div class="bodies">
+            <h4>Две оговорки по этому варианту</h4>
+            <p>Схему рисует поставщик по своему шаблону — на картинке хэтчбек, а не X1,
+               и подписан он всё равно как BMW. Плюс на лендинге это уже не выдача
+               оплаченной услуги, а витрина: стоит уточнить у apipoint, покрывает ли
+               наш договор такое использование.</p>
           </div>
         </div>
       </div>
