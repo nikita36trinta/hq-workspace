@@ -44,7 +44,7 @@
      "marka": "BMW",
      "model": "Х1",
      "region": "Удмуртская Республика",
-     "schemeUrl": "https://apipoint.ru/trk/dt/img.ashx?mode=sr&id=513"
+     "schemeUrl": "/report/example/scheme/1.png"
     }
    ]
   },
@@ -102,9 +102,9 @@
    "detail": "Таможенных деклараций: 1. Автомобиль ввозился из-за границы. Дата актуальности данных неизвестна — проверьте сведения в ГИБДД перед сделкой.",
    "items": [
     {
-     "Vin": "WBA11AD0305R89199",
+     "Vin": "WBA11********9199",
      "Country": null,
-     "BodyNumber": "WBA11AD0305R89199",
+     "BodyNumber": "WBA11********9199",
      "MarkaModel": "X1 XDRIVE18D",
      "ReleaseDate": "2020-07-05",
      "CountryShort": null,
@@ -132,7 +132,9 @@
   "category": "B",
   "eco": "5",
   "mass": "1615",
-  "as_of": "2026-08-08"
+  "as_of": "2026-08-08",
+  "mass_max": "2135",
+  "power_kw": "110.3"
  },
  "owners": [
   {

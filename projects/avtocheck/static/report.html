@@ -120,13 +120,26 @@
   .asof.fresh{color:#166534;background:#f0fdf4;border-color:#bbf7d0}
   .src{color:var(--mut)}
 
-  /* ── паспорт: плитки характеристик ───────────────────────────────────── */
-  .specs{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
-  .spec{background:var(--card);border-radius:12px;padding:14px 16px}
-  .speck{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
-    color:var(--mut);margin-bottom:5px}
-  .specv{font-size:16px;font-weight:750;letter-spacing:-.01em;word-break:break-word}
-  .specv.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px}
+  /* ── паспорт: лента характеристик под шапкой ─────────────────────────── */
+  /* Не плитки-карточки, а сплошная лента с тонкими разделителями: паспорт
+     стоит первым, и восемь серых прямоугольников перебивали бы вердикт,
+     ради которого человек платил. Здесь нужен паспорт-подпись, а не блок. */
+  /* Flex, а не grid: у машины набор характеристик разный (у одной нет номера
+     двигателя, у другой экокласса), и сетка оставляла пустые ячейки с рамками —
+     лента выглядела недособранной. Во flex последний ряд растягивается. */
+  .specs{display:flex;flex-wrap:wrap;background:var(--card);border-radius:14px;
+    overflow:hidden;margin-bottom:9px}
+  .spec{flex:1 1 132px;min-width:132px;padding:13px 17px;
+    border-right:1px solid var(--bg);border-bottom:1px solid var(--bg)}
+  /* Подписи переносим, а не режем многоточием: «ОБЪЁМ ДВИГАТЕ…» и
+     «СНАРЯЖЁННАЯ …» читались как обрывки, хотя место под вторую строку есть. */
+  .speck{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--mut);margin-bottom:4px;line-height:1.25}
+  .specv{font-size:15.5px;font-weight:750;letter-spacing:-.015em;word-break:break-word;
+    line-height:1.25}
+  .specv.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+    font-weight:600}
+  .passnote{font-size:12px;color:var(--mut);margin:0 0 24px}
 
   /* ── карточка ДТП со схемой повреждений ──────────────────────────────── */
   .dtpcard{background:var(--card);border-radius:16px;padding:20px 22px;margin-bottom:14px;
@@ -195,6 +208,13 @@
       <div class="idline" id="idline"></div>
     </div>
 
+    <!-- паспорт: сразу под шапкой. Человек должен убедиться, что проверяли
+         ИМЕННО его машину, до того как читать вердикт. -->
+    <div id="passSec" style="display:none">
+      <div class="specs" id="specs"></div>
+      <p class="passnote" id="passSub"></p>
+    </div>
+
     <!-- вердикт + сводка -->
     <div class="layout">
       <div class="verdict">
@@ -215,13 +235,6 @@
       <h2 class="sech">Что установлено по реестрам</h2>
       <p class="secsub" id="secsub">У каждой проверки — своя дата актуальности.</p>
       <div class="grid" id="tiles"></div>
-    </div>
-
-    <!-- паспорт машины по ГИБДД -->
-    <div class="sec" id="passSec" style="display:none">
-      <h2 class="sech">Паспорт автомобиля</h2>
-      <p class="secsub" id="passSub">Характеристики по регистрационным данным ГИБДД.</p>
-      <div class="specs" id="specs"></div>
     </div>
 
     <!-- периоды владения -->
@@ -363,14 +376,14 @@ function render(d){
   var name = [car.marka, car.model].filter(Boolean).join(' ');
   document.getElementById('carName').textContent = name || 'Автомобиль';
 
+  // В строке под названием — только то, чего НЕ будет в паспорте ниже: VIN,
+  // кузов поколения и дата отчёта. Год, двигатель и мощность повторять здесь
+  // незачем, они стоят плитками в двух сантиметрах ниже.
+  var hasPass = !!(d.passport && d.passport.year);
   var idp = [];
   if(d.vin) idp.push('<span>VIN <b>'+esc(d.vin)+'</b></span>');
-  // Год из ГИБДД точный, из VIN-декодера — только год поколения («с 07.2019»).
-  // Когда есть паспорт, показываем его: «год 2020» полезнее, чем «поколение».
-  var pyear = (d.passport||{}).year;
-  if(pyear){ idp.push('<span><i>год</i> '+esc(pyear)+'</span>'); }
-  else if(car.year){ idp.push('<span><i>'+(String(car.year).indexOf('с ')===0?'поколение':'год')+'</i> '+esc(car.year)+'</span>'); }
-  if(car.engine) idp.push('<span><i>двигатель</i> '+esc(car.engine)+'</span>');
+  if(!hasPass && car.year) idp.push('<span><i>'+(String(car.year).indexOf('с ')===0?'поколение':'год')+'</i> '+esc(car.year)+'</span>');
+  if(!hasPass && car.engine) idp.push('<span><i>двигатель</i> '+esc(car.engine)+'</span>');
   if(car.body) idp.push('<span><i>кузов</i> '+esc(car.body)+'</span>');
   if(d.created_at) idp.push('<span><i>отчёт от</i> '+esc(String(d.created_at).slice(0,10).split('-').reverse().join('.'))+'</span>');
   document.getElementById('idline').innerHTML = idp.join('');
@@ -432,25 +445,38 @@ function render(d){
 
   // паспорт по ГИБДД
   var ps = d.passport || {};
-  var SPEC = [['model','Модель по ПТС',0],['year','Год выпуска',0],['color','Цвет',0],
-              ['volume','Объём двигателя',' см³'],['power_hp','Мощность',' л.с.'],
-              ['category','Категория',0],['eco','Экологический класс',0],
-              ['mass','Снаряжённая масса',' кг'],
-              ['engine_no','Номер двигателя',1],['body_no','Номер кузова',1]];
-  var specs = SPEC.filter(function(f){ return ps[f[0]]; }).map(function(f){
-    var mono = f[2]===1 ? ' mono' : '';
-    var unit = (typeof f[2]==='string') ? f[2] : '';
-    return '<div class="spec"><div class="speck">'+esc(f[1])+'</div>'+
-      '<div class="specv'+mono+'">'+esc(ps[f[0]])+esc(unit)+'</div></div>';
+  var dec = function(v){ return String(v==null?'':v).replace('.', ','); };
+  // Мощность одной плиткой: две подряд с одинаковой подписью «МОЩНОСТЬ»
+  // читались как ошибка вёрстки, хотя это просто разные единицы.
+  var power = ps.power_hp
+    ? dec(ps.power_hp) + ' л.с.' + (ps.power_kw ? ' · ' + dec(ps.power_kw) + ' кВт' : '')
+    : (ps.power_kw ? dec(ps.power_kw) + ' кВт' : '');
+  var mass = ps.mass
+    ? dec(ps.mass) + ' кг' + (ps.mass_max ? ' из ' + dec(ps.mass_max) : '')
+    : '';
+  var SPEC = [
+    ['Модель по ПТС', ps.model, 0],
+    ['Год выпуска', ps.year, 0],
+    ['Цвет', ps.color, 0],
+    ['Объём двигателя', ps.volume ? dec(ps.volume) + ' см³' : '', 0],
+    ['Мощность', power, 0],
+    ['Категория', ps.category, 0],
+    ['Экологический класс', ps.eco, 0],
+    ['Масса снаряж. / разреш.', mass, 0],
+    ['Номер двигателя', ps.engine_no, 1],
+    ['Номер кузова', ps.body_no, 1]
+  ];
+  var specs = SPEC.filter(function(f){ return f[1]; }).map(function(f){
+    return '<div class="spec"><div class="speck">'+esc(f[0])+'</div>'+
+      '<div class="specv'+(f[2]===1?' mono':'')+'">'+esc(f[1])+'</div></div>';
   });
   if(specs.length){
     document.getElementById('passSec').style.display='block';
     document.getElementById('specs').innerHTML = specs.join('');
-    if(ps.as_of){
-      document.getElementById('passSub').textContent =
-        'Характеристики по регистрационным данным ГИБДД на ' +
-        String(ps.as_of).split('-').reverse().join('.') + '.';
-    }
+    document.getElementById('passSub').textContent = ps.as_of
+      ? 'Паспорт автомобиля по регистрационным данным ГИБДД на ' +
+        String(ps.as_of).split('-').reverse().join('.') + '. Сверьте с ПТС продавца.'
+      : 'Паспорт автомобиля по регистрационным данным ГИБДД. Сверьте с ПТС продавца.';
   }
 
   // периоды владения
@@ -458,11 +484,20 @@ function render(d){
   if(owners.length){
     document.getElementById('ownSec').style.display='block';
     var ru = function(s){ return s ? String(s).slice(0,10).split('-').reverse().join('.') : ''; };
+    // Тип регистрационного действия приходил с первого дня и не показывался.
+    // «Выдача дубликата ПТС» или «снятие с учёта» в этой колонке говорят
+    // покупателю больше, чем сами даты. Заглушку источника («тип не определён»)
+    // не печатаем: это шум, а не факт.
+    var NOISE = /не определ/i;
+    var hasOp = owners.some(function(o){ return o.op && !NOISE.test(o.op); });
     document.getElementById('ownTable').innerHTML =
-      '<tr><th>Владелец</th><th>С какой даты</th><th>По какую</th></tr>' +
+      '<tr><th>Владелец</th><th>С какой даты</th><th>По какую</th>'+
+      (hasOp ? '<th>Регистрационное действие</th>' : '')+'</tr>' +
       owners.map(function(o){
+        var op = (o.op && !NOISE.test(o.op)) ? o.op : '—';
         return '<tr><td><b>'+esc(o.kind)+'</b></td><td>'+esc(ru(o.from)||'—')+'</td>'+
-          '<td>'+esc(ru(o.to) || 'по настоящее время')+'</td></tr>';
+          '<td>'+esc(ru(o.to) || 'по настоящее время')+'</td>'+
+          (hasOp ? '<td>'+esc(op)+'</td>' : '')+'</tr>';
       }).join('');
     // Юрлицо среди владельцев — сигнал: так в историю попадают такси, каршеринг
     // и лизинговые парки. Молча показать строку «Юридическое лицо» мало.
@@ -518,12 +553,25 @@ function render(d){
       s = String(s||''); if(!s) return '';
       return s.indexOf('-')===4 ? s.slice(0,10).split('-').reverse().join('.') : s;
     };
+    // Номер кузова по декларации и утилизационный сбор приходили с первого дня
+    // и не показывались. Первый сверяется с VIN — расхождение выдаёт
+    // «конструктор»; второй важен для ввезённых машин.
+    var anyBody = cus.some(function(a){ return a.BodyNumber || a.ChassisNumber; });
+    var anyTax = cus.some(function(a){ return a.RecyclingTax; });
     document.getElementById('cusTable').innerHTML =
-      '<tr><th>Дата оформления</th><th>Модель по декларации</th><th>Страна вывоза</th></tr>' +
+      '<tr><th>Дата оформления</th><th>Модель по декларации</th><th>Страна вывоза</th>'+
+      (anyBody ? '<th>Номер кузова по ГТД</th>' : '')+
+      (anyTax ? '<th>Утильсбор</th>' : '')+'</tr>' +
       cus.map(function(a){
+        var body = String(a.BodyNumber || a.ChassisNumber || '').toUpperCase();
+        // Совпадение с VIN — норма, расхождение — красным: это и есть сигнал.
+        var bad = body && d.vin && body !== String(d.vin).toUpperCase();
         return '<tr><td><b>'+esc(ru(a.CustomsDate || a.ReleaseDate)||'—')+'</b></td>'+
           '<td>'+esc(a.MarkaModel||'—')+'</td>'+
-          '<td>'+esc(a.Country || a.CountryShort || 'не указана')+'</td></tr>';
+          '<td>'+esc(a.Country || a.CountryShort || 'не указана')+'</td>'+
+          (anyBody ? '<td'+(bad?' style="color:var(--bad);font-weight:700"':'')+'>'+
+            esc(body||'—')+(bad?' — не совпадает с VIN':'')+'</td>' : '')+
+          (anyTax ? '<td>'+esc(a.RecyclingTax||'—')+'</td>' : '')+'</tr>';
       }).join('');
   }
 

@@ -597,11 +597,26 @@ def run_alacarte(raw: str, basic: bool = False) -> tuple[list[AutoCheck], dict[s
     cu_items = cu.get("result") if isinstance(cu.get("result"), list) else []
     ut = _call_quiet("utilization", {"vin": vin}) or {}
     ut_found = str((ut or {}).get("result") or "") not in ("", "Данные не найдены")
-    add("customs", "found" if (cu_items or ut_found) else "not_found",
-        ((f"Таможенных деклараций: {len(cu_items)}. Автомобиль ввозился из-за границы. "
-          if cu_items else "Сведений о таможенном оформлении нет. ") +
-         ("Автомобиль числится утилизированным — поставить на учёт нельзя."
-          if ut_found else "")).strip(),
+    # Номер кузова в декларации ДОЛЖЕН совпадать с VIN. Расхождение — тот самый
+    # признак «конструктора» или документов от другой машины, о котором мы
+    # пишем в рекомендациях. Данные приходили с первого дня и не проверялись.
+    mismatch = ""
+    for it in cu_items:
+        if not isinstance(it, dict):
+            continue
+        body = str(it.get("BodyNumber") or "").strip().upper()
+        if body and body != vin.upper():
+            mismatch = (f" ВНИМАНИЕ: в таможенной декларации номер кузова {body}, "
+                        f"а VIN автомобиля {vin}. Расхождение — признак «конструктора» "
+                        f"или документов от другой машины. До сделки требуйте "
+                        f"объяснение и сверку у эксперта.")
+            break
+    detail = (f"Таможенных деклараций: {len(cu_items)}. Автомобиль ввозился из-за границы. "
+              if cu_items else "Сведений о таможенном оформлении нет. ")
+    if ut_found:
+        detail += "Автомобиль числится утилизированным — поставить на учёт нельзя. "
+    add("customs", "found" if (cu_items or ut_found or mismatch) else "not_found",
+        (detail + mismatch).strip(),
         _gai_date(cu.get("requestDate") or ""), cu_items)
 
     passport = {}
@@ -616,6 +631,8 @@ def run_alacarte(raw: str, basic: bool = False) -> tuple[list[AutoCheck], dict[s
             "category": (g.get("Category") or "").strip(),
             "eco": (g.get("EcoClass") or "").strip(),
             "mass": _pass_num(g.get("Mass")),
+            "mass_max": _pass_num(g.get("MassMax")),
+            "power_kw": _pass_num(g.get("EnginePower")),
             "as_of": g_date.isoformat() if g_date else "",
         }.items() if v}
         # gai отдаёт даты как «31.07.2020», отчёт ждёт ISO. Приводим здесь, а не
