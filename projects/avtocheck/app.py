@@ -36,6 +36,7 @@ from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
 
+from modules import report_copy
 from modules.efrsb import check_bankruptcy
 from modules.fssp import check_enforcement
 from modules.courts import check_courts
@@ -2438,7 +2439,15 @@ def api_check_full(report_id: str) -> JSONResponse:
     return JSONResponse({
         "status": "done", "paid": True, "report_id": report_id,
         "risk": rec.get("risk"), "headline": rec.get("headline"), "body": rec.get("body"),
-        "recommendations": rec.get("recommendations", []), "checks": rec.get("checks", []),
+        "recommendations": rec.get("recommendations", []),
+        # К каждой проверке кладём ГОТОВЫЕ заголовок, объяснение и дату
+        # актуальности из modules/report_copy. До этого те же строки жили
+        # только в скрипте страницы, и PDF о них не знал — файл, который
+        # человек скачивает и несёт продавцу, говорил не то же самое, что
+        # экран, за который он заплатил. Теперь источник один.
+        "checks": [dict(c, **report_copy.tile(c.get("key", ""), c.get("status", ""),
+                                              c.get("detail", "")))
+                   for c in (rec.get("checks") or [])],
         "report_url": f"/api/report/{report_id}",
         # Карточка машины (марка, модель, двигатель, кузов) — шапка отчёта. Без
         # неё страница начиналась с вердикта, и человек не видел подтверждения,
@@ -2641,7 +2650,7 @@ def _apply_addon(report_id: str, inn: str) -> None:
                   seller_dob=seller_dob, object_ref=rec.get("object_ref", ""),
                   email=rec.get("email", "") or "", checks=base_checks,
                   verdict=pdf_verdict, addon=rec["addon_result"],
-                  deal_kit=_deal_kit_payload(report_id, rec))
+                  deal_kit=_deal_kit_payload(report_id, rec), **_pdf_extra(rec))
     _save_report_record(rec)
 
 
@@ -2746,10 +2755,29 @@ def _apply_seller_addon(report_id: str) -> None:
                       seller_name=seller_name, seller_dob=seller_dob,
                       object_ref=rec.get("object_ref", ""), email=rec.get("email", "") or "",
                       checks=all_checks, verdict=verdict,
-                      deal_kit=_deal_kit_payload(report_id, rec))
+                      deal_kit=_deal_kit_payload(report_id, rec), **_pdf_extra(rec))
     except Exception:  # noqa: BLE001
         pass
     _save_report_record(rec)
+
+
+def _pdf_extra(rec: dict[str, Any]) -> dict[str, Any]:
+    """Данные машины для PDF — те же, что показывает экран отчёта.
+
+    Собраны в одном месте, потому что render_report вызывается из пяти путей
+    (первичная сборка, доплата до полного, апселлы, повторная проверка,
+    образец). Раньше паспорт и владельцев передавал только один из них, и
+    PDF, пересобранный после доплаты, молча терял половину отчёта.
+    """
+    return {
+        "passport": rec.get("passport") or {},
+        "owners": rec.get("owners") or [],
+        "car": rec.get("object_preview") or {},
+        "facts": rec.get("facts") or [],
+        "vin_check": rec.get("vin_check") or {},
+        "schemes": sorted(str(p) for p in SCHEMES_DIR.glob(
+            f"{rec.get('id') or rec.get('report_id') or ''}-*.png")),
+    }
 
 
 _SAVE_LOCK = threading.Lock()
@@ -3465,7 +3493,14 @@ def api_example_report() -> JSONResponse:
     path = STATIC_DIR / "example_report.json"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Пример пока не подготовлен.")
-    return JSONResponse(json.loads(path.read_text(encoding="utf-8")))
+    d = json.loads(path.read_text(encoding="utf-8"))
+    # Обогащаем тем же, чем платный отчёт: файл на диске снят один раз, а
+    # формулировки с тех пор правились. Без этого витрина показывала бы старые
+    # тексты, а PDF по той же машине — новые.
+    d["checks"] = [dict(c, **report_copy.tile(c.get("key", ""), c.get("status", ""),
+                                              c.get("detail", "")))
+                   for c in (d.get("checks") or [])]
+    return JSONResponse(d)
 
 
 @app.get("/report/{report_id}/view", response_class=HTMLResponse)
@@ -3810,9 +3845,7 @@ def _do_finalize(report_id: str, object_only: bool | None = None) -> bool:
                           object_ref=req.object_ref, email=req.email or "",
                           checks=checks, verdict=verdict,
                           deal_kit=_deal_kit_payload(report_id, rec),
-                          passport=rec.get("passport") or {},
-                          owners=rec.get("owners") or [],
-                          schemes=_schemes)
+                          **_pdf_extra(rec))
         except Exception:  # noqa: BLE001
             pass  # PDF не критичен — веб-версия отчёта доступна
         _save_report_record(rec)
@@ -3998,7 +4031,7 @@ def _apply_bump(report_id: str) -> None:
                       seller_name=rec.get("seller_name", ""), seller_dob=rec.get("seller_dob", ""),
                       object_ref=rec.get("object_ref", ""), email=rec.get("email", "") or "",
                       checks=checks, verdict=pdf_verdict, addon=rec.get("addon_result"),
-                      deal_kit=_deal_kit_payload(report_id, rec))
+                      deal_kit=_deal_kit_payload(report_id, rec), **_pdf_extra(rec))
     except Exception:
         pass
     _save_report_record(rec)
@@ -4040,7 +4073,8 @@ def api_sample_report() -> FileResponse:
             object_ref=d.get("vin") or "", email="",
             checks=checks, verdict=verdict,
             passport=d.get("passport") or {}, owners=d.get("owners") or [],
-            schemes=schemes,
+            schemes=schemes, car=d.get("car") or {},
+            facts=d.get("facts") or [], vin_check=d.get("vin_check") or {},
         )
     if not sample_path.exists():
         raise HTTPException(status_code=404, detail="Образец пока не подготовлен.")

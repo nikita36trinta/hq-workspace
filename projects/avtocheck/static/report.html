@@ -493,11 +493,14 @@ function render(d){
     var dotcls = c.status==='found' ? (SOFT[c.key]?'warn':'bad') : (DOTCLS[c.status]||'');
     var tilecls = c.status==='found' ? (SOFT[c.key]?'tile':'tile flag')
                 : (c.status==='not_found' ? 'tile' : 'tile na');
-    var means = (MEANS[c.key]||{})[c.status] || '';
+    var means = c.means || (MEANS[c.key]||{})[c.status] || '';
     var badge = s.date
       ? '<span class="asof '+(s.old?'old':'fresh')+'">'+(s.old?'данные на ':'проверено ')+esc(s.date)+'</span>'
       : '';
-    var title = (TITLES[c.key]||{})[c.status] || s.text.split('.')[0];
+    /* Сервер присылает готовые title/means из modules/report_copy — там же их
+       берёт генератор PDF, поэтому экран и файл говорят одно и то же. Карты
+       ниже остаются запасным вариантом для отчётов, собранных до этой правки. */
+    var title = c.title || (TITLES[c.key]||{})[c.status] || s.text.split('.')[0];
     return '<div class="'+tilecls+'">'+
       '<div class="tiletop"><div class="tilefact">'+esc(title)+'</div>'+
       '<span class="dot '+dotcls+'"></span></div>'+
