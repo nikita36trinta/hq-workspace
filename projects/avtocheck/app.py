@@ -26,7 +26,8 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import (FileResponse, HTMLResponse, JSONResponse,
+                               PlainTextResponse, RedirectResponse)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
 
@@ -3353,6 +3354,37 @@ def report_scheme(report_id: str, idx: str) -> Any:
     return FileResponse(str(path), media_type="image/png")
 
 
+@app.get("/robots.txt", response_class=PlainTextResponse)
+def robots() -> PlainTextResponse:
+    """Отчёты клиентов из индекса закрыты наглухо: report_id — это ссылка-ключ,
+    по которой отчёт открывается без пароля, и попадание её в поиск означало бы
+    публикацию чужой проверки. Лендинг и пример открыты — они и есть витрина."""
+    return PlainTextResponse(
+        "User-agent: *\n"
+        "Disallow: /report/\n"
+        "Disallow: /pay/\n"
+        "Disallow: /admin/\n"
+        "Disallow: /api/\n"
+        "Allow: /example\n"
+        "Allow: /\n\n"
+        "Sitemap: https://avto.chistasdelka.ru/sitemap.xml\n"
+    )
+
+
+@app.get("/sitemap.xml", response_class=PlainTextResponse)
+def sitemap() -> PlainTextResponse:
+    pages = ["/", "/example", "/offer", "/privacy", "/consent"]
+    urls = "".join(
+        f"<url><loc>https://avto.chistasdelka.ru{p}</loc>"
+        f"<changefreq>{'weekly' if p in ('/', '/example') else 'yearly'}</changefreq></url>"
+        for p in pages)
+    return PlainTextResponse(
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        + urls + "</urlset>",
+        media_type="application/xml")
+
+
 @app.get("/example", response_class=HTMLResponse)
 def example_view() -> HTMLResponse:
     """Пример отчёта — открыт всем, без оплаты и без заявки.
@@ -4167,18 +4199,24 @@ def api_pay(req: PayRequest, request: Request) -> JSONResponse:
 
 
 def _return_page(order_id: str, status: str, headline: str, body_html: str) -> HTMLResponse:
+    # Счётчик берём из окружения. Здесь стоял номер счётчика НЕДВИЖИМОСТИ,
+    # унаследованный вместе с кодом: главная конверсия pay_success — та самая,
+    # по которой Директ учится приводить покупателей, — улетала в чужую
+    # статистику. Реклама на авто оптимизировалась бы вслепую.
+    _cid = (os.getenv("METRIKA_COUNTER_ID") or "").strip()
     _goal = (
         "try{if(!sessionStorage.getItem('ps_'+" + repr(order_id) + ")){"
         "sessionStorage.setItem('ps_'+" + repr(order_id) + ",'1');"
-        "ym(110382224,'reachGoal','pay_success');}}catch(e){}"
-        if status == "succeeded" else ""
+        "ym(" + _cid + ",'reachGoal','pay_success');}}catch(e){}"
+        if (status == "succeeded" and _cid.isdigit()) else ""
     )
+    # Счётчика нет — не вставляем счётчик вовсе, а не подставляем чужой.
     metrika_block = (
         "<script>"
         + "(function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})(window,document,'script','https://mc.yandex.ru/metrika/tag.js','ym');"
-        + "ym(110382224,'init',{clickmap:true,trackLinks:true,accurateTrackBounce:true});"
+        + "ym(" + _cid + ",'init',{clickmap:true,trackLinks:true,accurateTrackBounce:true});"
         + _goal + "</script>"
-    )
+    ) if _cid.isdigit() else ""
     palette = {
         "succeeded": "#16a34a",
         "bypass": "#2563EB",
