@@ -2388,6 +2388,10 @@ def api_check_full(report_id: str) -> JSONResponse:
         # Паспорт ГИБДД и периоды владения — отдельные секции отчёта.
         "passport": rec.get("passport") or {},
         "owners": rec.get("owners") or [],
+        # Сводка первым экраном и проверка контрольного символа VIN. Обе
+        # считаются из уже полученных данных, платных запросов не стоят.
+        "facts": rec.get("facts") or [],
+        "vin_check": rec.get("vin_check") or {},
         "addon_pending": bool(rec.get("addon_pending")),
         "addon_applied": bool(rec.get("addon_applied")),
         "addon_result": rec.get("addon_result"),
@@ -3638,10 +3642,9 @@ def _do_finalize(report_id: str, object_only: bool | None = None) -> bool:
         # Паспорт машины и периоды владения приезжают тем же вызовом gai, что и
         # ограничения — отдельных денег не стоят. _run_checks кладёт их сюда.
         extra = globals().get("_LAST_AUTO_EXTRA") or {}
-        if extra.get("passport"):
-            rec["passport"] = extra["passport"]
-        if extra.get("owners"):
-            rec["owners"] = extra["owners"]
+        for _k in ("passport", "owners", "vin_check", "facts"):
+            if extra.get(_k):
+                rec[_k] = extra[_k]
 
         # ГЕЙТ ВЫДАЧИ — АВТОМОБИЛЬНЫЙ. Ниже по функции остался гейт недвижимости:
         # он ищет блок с ключом «object» и, не найдя, выбрасывает ВЕСЬ отчёт. У

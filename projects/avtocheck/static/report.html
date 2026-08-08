@@ -97,6 +97,9 @@
   .srow .sv{font-weight:700;white-space:nowrap}
   .sv.ok{color:var(--ok)} .sv.bad{color:var(--bad)} .sv.warn{color:var(--warn)}
   .sv.na{color:var(--na)}
+  .vinres{font-size:15px;font-weight:750;margin-bottom:5px}
+  .vinres.ok{color:var(--ok)} .vinres.bad{color:var(--bad)} .vinres.na{color:var(--warn)}
+  .vinwhy{font-size:12.5px;color:var(--ink-2);line-height:1.5}
 
   /* ── секции и плитки ─────────────────────────────────────────────────── */
   .sec{margin-top:38px}
@@ -244,6 +247,11 @@
       <aside class="side">
         <div class="sidet">Главное из отчёта</div>
         <div id="sideRows"></div>
+        <div id="factsBox" style="display:none">
+          <div class="sidet" style="margin-top:20px">Коротко о машине</div>
+          <div id="factRows"></div>
+        </div>
+        <div id="vinBox" style="display:none"></div>
       </aside>
     </div>
 
@@ -441,6 +449,31 @@ function render(d){
     return '<div class="srow"><span class="sk">'+esc(p.c.name)+'</span>'+
       '<span class="sv '+cls+'">'+esc(STATUS_WORD[p.c.status]||p.c.status)+'</span></div>';
   }).join('');
+
+  // сводка: то, что человек хочет узнать за пять секунд, без чтения блоков
+  var facts = d.facts || [];
+  if(facts.length){
+    document.getElementById('factsBox').style.display='block';
+    document.getElementById('factRows').innerHTML = facts.map(function(f){
+      // «была» у дубликата ПТС — не приговор, но и не нейтральный факт:
+      // подсвечиваем, чтобы человек задал вопрос продавцу.
+      var warn = /была|найдено:\s*[1-9]/i.test(String(f[1])) ? ' warn' : '';
+      return '<div class="srow"><span class="sk">'+esc(f[0])+'</span>'+
+        '<span class="sv'+warn+'">'+esc(f[1])+'</span></div>';
+    }).join('');
+  }
+
+  // контрольный символ VIN — бесплатная арифметическая проверка подлинности
+  var vc = d.vin_check || {};
+  if(vc.why){
+    var cls = vc.ok === true ? 'ok' : (vc.ok === false ? 'bad' : 'na');
+    document.getElementById('vinBox').style.display='block';
+    document.getElementById('vinBox').innerHTML =
+      '<div class="sidet" style="margin-top:20px">Контрольный символ VIN</div>'+
+      '<div class="vinres '+cls+'">'+
+      (vc.ok === true ? 'сошёлся' : (vc.ok === false ? 'не сошёлся' : 'не сходится'))+
+      '</div><div class="vinwhy">'+esc(vc.why)+'</div>';
+  }
 
   // плитки
   document.getElementById('tiles').innerHTML = parsed.map(function(p){

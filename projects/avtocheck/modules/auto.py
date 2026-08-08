@@ -430,6 +430,51 @@ def _apply_tier(checks: list["AutoCheck"], basic: bool) -> list["AutoCheck"]:
     return out
 
 
+# ── контрольный символ VIN ─────────────────────────────────────────────────
+# Девятый знак VIN — контрольная сумма остальных шестнадцати (ISO 3779).
+# Считается на месте и не стоит ничего, а ловит подделку документов: у
+# перебитого или выдуманного номера сумма не сходится. Оговорка обязательна:
+# европейские и азиатские заводы часто ставят символ формально, и несовпадение
+# у них — норма. Поэтому «не сошлась» — это повод проверить номер на кузове
+# глазами, а не приговор.
+
+_VIN_WEIGHTS = (8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2)
+_VIN_VALUES = {
+    **{str(d): d for d in range(10)},
+    "A": 1, "B": 2, "C": 3, "D": 4, "E": 5, "F": 6, "G": 7, "H": 8,
+    "J": 1, "K": 2, "L": 3, "M": 4, "N": 5, "P": 7, "R": 9,
+    "S": 2, "T": 3, "U": 4, "V": 5, "W": 6, "X": 7, "Y": 8, "Z": 9,
+}
+# Заводы, у которых контрольный символ по стандарту США не заполняется.
+# Первый знак VIN — регион: 1-5 Северная Америка, 6-7 Океания, 8-9 Южная
+# Америка, A-H Африка, J-R Азия, S-Z Европа.
+_VIN_CHECK_REGIONS = set("12345")
+
+
+def vin_checksum(vin: str) -> dict[str, Any]:
+    """Сошёлся ли контрольный символ. → {'ok': bool|None, 'why': str}"""
+    v = (vin or "").strip().upper()
+    if not _VIN_RE.match(v):
+        return {"ok": None, "why": "VIN не распознан — проверить символ не по чему."}
+    total = sum(_VIN_VALUES.get(ch, 0) * w for ch, w in zip(v, _VIN_WEIGHTS))
+    rem = total % 11
+    expect = "X" if rem == 10 else str(rem)
+    ok = v[8] == expect
+    strict = v[0] in _VIN_CHECK_REGIONS
+    if ok:
+        return {"ok": True, "why": "Контрольный символ VIN сошёлся — номер "
+                                   "математически корректен."}
+    if strict:
+        return {"ok": False, "why": f"Контрольный символ VIN НЕ сошёлся: девятым "
+                                    f"знаком должен быть «{expect}». Для машин "
+                                    f"североамериканской сборки это обязательный "
+                                    f"признак — сверьте номер на кузове и в ПТС."}
+    return {"ok": None, "why": f"Контрольный символ не совпал (ожидался «{expect}»), "
+                               f"но у европейских и азиатских заводов он часто "
+                               f"заполняется формально — само по себе это не "
+                               f"признак подделки. Сверьте номер на кузове с ПТС."}
+
+
 # ── сборка отчёта из поштучных методов ─────────────────────────────────────
 # Замер 08.08.2026. reportjson (50 ₽) отдаёт всё гибддшное КЭШЕМ 2023 года.
 # Метод gai (21 ₽) на тот же VIN вернул Date=08.08.2026 11:31 — живой запрос, и
@@ -567,20 +612,23 @@ def run_alacarte(raw: str, basic: bool = False) -> tuple[list[AutoCheck], dict[s
     # то, ради чего эту секцию и смотрят: короткие периоды владения. Машину,
     # которую перепродали дважды за пару месяцев, обычно сбрасывают не просто так.
     hist = g.get("History") or []
+    # Считаем ВЛАДЕЛЬЦЕВ, а не записи: смена номеров и замена ПТС — это тоже
+    # строки в истории, но хозяин при них не менялся.
+    merged = _merge_owners(hist)
     short = 0
-    for p in hist:
-        if not isinstance(p, dict):
-            continue
-        a, b = _gai_date(p.get("From") or ""), _gai_date(p.get("To") or "")
+    for o in merged:
+        a, b = _gai_date_iso(o.get("from")), _gai_date_iso(o.get("to"))
         if a and b and (b - a).days < 180:
             short += 1
-    if hist:
-        detail = f"Записей о регистрационных действиях: {len(hist)}."
+    if merged:
+        n = len(merged)
+        detail = (f"Владельцев по учёту: {n}. Регистрационных действий: {len(hist)}."
+                  if len(hist) > n else f"Владельцев по учёту: {n}.")
         if short:
-            detail += (f" Из них {short} владел{'ец' if short == 1 else 'ьцев'} "
-                       f"держал{'' if short == 1 else 'и'} машину меньше полугода — "
-                       f"так обычно сбрасывают проблемный автомобиль. Спросите "
-                       f"продавца, почему он продаёт, и сверьте ответ с датами.")
+            detail += (f" Из них {short} держал{'' if short == 1 else 'и'} машину "
+                       f"меньше полугода — так обычно сбрасывают проблемный "
+                       f"автомобиль. Спросите продавца, почему он продаёт, и "
+                       f"сверьте ответ с датами.")
         add("history", "found", detail, g_date, hist)
     else:
         add("history", "not_checked", "История регистраций в источнике не найдена.",
@@ -635,21 +683,122 @@ def run_alacarte(raw: str, basic: bool = False) -> tuple[list[AutoCheck], dict[s
             "power_kw": _pass_num(g.get("EnginePower")),
             "as_of": g_date.isoformat() if g_date else "",
         }.items() if v}
-        # gai отдаёт даты как «31.07.2020», отчёт ждёт ISO. Приводим здесь, а не
-        # на фронте: иначе один и тот же формат разбирался бы в двух местах.
-        def _iso(s: str) -> str:
-            d = _gai_date(s)
-            return d.isoformat() if d else ""
-        for p in hist:
-            if not isinstance(p, dict):
-                continue
-            owners.append({"kind": (p.get("PersonType") or "Не указано").strip(),
-                           "from": _iso(p.get("From") or ""),
-                           "to": _iso(p.get("To") or ""),
-                           "op": (p.get("LastOperation") or "").strip()})
+        owners = _merge_owners(hist)
 
     out = _apply_tier(out, basic=basic)
-    return out, {"passport": passport, "owners": owners}
+    return out, {"passport": passport, "owners": owners,
+                 "vin_check": vin_checksum(vin),
+                 "facts": _facts(passport, owners, out)}
+
+
+_NEW_OWNER_RE = re.compile(r"изменени\w*\s+собственник", re.I)
+
+
+def _merge_owners(hist: list) -> list[dict[str, Any]]:
+    """Регистрационные записи → ПЕРИОДЫ ВЛАДЕНИЯ.
+
+    Источник отдаёт каждое регистрационное действие отдельной строкой, включая
+    те, где собственник не менялся: получение новых номеров, замена ПТС, смена
+    прописки. Считать их владельцами — завышать число хозяев и выдавать ложную
+    тревогу о быстрой перепродаже. У нашей тестовой машины так и вышло: три
+    записи, из них смена собственника одна, — мы насчитали трёх владельцев и
+    написали «один держал машину пять недель», хотя это был тот же человек,
+    поменявший госномер.
+
+    Новый владелец начинается, когда источник это прямо говорит: флагом
+    IsRegAction или формулировкой «в связи с изменением собственника».
+    """
+    out: list[dict[str, Any]] = []
+    for p in hist:
+        if not isinstance(p, dict):
+            continue
+        op = (p.get("LastOperation") or "").strip()
+        frm = _gai_date(p.get("From") or "")
+        to = _gai_date(p.get("To") or "")
+        changed = bool(p.get("IsRegAction")) or bool(_NEW_OWNER_RE.search(op))
+        if out and not changed:
+            # Тот же владелец: расширяем период и запоминаем, что он делал.
+            out[-1]["to"] = to.isoformat() if to else ""
+            if op and "не определ" not in op.lower():
+                out[-1]["ops"].append(op)
+            continue
+        out.append({"kind": (p.get("PersonType") or "Не указано").strip(),
+                    "from": frm.isoformat() if frm else "",
+                    "to": to.isoformat() if to else "",
+                    "op": op if "не определ" not in op.lower() else "",
+                    "ops": []})
+    # Внутренние действия склеиваем в одну строку для таблицы.
+    for o in out:
+        extra = [x for x in o.pop("ops", []) if x]
+        if extra and not o["op"]:
+            o["op"] = "; ".join(dict.fromkeys(extra))
+        elif extra:
+            o["op"] = "; ".join(dict.fromkeys([o["op"]] + extra))
+    return out
+
+
+def _years_word(n: int) -> str:
+    n10, n100 = n % 10, n % 100
+    if n10 == 1 and n100 != 11:
+        return "год"
+    if 2 <= n10 <= 4 and not 12 <= n100 <= 14:
+        return "года"
+    return "лет"
+
+
+def _span_words(days: int) -> str:
+    """Дни → «5 лет 7 месяцев». Точность до месяца: «1 день» в сроке владения
+    выглядит педантично и ничего не добавляет."""
+    y, rest = divmod(max(days, 0), 365)
+    m = rest // 30
+    parts = []
+    if y:
+        parts.append(f"{y} {_years_word(y)}")
+    if m:
+        parts.append(f"{m} мес.")
+    return " ".join(parts) or "меньше месяца"
+
+
+def _facts(passport: dict, owners: list, checks: list) -> list[list[str]]:
+    """Сводка первым экраном: то, что человек хочет узнать за пять секунд.
+
+    Считается из уже полученных данных, дополнительных запросов не делает.
+    """
+    today = date.today()
+    f: list[list[str]] = []
+    if owners:
+        f.append(["Владельцев по учёту", str(len(owners))])
+        first = _gai_date_iso(owners[0].get("from"))
+        if first:
+            f.append(["Общий срок эксплуатации", _span_words((today - first).days)])
+        last = owners[-1]
+        lf = _gai_date_iso(last.get("from"))
+        if lf:
+            f.append(["Текущий владелец держит машину", _span_words((today - lf).days)])
+        f.append(["Тип последнего владельца", last.get("kind") or "не указан"])
+        # Дубликат ПТС выдают взамен утраченного — а ещё когда в оригинале
+        # кончились поля от частых перепродаж или когда прячут историю.
+        dup = any("дубликат" in str(o.get("op") or "").lower() for o in owners)
+        f.append(["Выдача дубликата ПТС", "была" if dup else "не выдавался"])
+    elif passport.get("year"):
+        try:
+            f.append(["Возраст автомобиля",
+                      _span_words((today - date(int(passport["year"]), 1, 1)).days)])
+        except Exception:  # noqa: BLE001
+            pass
+    by = {c.key: c for c in checks}
+    if "dtp" in by:
+        n = len(by["dtp"].items or [])
+        f.append(["ДТП по базе ГИБДД", str(n) if n else "не найдено"])
+    return f
+
+
+def _gai_date_iso(s: Any) -> date | None:
+    """ISO-строка из owners → date. Отдельно от _gai_date: там формат источника."""
+    try:
+        return date.fromisoformat(str(s)[:10])
+    except Exception:  # noqa: BLE001
+        return None
 
 
 # ── паспорт машины и периоды владения ──────────────────────────────────────
