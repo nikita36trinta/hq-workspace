@@ -841,9 +841,11 @@ body{
 
     <!-- ══════════════ 7 ══════════════ -->
     <div class="slot">
-      <div class="slot-head"><span class="slot-num">07</span><span class="slot-name">Фото сбоку с зонами</span></div>
-      <p class="slot-why">То же, но в профиль. Машина крупнее и узнаётся сразу, зато сбоку
-         не показать, слева удар или справа, — а именно это чаще всего и хотят знать.</p>
+      <div class="slot-head"><span class="slot-num">07</span><span class="slot-name">Фото сбоку с закрашенной зоной</span></div>
+      <p class="slot-why">Повреждённые панели закрашены прямо на снимке — обводка идёт
+         точно по стыкам дверей, оконной линии и порогу, и металл с бликами сквозь неё
+         виден. Наложением прямоугольника в вёрстке такого не получить: это вторая
+         правка того же рендера, а не фигура поверх него.</p>
       <div class="stage">
         <div class="card">
           <div class="v4">
@@ -856,14 +858,11 @@ body{
                 <a class="v4-link" href="/example">Пример →</a>
               </div>
               <div class="shot">
-                <img src="/static/cars/x1-side.webp" alt="BMW X1 в профиль, отмечена зона удара спереди">
-                <div class="shot-arc" style="left:20px; top:24%; bottom:16%; width:30px"></div>
-                <div class="shot-tab" style="left:9px; top:52%">Спереди</div>
-                <div class="shot-dot" style="left:12%; top:62%"></div>
-                <div class="shot-dot" style="left:18%; top:78%"></div>
+                <img src="/static/cars/x1-side-doors.webp"
+                     alt="BMW X1 в профиль: обе двери закрашены как повреждённая зона">
               </div>
-              <div class="shot-meta"><i></i>ДТП: наезд на стоящее ТС</div>
-              <div class="shot-sub">02.06.2022 · Удмуртская Республика · 2 участника</div>
+              <div class="shot-meta"><i></i>ДТП: удар в левый борт</div>
+              <div class="shot-sub">02.06.2022 · Удмуртская Республика · повреждены обе двери</div>
             </div>
 
             <div class="v4-verdict">
@@ -881,6 +880,18 @@ body{
             <div class="v4-foot">
               <b>Второй владелец держал машину пять недель.</b> Так обычно сбрасывают проблемный
               автомобиль — спросите продавца, почему он продаёт, и сверьте ответ с датами.
+            </div>
+          </div>
+
+          <div class="bodies">
+            <h4>Обводка против заливки</h4>
+            <p>Той же модели дали второе задание — закрасить двери сплошным оранжевым.
+               Вышло хуже: читается не повреждение, а двухцветная покраска. Контур
+               выигрывает потому, что сам по себе говорит «это отметка», а не «это цвет
+               кузова».</p>
+            <div style="border-radius:12px; overflow:hidden; background:#f3f4f6">
+              <img src="/static/cars/x1-side-doors-fill.webp" alt="Вариант со сплошной заливкой дверей"
+                   style="display:block; width:100%; height:auto">
             </div>
           </div>
 
