@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Карточка с фото — ещё 6 прочтений</title>
+<style>
+/* Шесть карточек одного формата. Две про премиальность, четыре собраны от
+   мотива покупателя, а не от вкуса. Всё скоуплено под .p1/.p2 и .u1….u4 —
+   правка одной не протекает в остальные. */
+:root{
+  --ink:#0a0a0a; --muted:#6b7280; --line:#e5e7eb; --bg-soft:#f8fafc;
+  --accent:#2563EB; --accent-soft:#eff6ff;
+  --ok:#16a34a; --warn:#d97706; --bad:#dc2626;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0; font-family:var(--sans); color:var(--ink);
+     background:radial-gradient(900px 480px at 14% -8%, #eef4ff 0%, transparent 58%), #fbfcfe;
+     -webkit-font-smoothing:antialiased}
+.page{max-width:1180px; margin:0 auto; padding:44px 24px 90px}
+.page h1{font-size:25px; margin:0 0 8px; letter-spacing:-.02em}
+.page>p{margin:0 0 14px; color:var(--muted); font-size:14.5px; line-height:1.6; max-width:64ch}
+.sec{margin:36px 0 20px; padding-top:22px; border-top:1px solid var(--line);
+     font:700 11px/1 var(--sans); letter-spacing:.16em; text-transform:uppercase; color:var(--muted)}
+.grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(358px,1fr)); gap:34px}
+.slot-head{display:flex; align-items:baseline; gap:10px; margin-bottom:5px}
+.slot-num{font:600 11px/1 var(--mono); letter-spacing:.12em; color:var(--accent);
+          background:var(--accent-soft); padding:6px 8px; border-radius:6px}
+.slot-name{font-size:16px; font-weight:700; letter-spacing:-.01em}
+.slot-why{margin:0 0 15px; color:var(--muted); font-size:13px; line-height:1.55; max-width:46ch}
+.stage{background:linear-gradient(180deg,#f8fafc,#eef2f7); border:1px solid var(--line);
+       border-radius:20px; padding:24px; display:flex; justify-content:center}
+.stage.dark{background:linear-gradient(180deg,#0c1014,#05070a); border-color:#161d26}
+.card{width:100%; max-width:394px}
+
+/* ═══════════ 05 · ПРЕМИУМ · ГРАФИТ ══════════════════════════════════════
+   Дорого здесь делает не золото, а воздух и тонкие линии. Акцент — латунь,
+   ровно один, и только там, где риск. */
+.p1{background:#0b0d10; border:1px solid rgba(255,255,255,.09); border-radius:16px;
+    padding:26px 24px 22px; color:#e6e9ed;
+    box-shadow:0 40px 80px -40px rgba(0,0,0,.9)}
+.p1-eyebrow{font:600 9.5px/1 var(--sans); letter-spacing:.22em; text-transform:uppercase; color:#767d87}
+.p1-model{margin-top:13px; font-size:21px; font-weight:600; letter-spacing:-.02em; color:#fff}
+.p1-vin{margin-top:7px; font:400 11px/1 var(--mono); color:#767d87; letter-spacing:.1em}
+.p1-shot{margin:22px 0; border-radius:10px; overflow:hidden; background:#f0f1f3;
+         border:1px solid rgba(255,255,255,.07)}
+.p1-shot img{display:block; width:100%; height:auto}
+.p1-rule{height:1px; background:rgba(255,255,255,.09); margin:0 0 18px}
+.p1-verdict{display:flex; align-items:baseline; justify-content:space-between; gap:14px}
+.p1-vlabel{font:600 9.5px/1 var(--sans); letter-spacing:.22em; text-transform:uppercase; color:#767d87}
+.p1-vval{font-size:19px; font-weight:600; letter-spacing:.01em; color:#C9A24D}
+.p1-vsub{margin-top:10px; font-size:12.5px; line-height:1.6; color:#98a0aa; max-width:34ch}
+.p1-rows{margin-top:22px}
+.p1-row{display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+        padding:13px 0; border-top:1px solid rgba(255,255,255,.07)}
+.p1-row .n{font-size:13px; color:#c3c9d1; font-weight:400}
+.p1-row .n s{display:block; text-decoration:none; margin-top:4px;
+             font:400 9.5px/1 var(--mono); color:#666d77; letter-spacing:.08em; text-transform:uppercase}
+.p1-row .r{font-size:12.5px; font-weight:500; white-space:nowrap; font-variant-numeric:tabular-nums}
+.p1-row .r.ok{color:#8fa89a} .p1-row .r.warn{color:#C9A24D}
+.p1-foot{margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,.09);
+         font-size:12px; line-height:1.65; color:#8a9199}
+.p1-foot b{color:#C9A24D; font-weight:600}
+
+/* ═══════════ 06 · ПРЕМИУМ · СВЕТЛЫЙ ═════════════════════════════════════
+   Спокойная дороговизна: почти нет цвета, всё держится на интервалах и
+   волосяных линиях. Риск обозначен одной точкой, а не заливкой. */
+.p2{background:#fff; border:1px solid #ececef; border-radius:14px; padding:28px 26px 24px;
+    box-shadow:0 30px 60px -44px rgba(15,23,42,.4)}
+.p2-eyebrow{font:600 9.5px/1 var(--sans); letter-spacing:.22em; text-transform:uppercase; color:#9aa0a8}
+.p2-model{margin-top:13px; font-size:21px; font-weight:600; letter-spacing:-.02em; color:#14171a}
+.p2-vin{margin-top:7px; font:400 11px/1 var(--mono); color:#9aa0a8; letter-spacing:.1em}
+.p2-shot{margin:24px -6px; background:#f7f7f8; border-radius:8px; overflow:hidden}
+.p2-shot img{display:block; width:100%; height:auto}
+.p2-verdict{display:flex; align-items:center; gap:11px; padding-bottom:18px; border-bottom:1px solid #ececef}
+.p2-vdot{flex:none; width:9px; height:9px; border-radius:50%; background:var(--warn)}
+.p2-vval{font-size:19px; font-weight:600; letter-spacing:-.01em; color:#14171a}
+.p2-vsub{font-size:12.5px; color:#8b9199; margin-left:auto; text-align:right; line-height:1.4}
+.p2-rows{margin-top:4px}
+.p2-row{display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+        padding:14px 0; border-bottom:1px solid #f3f3f5}
+.p2-row .n{font-size:13.5px; font-weight:500; color:#14171a}
+.p2-row .n s{display:block; text-decoration:none; margin-top:4px;
+             font:400 9.5px/1 var(--mono); color:#a6acb4; letter-spacing:.08em; text-transform:uppercase}
+.p2-row .r{font-size:12.5px; font-weight:600; white-space:nowrap; color:#5f666e;
+           font-variant-numeric:tabular-nums}
+.p2-row .r.warn{color:var(--warn)}
+.p2-foot{margin-top:18px; font-size:12px; line-height:1.7; color:#8b9199}
+.p2-foot b{color:#14171a; font-weight:600}
+
+/* ═══════════ 07 · БРАТЬ ИЛИ НЕ БРАТЬ ════════════════════════════════════ */
+.u1{background:#fff; border:1px solid var(--line); border-radius:18px; overflow:hidden;
+    box-shadow:0 22px 50px -34px rgba(15,23,42,.45)}
+.u1-answer{padding:20px 20px 18px; background:linear-gradient(180deg,#fffdf5,#fff)}
+.u1-pill{display:inline-flex; align-items:center; gap:7px; background:#fef3c7; color:#92400e;
+         border-radius:999px; padding:6px 12px; font:700 10.5px/1 var(--sans);
+         letter-spacing:.08em; text-transform:uppercase}
+.u1-pill i{width:7px; height:7px; border-radius:50%; background:var(--warn)}
+.u1-title{margin-top:13px; font-size:23px; font-weight:800; letter-spacing:-.03em; line-height:1.15}
+.u1-because{margin-top:11px; padding-left:14px; border-left:2px solid #fcd34d;
+            font-size:13px; line-height:1.6; color:#4b5563}
+.u1-shot{background:#f3f4f6} .u1-shot img{display:block; width:100%; height:auto}
+.u1-cap{padding:11px 20px 0; font-size:12.5px; font-weight:700}
+.u1-cap-sub{padding:4px 20px 13px; font:500 10.5px/1.5 var(--mono); color:#9aa4b2}
+.u1-rows{padding:0 20px}
+.u1-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid #f1f3f6;
+        font-size:13px}
+.u1-row .n{flex:1}
+.u1-row .r{font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums}
+.u1-row .r.ok{color:var(--ok)} .u1-row .r.warn{color:var(--warn)}
+.u1-foot{margin-top:12px; padding:13px 20px 16px; background:var(--bg-soft);
+         border-top:1px solid var(--line); font-size:12.5px; line-height:1.6; color:#4b5563}
+.u1-foot b{color:var(--ink)}
+
+/* ═══════════ 08 · ЧТО ЗНАЕТ ПРОДАВЕЦ ════════════════════════════════════ */
+.u2{background:#fff; border:1px solid var(--line); border-radius:18px; overflow:hidden;
+    box-shadow:0 22px 50px -34px rgba(15,23,42,.45)}
+.u2-head{padding:18px 18px 14px}
+.u2-title{font-size:18px; font-weight:800; letter-spacing:-.025em; line-height:1.25}
+.u2-sub{margin-top:6px; font-size:12.5px; color:var(--muted)}
+.u2-cols{display:grid; grid-template-columns:1fr 1fr; gap:9px; padding:0 18px 14px}
+.u2-col{border-radius:11px; padding:12px 12px 11px}
+.u2-col.knows{background:#fef2f2; border:1px solid #fecaca}
+.u2-col.sees{background:var(--bg-soft); border:1px solid var(--line)}
+.u2-col h5{margin:0 0 9px; font:700 9.5px/1 var(--sans); letter-spacing:.14em; text-transform:uppercase}
+.u2-col.knows h5{color:#b91c1c} .u2-col.sees h5{color:#6b7280}
+.u2-col li{list-style:none; font-size:12px; line-height:1.5; padding:3px 0 3px 14px; position:relative}
+.u2-col ul{margin:0; padding:0}
+.u2-col.knows li::before{content:"—"; position:absolute; left:0; color:#dc2626; font-weight:700}
+.u2-col.sees li::before{content:"—"; position:absolute; left:0; color:#9ca3af}
+.u2-shot{background:#f3f4f6} .u2-shot img{display:block; width:100%; height:auto}
+.u2-punch{padding:14px 18px 0; font-size:13.5px; line-height:1.55; font-weight:600}
+.u2-rows{padding:10px 18px 0}
+.u2-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid #f1f3f6; font-size:13px}
+.u2-row .n{flex:1}
+.u2-row .r{font-weight:700; white-space:nowrap}
+.u2-row .r.ok{color:var(--ok)} .u2-row .r.warn{color:var(--warn)}
+.u2-foot{margin-top:12px; padding:13px 18px 16px; background:var(--bg-soft);
+         border-top:1px solid var(--line); font-size:12.5px; line-height:1.6; color:#4b5563}
+.u2-foot b{color:var(--ink)}
+
+/* ═══════════ 09 · НА ПЛОЩАДКЕ ═══════════════════════════════════════════
+   Человек стоит у машины, продавец рядом и торопит. Крупно, опасное сверху,
+   пальцем попасть с первого раза. */
+.u3{background:#fff; border:1px solid var(--line); border-radius:18px; overflow:hidden;
+    box-shadow:0 22px 50px -34px rgba(15,23,42,.45)}
+.u3-bar{display:flex; align-items:center; gap:9px; padding:12px 16px; background:#fffbeb;
+        border-bottom:1px solid #fde68a}
+.u3-bar b{font-size:13.5px; font-weight:800; color:#92400e}
+.u3-bar span{margin-left:auto; font:600 10px/1 var(--mono); color:#b45309; letter-spacing:.06em}
+.u3-shot{background:#f3f4f6} .u3-shot img{display:block; width:100%; height:auto}
+.u3-model{padding:12px 16px 0; font-size:14px; font-weight:700}
+.u3-vin{padding:4px 16px 10px; font:500 10.5px/1 var(--mono); color:#9aa4b2; letter-spacing:.06em}
+.u3-list{padding:0 12px 6px}
+.u3-item{display:flex; align-items:center; gap:12px; padding:14px 12px; border-radius:12px;
+         margin-bottom:6px; background:var(--bg-soft); border:1px solid var(--line)}
+.u3-item.hot{background:#fffbeb; border-color:#fde68a}
+.u3-ic{flex:none; width:30px; height:30px; border-radius:9px; display:grid; place-items:center;
+       background:#fff; border:1px solid var(--line)}
+.u3-ic svg{width:17px; height:17px}
+.u3-item .n{flex:1; min-width:0}
+.u3-item .n b{display:block; font-size:14.5px; font-weight:700; letter-spacing:-.01em}
+.u3-item .n span{display:block; font-size:12px; color:var(--muted); margin-top:2px}
+.u3-item .r{font-size:13px; font-weight:800; white-space:nowrap}
+.u3-item .r.ok{color:var(--ok)} .u3-item .r.warn{color:var(--warn)}
+.u3-foot{padding:13px 16px 16px; border-top:1px solid var(--line); background:var(--bg-soft);
+         font-size:12.5px; line-height:1.6; color:#4b5563}
+.u3-foot b{color:var(--ink)}
+
+/* ═══════════ 10 · ЧТО ДЕЛАТЬ ДАЛЬШЕ ═════════════════════════════════════ */
+.u4{background:#fff; border:1px solid var(--line); border-radius:18px; overflow:hidden;
+    box-shadow:0 22px 50px -34px rgba(15,23,42,.45)}
+.u4-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:16px 18px 12px}
+.u4-model{font-size:15.5px; font-weight:750; letter-spacing:-.015em}
+.u4-vin{font:500 10.5px/1 var(--mono); color:var(--muted); letter-spacing:.07em; margin-top:5px}
+.u4-link{font:700 10px/1 var(--sans); letter-spacing:.09em; text-transform:uppercase;
+         color:var(--accent); text-decoration:none; white-space:nowrap}
+.u4-shot{background:#f3f4f6} .u4-shot img{display:block; width:100%; height:auto}
+.u4-title{padding:15px 18px 2px; font-size:15px; font-weight:800; letter-spacing:-.02em}
+.u4-sub{padding:0 18px 12px; font-size:12.5px; color:var(--muted)}
+.u4-steps{padding:0 18px}
+.u4-step{display:grid; grid-template-columns:26px 1fr; gap:12px; padding:12px 0;
+         border-top:1px solid #f1f3f6}
+.u4-num{width:26px; height:26px; border-radius:8px; display:grid; place-items:center;
+        background:var(--accent-soft); color:var(--accent);
+        font:800 11px/1 var(--mono); font-variant-numeric:tabular-nums}
+.u4-step .t{font-size:13.5px; font-weight:700; line-height:1.35}
+.u4-step .d{margin-top:4px; font-size:12.5px; line-height:1.5; color:#4b5563}
+.u4-step .src{margin-top:5px; font:500 9.5px/1 var(--mono); color:#9aa4b2;
+              letter-spacing:.06em; text-transform:uppercase}
+.u4-foot{margin-top:12px; padding:13px 18px 16px; background:var(--bg-soft);
+         border-top:1px solid var(--line); font-size:12.5px; line-height:1.6; color:#4b5563}
+.u4-foot b{color:var(--ink)}
+
+@media (max-width:520px){ .page{padding:30px 16px 60px} .stage{padding:15px} }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ещё шесть прочтений того же формата</h1>
+  <p>Две карточки про премиальность и четыре, собранные не от вкуса, а от того, зачем человек
+     вообще открывает такую проверку: боится, что обманут; решает бинарно — брать или нет;
+     нашёл дефект и хочет торговаться; смотрит с телефона стоя у машины, пока продавец торопит.</p>
+
+  <div class="sec">Премиум</div>
+  <div class="grid">
+
+    <!-- ══════════ 05 ══════════ -->
+    <div>
+      <div class="slot-head"><span class="slot-num">05</span><span class="slot-name">Графит</span></div>
+      <p class="slot-why">Дорого делают воздух и волосяные линии, а не золочение. Акцент ровно
+         один — приглушённая латунь, и только там, где риск. Цветных «светофоров» нет вовсе.</p>
+      <div class="stage dark"><div class="card">
+        <div class="p1">
+          <div class="p1-eyebrow">Проверка автомобиля</div>
+          <div class="p1-model">BMW X1 xDrive 18d</div>
+          <div class="p1-vin">WBA11···9199 · 2020</div>
+          <div class="p1-shot"><img src="/static/cars/x1-side-doors.webp" alt="BMW X1: обе двери отмечены как повреждённые"></div>
+          <div class="p1-rule"></div>
+          <div class="p1-verdict">
+            <span class="p1-vlabel">Заключение</span>
+            <span class="p1-vval">Средний риск</span>
+          </div>
+          <div class="p1-vsub">Машина была в ДТП с повреждением обеих дверей левого борта.
+            Владельцев трое. Залог и ограничения не выявлены.</div>
+          <div class="p1-rows">
+            <div class="p1-row"><span class="n">Залог и лизинг<s>Реестр залогов ФНП</s></span><span class="r ok">не выявлено</span></div>
+            <div class="p1-row"><span class="n">Ограничения на регистрацию<s>ГИБДД</s></span><span class="r ok">не выявлено</span></div>
+            <div class="p1-row"><span class="n">Дорожные происшествия<s>ГИБДД · 01.01.2023</s></span><span class="r warn">1 событие</span></div>
+            <div class="p1-row"><span class="n">История владения<s>ГИБДД</s></span><span class="r warn">3 владельца</span></div>
+          </div>
+          <div class="p1-foot"><b>Второй владелец держал машину пять недель.</b> Такой срок
+            нетипичен и заслуживает вопроса продавцу.</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ══════════ 06 ══════════ -->
+    <div>
+      <div class="slot-head"><span class="slot-num">06</span><span class="slot-name">Светлый премиум</span></div>
+      <p class="slot-why">Спокойная дороговизна: цвета почти нет, всё держится на интервалах и
+         волосяных линиях. Риск обозначен одной точкой — заливка и крупные плашки здесь только
+         удешевили бы.</p>
+      <div class="stage"><div class="card">
+        <div class="p2">
+          <div class="p2-eyebrow">Проверка автомобиля</div>
+          <div class="p2-model">BMW X1 xDrive 18d</div>
+          <div class="p2-vin">WBA11···9199 · 2020</div>
+          <div class="p2-shot"><img src="/static/cars/x1-side-doors.webp" alt="BMW X1: обе двери отмечены как повреждённые"></div>
+          <div class="p2-verdict">
+            <span class="p2-vdot"></span>
+            <span class="p2-vval">Средний риск</span>
+            <span class="p2-vsub">ДТП · три владельца</span>
+          </div>
+          <div class="p2-rows">
+            <div class="p2-row"><span class="n">Залог и лизинг<s>Реестр залогов ФНП</s></span><span class="r">не выявлено</span></div>
+            <div class="p2-row"><span class="n">Ограничения на регистрацию<s>ГИБДД</s></span><span class="r">не выявлено</span></div>
+            <div class="p2-row"><span class="n">Дорожные происшествия<s>ГИБДД · 01.01.2023</s></span><span class="r warn">1 событие</span></div>
+            <div class="p2-row"><span class="n">История владения<s>ГИБДД</s></span><span class="r warn">3 владельца</span></div>
+          </div>
+          <div class="p2-foot"><b>Второй владелец держал машину пять недель.</b> Такой срок
+            нетипичен и заслуживает вопроса продавцу.</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">От мотива покупателя</div>
+  <div class="grid">
+
+    <!-- ══════════ 07 ══════════ -->
+    <div>
+      <div class="slot-head"><span class="slot-num">07</span><span class="slot-name">Брать или не брать</span></div>
+      <p class="slot-why">Человек решает бинарно, а мы отдаём ему таблицу. Здесь сверху стоит
+         ответ на его настоящий вопрос, и следом — на чём он основан. Находка превращается
+         в довод для торга, а не в повод испугаться.</p>
+      <div class="stage"><div class="card">
+        <div class="u1">
+          <div class="u1-answer">
+            <span class="u1-pill"><i></i>Можно брать, но торговаться</span>
+            <div class="u1-title">Смертельных стоп-факторов нет</div>
+            <div class="u1-because">Залога и ограничений нет — машину переоформят на вас.
+              Но кузов уже красили: обе двери левого борта были в ДТП. Это предмет торга
+              и повод проверить геометрию на подъёмнике.</div>
+          </div>
+          <div class="u1-shot"><img src="/static/cars/x1-side-doors.webp" alt="BMW X1: обе двери отмечены как повреждённые"></div>
+          <div class="u1-cap">Где били: обе двери левого борта</div>
+          <div class="u1-cap-sub">ДТП 02.06.2022 · Удмуртская Республика</div>
+          <div class="u1-rows">
+            <div class="u1-row"><span class="n">Залог и лизинг</span><span class="r ok">чисто</span></div>
+            <div class="u1-row"><span class="n">Ограничения и розыск</span><span class="r ok">чисто</span></div>
+            <div class="u1-row"><span class="n">ДТП</span><span class="r warn">1 ДТП</span></div>
+            <div class="u1-row"><span class="n">История владения</span><span class="r warn">3 владельца</span></div>
+          </div>
+          <div class="u1-foot"><b>Второй владелец держал машину пять недель.</b> Спросите,
+            почему продаёт, и сверьте ответ с датами.</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ══════════ 08 ══════════ -->
+    <div>
+      <div class="slot-head"><span class="slot-num">08</span><span class="slot-name">Что знает продавец</span></div>
+      <p class="slot-why">Главный страх ниши — что от тебя что-то скрыли. Карточка сразу
+         называет разрыв: он знает историю машины, вы видите только объявление. Ровно эта
+         механика уже работает у нас на экране цены.</p>
+      <div class="stage"><div class="card">
+        <div class="u2">
+          <div class="u2-head">
+            <div class="u2-title">Продавец знает историю машины.<br>Вы — нет</div>
+            <div class="u2-sub">BMW X1 xDrive 18d · VIN WBA11···9199</div>
+          </div>
+          <div class="u2-cols">
+            <div class="u2-col knows">
+              <h5>Он знает</h5>
+              <ul><li>что двери красили</li><li>сколько было хозяев</li>
+                  <li>почему продаёт сейчас</li><li>реальный пробег</li></ul>
+            </div>
+            <div class="u2-col sees">
+              <h5>Вы видите</h5>
+              <ul><li>фото в объявлении</li><li>цену</li>
+                  <li>слова про «один хозяин»</li><li>чистый салон</li></ul>
+            </div>
+          </div>
+          <div class="u2-shot"><img src="/static/cars/x1-side-doors.webp" alt="BMW X1: обе двери отмечены как повреждённые"></div>
+          <div class="u2-punch">Мы показали первое: обе двери левого борта были в ДТП.</div>
+          <div class="u2-rows">
+            <div class="u2-row"><span class="n">Залог и лизинг</span><span class="r ok">чисто</span></div>
+            <div class="u2-row"><span class="n">Ограничения и розыск</span><span class="r ok">чисто</span></div>
+            <div class="u2-row"><span class="n">ДТП</span><span class="r warn">1 ДТП</span></div>
+            <div class="u2-row"><span class="n">История владения</span><span class="r warn">3 владельца</span></div>
+          </div>
+          <div class="u2-foot"><b>Ни одну из этих записей продавец раскрывать не обязан.</b>
+            Они лежат в государственных реестрах и открываются по запросу.</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ══════════ 09 ══════════ -->
+    <div>
+      <div class="slot-head"><span class="slot-num">09</span><span class="slot-name">На площадке</span></div>
+      <p class="slot-why">Проверку открывают стоя у машины, с телефона, пока продавец торопит.
+         Значит: опасное сверху, строки крупные, попадать пальцем с первого раза, и сразу
+         видно, что показать продавцу.</p>
+      <div class="stage"><div class="card">
+        <div class="u3">
+          <div class="u3-bar"><b>Нашли, о чём спросить</b><span>2 из 4</span></div>
+          <div class="u3-shot"><img src="/static/cars/x1-side-doors.webp" alt="BMW X1: обе двери отмечены как повреждённые"></div>
+          <div class="u3-model">BMW X1 xDrive 18d, 2020</div>
+          <div class="u3-vin">VIN WBA11···9199</div>
+          <div class="u3-list">
+            <div class="u3-item hot">
+              <span class="u3-ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.4" r=".9" fill="#d97706" stroke="none"/></svg></span>
+              <span class="n"><b>Двери красили</b><span>ДТП 02.06.2022, левый борт</span></span>
+              <span class="r warn">1 ДТП</span>
+            </div>
+            <div class="u3-item hot">
+              <span class="u3-ic"><svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.7-3.2 3-5 5.5-5s4.8 1.8 5.5 5"/><path d="M17 10h4M19 8v4"/></svg></span>
+              <span class="n"><b>Хозяев больше, чем говорят</b><span>второй держал пять недель</span></span>
+              <span class="r warn">3</span>
+            </div>
+            <div class="u3-item">
+              <span class="u3-ic"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6.5v5c0 4.6 3.2 8.6 8 9.5 4.8-.9 8-4.9 8-9.5v-5L12 3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+              <span class="n"><b>Не в залоге</b><span>реестр ФНП, проверено сейчас</span></span>
+              <span class="r ok">чисто</span>
+            </div>
+            <div class="u3-item">
+              <span class="u3-ic"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/></svg></span>
+              <span class="n"><b>Переоформят без проблем</b><span>ограничений и розыска нет</span></span>
+              <span class="r ok">чисто</span>
+            </div>
+          </div>
+          <div class="u3-foot"><b>Покажите продавцу этот экран.</b> Разговор про цену после
+            него идёт совсем иначе.</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ══════════ 10 ══════════ -->
+    <div>
+      <div class="slot-head"><span class="slot-num">10</span><span class="slot-name">Что делать дальше</span></div>
+      <p class="slot-why">Самый частый вопрос после отчёта — «и что теперь?». Здесь каждая
+         находка сразу превращается в действие: что осмотреть, что спросить, чем подтвердить.
+         Отчёт становится планом на осмотр, а не справкой.</p>
+      <div class="stage"><div class="card">
+        <div class="u4">
+          <div class="u4-head">
+            <div>
+              <div class="u4-model">BMW X1 xDrive 18d</div>
+              <div class="u4-vin">VIN WBA11···9199 · 2020</div>
+            </div>
+            <a class="u4-link" href="/example">Пример →</a>
+          </div>
+          <div class="u4-shot"><img src="/static/cars/x1-side-doors.webp" alt="BMW X1: обе двери отмечены как повреждённые"></div>
+          <div class="u4-title">Что сделать на осмотре</div>
+          <div class="u4-sub">Четыре пункта, собранные по находкам этой машины</div>
+          <div class="u4-steps">
+            <div class="u4-step">
+              <span class="u4-num">01</span>
+              <span><span class="t">Проверьте обе двери левого борта</span>
+                <span class="d">Толщиномером по каждой панели и зазоры по кругу: красили минимум дважды — сам ремонт и подгонка.</span>
+                <span class="src">ДТП 02.06.2022 · ГИБДД</span></span>
+            </div>
+            <div class="u4-step">
+              <span class="u4-num">02</span>
+              <span><span class="t">Спросите, почему продавал второй хозяин</span>
+                <span class="d">Он держал машину пять недель. Сверьте ответ с датами в ПТС — они должны сойтись.</span>
+                <span class="src">История владения · ГИБДД</span></span>
+            </div>
+            <div class="u4-step">
+              <span class="u4-num">03</span>
+              <span><span class="t">Геометрию кузова — на подъёмнике</span>
+                <span class="d">Лонжероны и пороги. Удар в борт бывает сильнее, чем видно по краске.</span>
+                <span class="src">Рекомендация по типу удара</span></span>
+            </div>
+            <div class="u4-step">
+              <span class="u4-num">04</span>
+              <span><span class="t">Перепроверьте залог в день сделки</span>
+                <span class="d">Сегодня чисто, но заложить машину можно и завтра. Проверка занимает минуту.</span>
+                <span class="src">Реестр залогов ФНП</span></span>
+            </div>
+          </div>
+          <div class="u4-foot"><b>Залог и ограничения чисты.</b> Всё остальное — вопросы к
+            продавцу, а не причины отказаться.</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Светлый премиум — 4 прочтения</title>
+<style>
+/* Четыре развития одной идеи: белая карточка, почти нет цвета, всё держится
+   на интервалах и волосяных линиях. Различаются тем, ЧЕМ держится структура —
+   линиями, антиквой, сеткой или воздухом. Скоуп: .a1 … .a4. */
+:root{
+  --ink:#14171a; --muted:#8b9199; --line:#ececef; --hair:#f3f3f5;
+  --accent:#2563EB; --accent-soft:#eff6ff;
+  --warn:#d97706; --ok:#16a34a;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --serif:ui-serif,"New York","Iowan Old Style",Georgia,"Times New Roman",serif;
+}
+*{box-sizing:border-box}
+body{margin:0; font-family:var(--sans); color:var(--ink);
+     background:radial-gradient(900px 480px at 14% -8%, #eef4ff 0%, transparent 58%), #fbfcfe;
+     -webkit-font-smoothing:antialiased}
+.page{max-width:1180px; margin:0 auto; padding:44px 24px 90px}
+.page h1{font-size:25px; margin:0 0 8px; letter-spacing:-.02em}
+.page>p{margin:0 0 34px; color:var(--muted); font-size:14.5px; line-height:1.6; max-width:64ch}
+.grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(358px,1fr)); gap:34px}
+.slot-head{display:flex; align-items:baseline; gap:10px; margin-bottom:5px}
+.slot-num{font:600 11px/1 var(--mono); letter-spacing:.12em; color:var(--accent);
+          background:var(--accent-soft); padding:6px 8px; border-radius:6px}
+.slot-name{font-size:16px; font-weight:700; letter-spacing:-.01em}
+.slot-why{margin:0 0 15px; color:var(--muted); font-size:13px; line-height:1.55; max-width:46ch}
+.stage{background:linear-gradient(180deg,#f8fafc,#eef2f7); border:1px solid var(--line);
+       border-radius:20px; padding:26px; display:flex; justify-content:center}
+.card{width:100%; max-width:394px}
+
+/* ═══════════ A · ВОЛОСЯНАЯ ══════════════════════════════════════════════
+   Ничего, кроме линий в один пиксель и воздуха. Риск — единственная точка
+   цвета на всей карточке. */
+.a1{background:#fff; border:1px solid var(--line); border-radius:14px; padding:30px 28px 26px;
+    box-shadow:0 30px 60px -46px rgba(15,23,42,.38)}
+.a1-eyebrow{font:600 9.5px/1 var(--sans); letter-spacing:.24em; text-transform:uppercase; color:#9aa0a8}
+.a1-model{margin-top:14px; font-size:22px; font-weight:600; letter-spacing:-.024em}
+.a1-vin{margin-top:8px; font:400 11px/1 var(--mono); color:#9aa0a8; letter-spacing:.11em}
+.a1-shot{margin:26px -8px; background:#f7f7f8; border-radius:8px; overflow:hidden}
+.a1-shot img{display:block; width:100%; height:auto}
+.a1-verdict{display:flex; align-items:center; gap:11px; padding-bottom:20px; border-bottom:1px solid var(--line)}
+.a1-dot{flex:none; width:9px; height:9px; border-radius:50%; background:var(--warn)}
+.a1-val{font-size:19px; font-weight:600; letter-spacing:-.012em}
+.a1-sub{margin-left:auto; font-size:12px; color:var(--muted); text-align:right; line-height:1.4}
+.a1-row{display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+        padding:15px 0; border-bottom:1px solid var(--hair)}
+.a1-row .n{font-size:13.5px; font-weight:500}
+.a1-row .n s{display:block; text-decoration:none; margin-top:5px;
+             font:400 9.5px/1 var(--mono); color:#a6acb4; letter-spacing:.09em; text-transform:uppercase}
+.a1-row .r{font-size:12.5px; font-weight:600; white-space:nowrap; color:#5f666e;
+           font-variant-numeric:tabular-nums}
+.a1-row .r.warn{color:var(--warn)}
+.a1-foot{margin-top:20px; font-size:12px; line-height:1.75; color:var(--muted)}
+.a1-foot b{color:var(--ink); font-weight:600}
+
+/* ═══════════ B · АНТИКВА ════════════════════════════════════════════════
+   Заголовки набраны антиквой, данные — гротеском. Разные гарнитуры для
+   разной работы: одна говорит, вторая свидетельствует. */
+.a2{background:#fdfdfc; border:1px solid #e8e6e1; border-radius:12px; padding:30px 28px 26px;
+    box-shadow:0 30px 60px -46px rgba(30,25,15,.35)}
+.a2-eyebrow{font:600 9.5px/1 var(--sans); letter-spacing:.24em; text-transform:uppercase; color:#a29a8c}
+.a2-brand{width:34px; height:1.5px; background:#9c8256; margin:14px 0 15px}
+.a2-model{font-family:var(--serif); font-size:25px; font-weight:500; letter-spacing:-.012em; line-height:1.15}
+.a2-vin{margin-top:9px; font:400 10.5px/1 var(--mono); color:#a29a8c; letter-spacing:.11em}
+.a2-shot{margin:24px -8px; background:#f6f5f2; border-radius:6px; overflow:hidden}
+.a2-shot img{display:block; width:100%; height:auto}
+.a2-verdict{padding-bottom:18px; border-bottom:1px solid #e8e6e1}
+.a2-vlabel{font:600 9.5px/1 var(--sans); letter-spacing:.24em; text-transform:uppercase; color:#a29a8c}
+.a2-val{margin-top:10px; font-family:var(--serif); font-size:24px; font-weight:500; letter-spacing:-.01em}
+.a2-val em{font-style:italic; color:#9c8256}
+.a2-sub{margin-top:9px; font-size:12.5px; line-height:1.6; color:#6f6a62; max-width:34ch}
+.a2-row{display:flex; align-items:baseline; justify-content:space-between; gap:14px;
+        padding:14px 0; border-bottom:1px solid #f0eeea}
+.a2-row .n{font-size:13.5px; font-weight:500}
+.a2-row .n s{display:block; text-decoration:none; margin-top:5px;
+             font:400 9.5px/1 var(--mono); color:#a29a8c; letter-spacing:.09em; text-transform:uppercase}
+.a2-row .r{font-size:12.5px; font-weight:600; white-space:nowrap; color:#6f6a62;
+           font-variant-numeric:tabular-nums}
+.a2-row .r.warn{color:#9c8256}
+.a2-foot{margin-top:19px; font-size:12px; line-height:1.75; color:#8b857b}
+.a2-foot b{color:var(--ink); font-weight:600}
+
+/* ═══════════ C · СЕТКА ══════════════════════════════════════════════════
+   Данные первыми: подписи слева в узкой колонке, значения справа, всё по
+   одной сетке. Фото во всю ширину карточки, без скруглений. */
+.a3{background:#fff; border:1px solid var(--line); border-radius:0; overflow:hidden;
+    box-shadow:0 30px 60px -46px rgba(15,23,42,.38); border-top:2px solid var(--ink)}
+.a3-head{padding:22px 24px 18px}
+.a3-eyebrow{font:600 9px/1 var(--sans); letter-spacing:.26em; text-transform:uppercase; color:#9aa0a8}
+.a3-model{margin-top:13px; font-size:20px; font-weight:600; letter-spacing:-.022em}
+.a3-vin{margin-top:7px; font:400 10.5px/1 var(--mono); color:#9aa0a8; letter-spacing:.12em}
+.a3-shot{background:#f7f7f8} .a3-shot img{display:block; width:100%; height:auto}
+.a3-table{padding:6px 24px 0}
+.a3-line{display:grid; grid-template-columns:104px 1fr auto; gap:14px; align-items:baseline;
+         padding:14px 0; border-bottom:1px solid var(--hair)}
+.a3-line:first-child{border-top:1px solid var(--line)}
+.a3-key{font:600 9px/1.4 var(--sans); letter-spacing:.14em; text-transform:uppercase; color:#a6acb4}
+.a3-name{font-size:13.5px; font-weight:500}
+.a3-val{font-size:12.5px; font-weight:600; color:#5f666e; white-space:nowrap;
+        font-variant-numeric:tabular-nums}
+.a3-val.warn{color:var(--warn)}
+.a3-verdict{display:grid; grid-template-columns:104px 1fr; gap:14px; align-items:baseline;
+            padding:18px 24px; border-top:2px solid var(--ink); margin-top:6px}
+.a3-vval{font-size:19px; font-weight:600; letter-spacing:-.012em}
+.a3-vsub{margin-top:7px; font-size:12.5px; line-height:1.55; color:var(--muted)}
+.a3-foot{padding:0 24px 24px; font-size:12px; line-height:1.7; color:var(--muted)}
+.a3-foot b{color:var(--ink); font-weight:600}
+
+/* ═══════════ D · ЭТИКЕТКА ═══════════════════════════════════════════════
+   Как подпись под экспонатом: снимок во всю ширину, дальше много воздуха и
+   очень мало слов. Значения выровнены по правому краю пунктиром. */
+.a4{background:#fff; border:1px solid var(--line); border-radius:14px; overflow:hidden;
+    box-shadow:0 30px 60px -46px rgba(15,23,42,.38)}
+.a4-shot{background:#f7f7f8} .a4-shot img{display:block; width:100%; height:auto}
+.a4-body{padding:26px 26px 24px}
+.a4-eyebrow{font:600 9.5px/1 var(--sans); letter-spacing:.24em; text-transform:uppercase; color:#9aa0a8}
+.a4-model{margin-top:13px; font-size:21px; font-weight:600; letter-spacing:-.024em; line-height:1.2}
+.a4-vin{margin-top:8px; font:400 10.5px/1 var(--mono); color:#9aa0a8; letter-spacing:.11em}
+.a4-rule{height:1px; background:var(--line); margin:22px 0}
+.a4-verdict{display:flex; align-items:baseline; gap:10px}
+.a4-dot{width:8px; height:8px; border-radius:50%; background:var(--warn); flex:none; transform:translateY(-2px)}
+.a4-val{font-size:18px; font-weight:600; letter-spacing:-.012em}
+.a4-sub{margin-top:10px; font-size:12.5px; line-height:1.65; color:var(--muted); max-width:36ch}
+.a4-list{margin-top:22px}
+.a4-item{display:flex; align-items:baseline; gap:8px; padding:9px 0; font-size:13px}
+.a4-item .n{font-weight:500; white-space:nowrap}
+.a4-item .lead{flex:1; border-bottom:1px dotted #d5d8dd; transform:translateY(-3px)}
+.a4-item .r{font-size:12px; font-weight:600; color:#5f666e; white-space:nowrap;
+            font-variant-numeric:tabular-nums}
+.a4-item .r.warn{color:var(--warn)}
+.a4-foot{margin-top:22px; padding-top:18px; border-top:1px solid var(--line);
+         font-size:12px; line-height:1.75; color:var(--muted)}
+.a4-foot b{color:var(--ink); font-weight:600}
+
+@media (max-width:520px){ .page{padding:30px 16px 60px} .stage{padding:16px} }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Светлый премиум — четыре прочтения</h1>
+  <p>Направление одно: белая карточка, цвета почти нет, риск обозначен точкой, а не заливкой.
+     Различаются тем, чем держится структура — волосяными линиями, антиквой, строгой сеткой
+     или воздухом.</p>
+
+  <div class="grid">
+
+    <!-- ══════════ A ══════════ -->
+    <div>
+      <div class="slot-head"><span class="slot-num">A</span><span class="slot-name">Волосяная</span></div>
+      <p class="slot-why">Ничего, кроме линий в один пиксель и интервалов. Риск — единственная
+         точка цвета на всей карточке, поэтому её видно раньше текста.</p>
+      <div class="stage"><div class="card">
+        <div class="a1">
+          <div class="a1-eyebrow">Проверка автомобиля</div>
+          <div class="a1-model">BMW X1 xDrive 18d</div>
+          <div class="a1-vin">WBA11···9199 · 2020</div>
+          <div class="a1-shot"><img src="/static/cars/x1-side-doors.webp" alt="BMW X1: обе двери отмечены как повреждённые"></div>
+          <div class="a1-verdict">
+            <span class="a1-dot"></span>
+            <span class="a1-val">Средний риск</span>
+            <span class="a1-sub">ДТП · три владельца</span>
+          </div>
+          <div class="a1-row"><span class="n">Залог и лизинг<s>Реестр залогов ФНП</s></span><span class="r">не выявлено</span></div>
+          <div class="a1-row"><span class="n">Ограничения на регистрацию<s>ГИБДД</s></span><span class="r">не выявлено</span></div>
+          <div class="a1-row"><span class="n">Дорожные происшествия<s>ГИБДД · 01.01.2023</s></span><span class="r warn">1 событие</span></div>
+          <div class="a1-row"><span class="n">История владения<s>ГИБДД</s></span><span class="r warn">3 владельца</span></div>
+          <div class="a1-foot"><b>Второй владелец держал машину пять недель.</b> Такой срок
+            нетипичен и заслуживает вопроса продавцу.</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ══════════ B ══════════ -->
+    <div>
+      <div class="slot-head"><span class="slot-num">B</span><span class="slot-name">Антиква</span></div>
+      <p class="slot-why">Заголовки набраны антиквой, данные — гротеском: одна гарнитура
+         говорит, вторая свидетельствует. Акцент — приглушённая бронза, ровно в двух местах.</p>
+      <div class="stage"><div class="card">
+        <div class="a2">
+          <div class="a2-eyebrow">Проверка автомобиля</div>
+          <div class="a2-brand"></div>
+          <div class="a2-model">BMW X1 xDrive 18d</div>
+          <div class="a2-vin">WBA11···9199 · 2020</div>
+          <div class="a2-shot"><img src="/static/cars/x1-side-doors.webp" alt="BMW X1: обе двери отмечены как повреждённые"></div>
+          <div class="a2-verdict">
+            <div class="a2-vlabel">Заключение</div>
+            <div class="a2-val">Риск <em>средний</em></div>
+            <div class="a2-sub">Обе двери левого борта были в ДТП. Владельцев трое.
+              Залог и ограничения не выявлены.</div>
+          </div>
+          <div class="a2-row"><span class="n">Залог и лизинг<s>Реестр залогов ФНП</s></span><span class="r">не выявлено</span></div>
+          <div class="a2-row"><span class="n">Ограничения на регистрацию<s>ГИБДД</s></span><span class="r">не выявлено</span></div>
+          <div class="a2-row"><span class="n">Дорожные происшествия<s>ГИБДД · 01.01.2023</s></span><span class="r warn">1 событие</span></div>
+          <div class="a2-row"><span class="n">История владения<s>ГИБДД</s></span><span class="r warn">3 владельца</span></div>
+          <div class="a2-foot"><b>Второй владелец держал машину пять недель.</b> Такой срок
+            нетипичен и заслуживает вопроса продавцу.</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ══════════ C ══════════ -->
+    <div>
+      <div class="slot-head"><span class="slot-num">C</span><span class="slot-name">Сетка</span></div>
+      <p class="slot-why">Данные первыми: подписи слева в узкой колонке, значения справа, всё
+         по одной сетке. Прямые углы вместо скруглений — карточка читается как выписка,
+         а не как баннер.</p>
+      <div class="stage"><div class="card">
+        <div class="a3">
+          <div class="a3-head">
+            <div class="a3-eyebrow">Проверка автомобиля</div>
+            <div class="a3-model">BMW X1 xDrive 18d</div>
+            <div class="a3-vin">WBA11···9199 · 2020</div>
+          </div>
+          <div class="a3-shot"><img src="/static/cars/x1-side-doors.webp" alt="BMW X1: обе двери отмечены как повреждённые"></div>
+          <div class="a3-table">
+            <div class="a3-line"><span class="a3-key">ФНП</span><span class="a3-name">Залог и лизинг</span><span class="a3-val">не выявлено</span></div>
+            <div class="a3-line"><span class="a3-key">ГИБДД</span><span class="a3-name">Ограничения на регистрацию</span><span class="a3-val">не выявлено</span></div>
+            <div class="a3-line"><span class="a3-key">ГИБДД</span><span class="a3-name">Дорожные происшествия</span><span class="a3-val warn">1 событие</span></div>
+            <div class="a3-line"><span class="a3-key">ГИБДД</span><span class="a3-name">История владения</span><span class="a3-val warn">3 владельца</span></div>
+          </div>
+          <div class="a3-verdict">
+            <span class="a3-key">Заключение</span>
+            <span>
+              <span class="a3-vval">Средний риск</span>
+              <span class="a3-vsub">Обе двери левого борта были в ДТП, владельцев трое.
+                Залог и ограничения не выявлены.</span>
+            </span>
+          </div>
+          <div class="a3-foot"><b>Второй владелец держал машину пять недель.</b> Такой срок
+            нетипичен и заслуживает вопроса продавцу.</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ══════════ D ══════════ -->
+    <div>
+      <div class="slot-head"><span class="slot-num">D</span><span class="slot-name">Этикетка</span></div>
+      <p class="slot-why">Как подпись под экспонатом: снимок во всю ширину сверху, дальше
+         много воздуха и очень мало слов. Значения подтянуты к правому краю пунктиром —
+         глаз идёт по строке сам.</p>
+      <div class="stage"><div class="card">
+        <div class="a4">
+          <div class="a4-shot"><img src="/static/cars/x1-side-doors.webp" alt="BMW X1: обе двери отмечены как повреждённые"></div>
+          <div class="a4-body">
+            <div class="a4-eyebrow">Проверка автомобиля</div>
+            <div class="a4-model">BMW X1 xDrive 18d</div>
+            <div class="a4-vin">WBA11···9199 · 2020</div>
+            <div class="a4-rule"></div>
+            <div class="a4-verdict"><span class="a4-dot"></span><span class="a4-val">Средний риск</span></div>
+            <div class="a4-sub">Обе двери левого борта были в ДТП. Владельцев трое.
+              Залог и ограничения не выявлены.</div>
+            <div class="a4-list">
+              <div class="a4-item"><span class="n">Залог и лизинг</span><span class="lead"></span><span class="r">не выявлено</span></div>
+              <div class="a4-item"><span class="n">Ограничения</span><span class="lead"></span><span class="r">не выявлено</span></div>
+              <div class="a4-item"><span class="n">Происшествия</span><span class="lead"></span><span class="r warn">1 событие</span></div>
+              <div class="a4-item"><span class="n">Владельцев</span><span class="lead"></span><span class="r warn">3</span></div>
+            </div>
+            <div class="a4-foot"><b>Второй владелец держал машину пять недель.</b> Такой срок
+              нетипичен и заслуживает вопроса продавцу.</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

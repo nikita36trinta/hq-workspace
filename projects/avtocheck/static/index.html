@@ -115,40 +115,48 @@ header{
 }
 
 /* ================= report mockup ================= */
+/* Волосяная подача: ни одной заливки, ни одного «светофора». Держится на
+   линиях в один пиксель и интервалах, единственная точка цвета — риск, и
+   поэтому её видно раньше текста. Классы .rrow/.ric/.rres и состояния
+   .play/.pending/.static сохранены: за них держится скрипт, который
+   перестраивает карточку под введённый VIN. */
 .report{
-  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
-  box-shadow:0 24px 64px rgba(15,23,42,.13),0 4px 12px rgba(15,23,42,.05);
-  padding:22px 22px 20px;max-width:460px;margin-left:auto;
+  background:#fff;border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 30px 60px -46px rgba(15,23,42,.38);
+  padding:30px 28px 26px;max-width:430px;margin-left:auto;
   font-size:14px;position:relative;
 }
-.report-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
-  border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:6px}
-.report-head .rt{font-weight:700;font-size:15px}
-.report-head .robj{color:var(--muted);font-size:12.5px;margin-top:3px;word-break:break-word}
+.report-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.report-head .rt{font-weight:600;font-size:9.5px;letter-spacing:.24em;
+  text-transform:uppercase;color:#9aa0a8;line-height:1}
+.report-head .robj{font-size:22px;font-weight:600;letter-spacing:-.024em;
+  margin-top:14px;color:var(--ink);word-break:break-word;line-height:1.15}
+.report-head .rvin{margin-top:8px;font:400 11px/1 var(--mono);
+  color:#9aa0a8;letter-spacing:.11em}
 .report-head .rtag{
-  font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--accent);
-  background:var(--accent-soft);border-radius:6px;padding:4px 8px;white-space:nowrap;
+  font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--accent);white-space:nowrap;text-decoration:none;flex:none;
 }
-/* gauge */
-.gauge{width:210px;margin:8px auto 0;text-align:center}
-.gauge svg{overflow:visible}
-#needle{
-  transform-origin:100px 100px;transform:rotate(-90deg);
-  transition:transform 1.4s cubic-bezier(.34,1.3,.5,1);
-}
-.report.play #needle{transform:rotate(4deg)}   /* середина шкалы — средний риск */
-.report.pending #needle{transform:rotate(-90deg);transition-duration:.5s}
-.gauge-labels{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);
-  margin-top:-6px;padding:0 4px;text-transform:lowercase}
-.verdict{margin:6px 0 14px;text-align:center}
-.verdict b{font-size:22px;letter-spacing:.02em;color:var(--warn);display:block;line-height:1.1}
-.verdict small{color:var(--muted);font-size:12px}
-.report.pending .verdict b{color:var(--muted)}
-/* rows */
-.rrows{border-top:1px solid var(--line)}
+.report-head .rtag:hover{text-decoration:underline}
+/* снимок машины с закрашенной зоной удара */
+.rshot{margin:26px -8px;background:#f7f7f8;border-radius:8px;overflow:hidden}
+.rshot img{display:block;width:100%;height:auto}
+/* Пока проверяем ЧУЖУЮ машину, показывать наш BMW нельзя: карточка в этот
+   момент подписана VIN посетителя, и снимок читался бы как его автомобиль. */
+.report.pending .rshot{display:none}
+/* вердикт */
+.verdict{display:flex;align-items:center;gap:11px;
+  padding-bottom:20px;border-bottom:1px solid var(--line)}
+.verdict .vdot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--warn)}
+.report.pending .verdict .vdot{background:#c8ccd2}
+.verdict b{font-size:19px;font-weight:600;letter-spacing:-.012em;color:var(--ink)}
+.verdict small{margin-left:auto;font-size:11.5px;color:var(--muted);
+  text-align:right;line-height:1.4;white-space:nowrap}
+/* строки проверок */
+.rrows{margin-top:0}
 .rrow{
-  display:flex;align-items:center;gap:10px;padding:9px 2px;
-  border-bottom:1px solid #f1f5f9;
+  display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+  padding:15px 0;border-bottom:1px solid #f3f3f5;
   opacity:0;transform:translateY(6px);
 }
 .report.play .rrow{animation:rowin .45s ease forwards}
@@ -160,31 +168,23 @@ header{
 .report.play .rrow:nth-child(4){animation-delay:.95s}
 .report.play .rrow:nth-child(5){animation-delay:1.15s}
 .report.play .rrow:nth-child(6){animation-delay:1.35s}
-.ric{
-  width:20px;height:20px;border-radius:50%;flex:none;
-  display:inline-flex;align-items:center;justify-content:center;
-  font-size:12px;font-weight:700;line-height:1;
-}
-.ric.ok{background:#dcfce7;color:var(--ok)}
-.ric.warn{background:#fef3c7;color:var(--warn)}
-.ric.pend{background:#f1f5f9;color:#94a3b8}
 .rmain{flex:1;min-width:0}
-.rname{font-weight:600;font-size:13px;line-height:1.3}
-.rsrc{font-size:11px;color:var(--muted)}
-.rres{font-size:12px;font-weight:600;white-space:nowrap}
-.rres.ok{color:var(--ok)}
+.rname{font-weight:500;font-size:13.5px;line-height:1.3;color:var(--ink)}
+.rsrc{margin-top:5px;font:400 9.5px/1 var(--mono);color:#a6acb4;
+  letter-spacing:.09em;text-transform:uppercase}
+.rres{font-size:12.5px;font-weight:600;white-space:nowrap;color:#5f666e;
+  font-variant-numeric:tabular-nums}
+.rres.ok{color:#5f666e}
 .rres.warn{color:var(--warn)}
-.rres.pend{color:#94a3b8;font-weight:500}
-/* recommendations */
-.recs{
-  margin-top:14px;background:var(--bg-soft);border-radius:10px;padding:12px 14px;
-}
-.recs .rct{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);
-  text-transform:uppercase;margin-bottom:6px}
-.recs ul{list-style:none}
-.recs li{font-size:12.5px;color:#374151;padding-left:14px;position:relative;margin-top:4px}
-.recs li::before{content:"—";position:absolute;left:0;color:#9ca3af}
-.report-cta{display:none;width:100%;margin-top:14px;font-size:15px;padding:13px}
+.rres.pend{color:#a6acb4;font-weight:500}
+/* сноска под таблицей */
+.recs{margin-top:20px;font-size:12px;line-height:1.75;color:var(--muted)}
+.recs .rct{display:none}
+.recs ul{list-style:none;margin:0;padding:0}
+.recs li{margin:0}
+.recs li+li{margin-top:8px}
+.recs li b{color:var(--ink);font-weight:600}
+.report-cta{display:none;width:100%;margin-top:18px;font-size:15px;padding:13px}
 .report.pending .report-cta{display:inline-flex}
 
 /* ================= sources ================= */
@@ -397,7 +397,6 @@ footer .todo{font-size:13px;color:var(--muted)}
   .hero .hint{font-size:11.5px;line-height:1.45}
 }
 @media (prefers-reduced-motion:reduce){
-  #needle{transition:none}
   .report.play .rrow{animation-duration:.01s;animation-delay:0s!important}
 }
 
@@ -609,79 +608,58 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
     <div class="report static" id="report" aria-label="Пример риск-отчёта">
       <div class="report-head">
         <div>
-          <div class="rt">Риск при покупке автомобиля</div>
-          <div class="robj" id="reportObj">BMW X1, 2020 · VIN WBA1…9199</div>
+          <div class="rt">Проверка автомобиля</div>
+          <div class="robj" id="reportObj">BMW X1 xDrive 18d</div>
+          <div class="rvin" id="reportVin">WBA11···9199 · 2020</div>
         </div>
         <!-- Кликабельный: карточка и так выглядит как отчёт, и первое желание —
              посмотреть его целиком. Раньше это желание упиралось в ничто. -->
-        <a class="rtag" id="reportTag" href="/example"
-           style="text-decoration:none;cursor:pointer">ПРИМЕР ОТЧЁТА →</a>
+        <a class="rtag" id="reportTag" href="/example">Пример →</a>
       </div>
 
-      <div class="gauge" aria-hidden="true">
-        <svg viewBox="0 0 200 112" width="210" height="118">
-          <path d="M 20 100 A 80 80 0 0 1 60 30.7"  fill="none" stroke="#16a34a" stroke-width="13" stroke-linecap="round"/>
-          <path d="M 63 28.9 A 80 80 0 0 1 137 28.9" fill="none" stroke="#f59e0b" stroke-width="13" stroke-linecap="round"/>
-          <path d="M 140 30.7 A 80 80 0 0 1 180 100" fill="none" stroke="#dc2626" stroke-width="13" stroke-linecap="round"/>
-          <g id="needle">
-            <line x1="100" y1="100" x2="100" y2="34" stroke="#0a0a0a" stroke-width="3.5" stroke-linecap="round"/>
-            <circle cx="100" cy="100" r="7" fill="#0a0a0a"/>
-            <circle cx="100" cy="100" r="2.6" fill="#fff"/>
-          </g>
-        </svg>
-        <div class="gauge-labels"><span>низкий</span><span>средний</span><span>высокий</span></div>
+      <div class="rshot">
+        <img src="/static/cars/x1-side-doors.webp" width="1000" height="393"
+             alt="BMW X1 в профиль: обе двери левого борта отмечены как повреждённые">
       </div>
 
-      <!-- Пример показывает СРЕДНИЙ риск, а не «всё чисто». Две причины.
-           Первая: так честнее — по нашей базе 66% готовых отчётов (260 из 392)
-           дают средний или высокий риск, то есть «чисто» как раз нетипично.
-           Вторая: прежний пример сам себе противоречил — стрелка и подпись
-           говорили «существенных рисков не обнаружено», а строкой ниже висела
-           ипотека банка. Ровно то расхождение шкалы с находками, которое мы
-           считаем ошибкой в самом продукте. -->
       <!-- Пример показывает СРЕДНИЙ риск и найденное ДТП намеренно. «Всё чисто»
            в примере обещает то, чего мы не гарантируем, и расходится с типичным
            результатом: у машины с пробегом почти всегда есть что показать. -->
       <div class="verdict">
-        <b id="verdictText">СРЕДНИЙ</b>
-        <small id="verdictSub">машина была в ДТП</small>
+        <span class="vdot" aria-hidden="true"></span>
+        <b id="verdictText">Средний риск</b>
+        <small id="verdictSub">ДТП · три владельца</small>
       </div>
 
       <div class="rrows" id="rrows">
-        <div class="rrow" data-name="Залог и лизинг" data-src="Реестр залогов ФНП · сегодня"
-             data-ico="ok" data-res="не найдено" data-rescls="ok">
-          <span class="ric ok">✓</span>
-          <div class="rmain"><div class="rname">Залог и лизинг</div><div class="rsrc">Реестр залогов ФНП · проверено сегодня</div></div>
-          <span class="rres ok">не найдено</span>
+        <div class="rrow" data-name="Залог и лизинг" data-src="Реестр залогов ФНП"
+             data-ico="ok" data-res="не выявлено" data-rescls="ok">
+          <div class="rmain"><div class="rname">Залог и лизинг</div><div class="rsrc">Реестр залогов ФНП</div></div>
+          <span class="rres ok">не выявлено</span>
         </div>
         <div class="rrow" data-name="Ограничения на регистрацию" data-src="ГИБДД"
-             data-ico="ok" data-res="не найдено" data-rescls="ok">
-          <span class="ric ok">✓</span>
-          <div class="rmain"><div class="rname">Ограничения на регистрацию</div><div class="rsrc">ГИБДД · проверено сегодня</div></div>
-          <span class="rres ok">не найдено</span>
+             data-ico="ok" data-res="не выявлено" data-rescls="ok">
+          <div class="rmain"><div class="rname">Ограничения на регистрацию</div><div class="rsrc">ГИБДД</div></div>
+          <span class="rres ok">не выявлено</span>
         </div>
         <div class="rrow" data-name="Розыск" data-src="ГИБДД"
-             data-ico="ok" data-res="не найдено" data-rescls="ok">
-          <span class="ric ok">✓</span>
-          <div class="rmain"><div class="rname">Розыск</div><div class="rsrc">ГИБДД · проверено сегодня</div></div>
-          <span class="rres ok">не найдено</span>
+             data-ico="ok" data-res="не выявлено" data-rescls="ok">
+          <div class="rmain"><div class="rname">Розыск</div><div class="rsrc">ГИБДД</div></div>
+          <span class="rres ok">не выявлено</span>
         </div>
         <div class="rrow" data-name="ДТП" data-src="ГИБДД"
-             data-ico="warn" data-res="1 ДТП" data-rescls="warn">
-          <span class="ric warn">!</span>
-          <div class="rmain"><div class="rname">ДТП</div><div class="rsrc">ГИБДД · данные на 01.01.2023</div></div>
-          <span class="rres warn">1 ДТП</span>
+             data-ico="warn" data-res="1 событие" data-rescls="warn">
+          <div class="rmain"><div class="rname">Дорожные происшествия</div><div class="rsrc">ГИБДД · 01.01.2023</div></div>
+          <span class="rres warn">1 событие</span>
         </div>
         <div class="rrow" data-name="История владения" data-src="ГИБДД"
              data-ico="warn" data-res="3 владельца" data-rescls="warn">
-          <span class="ric warn">!</span>
-          <div class="rmain"><div class="rname">История владения</div><div class="rsrc">ГИБДД · проверено сегодня</div></div>
+          <div class="rmain"><div class="rname">История владения</div><div class="rsrc">ГИБДД</div></div>
           <span class="rres warn">3 владельца</span>
         </div>
         <div class="rrow" data-name="Паспорт по ГИБДД" data-src="ГИБДД"
              data-ico="ok" data-res="есть" data-rescls="ok">
-          <span class="ric ok">✓</span>
-          <div class="rmain"><div class="rname">Паспорт: год, цвет, мощность</div><div class="rsrc">ГИБДД · проверено сегодня</div></div>
+          <div class="rmain"><div class="rname">Паспорт: год, цвет, мощность</div><div class="rsrc">ГИБДД</div></div>
           <span class="rres ok">есть</span>
         </div>
       </div>
@@ -689,9 +667,7 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
       <div class="recs" id="recs">
         <div class="rct">Рекомендации</div>
         <ul>
-          <li>Машина была в ДТП — проверьте геометрию кузова и качество ремонта на подъёмнике.</li>
-          <li>Один из владельцев держал машину пять недель — так обычно сбрасывают проблемный автомобиль.</li>
-          <li>Сведения о ДТП приходят выгрузкой — дата стоит у блока; остальное проверено в момент запроса.</li>
+          <li><b>Второй владелец держал машину пять недель.</b> Такой срок нетипичен и заслуживает вопроса продавцу.</li>
         </ul>
       </div>
 
@@ -1221,12 +1197,16 @@ var checkRunStarted = false;   // реально запустили провер
   step(coEmail, 'co_email', 3);
 })();
 
+/* Иконку строки ищем НЕОБЯЗАТЕЛЬНОЙ. В волосяной подаче кружков-«светофоров»
+   у строк нет вовсе — цвет на карточке ровно один, у вердикта. Без этой
+   проверки querySelector вернул бы null, обращение к нему бросило бы
+   исключение, и первый же ввод VIN обрывал бы скрипт целиком: карточка не
+   перестроилась бы, а чекаут не открылся. */
 function setRowsPending(){
   Array.prototype.forEach.call(rrows.children, function(row){
     var ic  = row.querySelector('.ric');
     var res = row.querySelector('.rres');
-    ic.className = 'ric pend';
-    ic.textContent = '…';
+    if(ic){ ic.className = 'ric pend'; ic.textContent = '…'; }
     res.className = 'rres pend';
     res.textContent = 'будет проверено';
   });
@@ -1236,8 +1216,7 @@ function setRowsDemo(){
     var ic  = row.querySelector('.ric');
     var res = row.querySelector('.rres');
     var cls = row.getAttribute('data-ico');
-    ic.className = 'ric ' + cls;
-    ic.textContent = (cls === 'warn') ? '!' : '✓';
+    if(ic){ ic.className = 'ric ' + cls; ic.textContent = (cls === 'warn') ? '!' : '✓'; }
     res.className = 'rres ' + row.getAttribute('data-rescls');
     res.textContent = row.getAttribute('data-res');
   });
@@ -1260,8 +1239,13 @@ heroForm.addEventListener('submit', function(e){
   report.classList.remove('play','static');
   report.classList.add('pending');
   reportObj.textContent = val;
-  reportTag.textContent = 'ВАШ ОБЪЕКТ';
-  verdictText.textContent = '—';
+  // Строка под названием держала VIN ПРИМЕРА. Не очистить её — и карточка
+  // подписана машиной посетителя, а под ней стоит чужой номер кузова.
+  var _rv = document.getElementById('reportVin');
+  if(_rv){ _rv.textContent = 'проверяем по 5 реестрам'; }
+  reportTag.textContent = 'Ваш объект';
+  reportTag.removeAttribute('href');
+  verdictText.textContent = 'Проверяем';
   verdictSub.textContent = 'вердикт будет готов через ~15 минут';
   setRowsPending();
   recs.style.display = 'none';
