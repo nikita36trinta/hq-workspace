@@ -1,0 +1,80 @@
+# ЧистаяСделка Авто — проверка автомобиля по VIN и госномеру.
+#
+# Живёт поддоменом основного сайта: домен, сертификат и доверие бренда уже есть,
+# отдельная регистрация не нужна. Если ниша пойдёт — переедем на своё имя.
+#
+# Данные и платежи НАМЕРЕННО отделены от chistasdelka.ru: свой том, свой
+# контейнер, свой счётчик Метрики. Смешивать заказы двух продуктов в одном
+# хранилище — гарантированный источник путаницы в отчётах и возвратах.
+services:
+  site-avto:
+    build: .
+    image: site-avto
+    container_name: site-avto
+    restart: unless-stopped
+    # Секреты — в файле .env рядом с этим compose (он в .gitignore). Раньше они
+    # стояли здесь значениями, и GitHub справедливо отклонил push: боевой ключ
+    # ЮKassa и токен OpenRouter в публичной истории — это чужие деньги.
+    # Образец переменных — в .env.example.
+    environment:
+      # ── источник данных об автомобилях ──────────────────────────────────
+      # Тариф без абонплаты, оплата с баланса. При исчерпании баланса запросы
+      # просто останавливаются: клиент увидит «источник недоступен», а не
+      # пустой отчёт, и деньги с него не спишутся.
+      - APIPOINT_TOKEN=${APIPOINT_TOKEN}
+      - APIPOINT_LOG=/app/data/apipoint_calls.jsonl
+
+      # ── почта ───────────────────────────────────────────────────────────
+      - UNISENDER_GO_API_KEY=${UNISENDER_GO_API_KEY}
+      - EMAIL_FROM=noreply@chistasdelka.ru
+      - EMAIL_REPLY_TO=support@chistasdelka.ru
+
+      # ── платежи ─────────────────────────────────────────────────────────
+      # Магазин тот же, что у недвижимости: это один бренд и одно юрлицо,
+      # разделение идёт по метке кампании в самом платеже.
+      - YOOKASSA_SHOP_ID=${YOOKASSA_SHOP_ID}
+      - YOOKASSA_SECRET_KEY=${YOOKASSA_SECRET_KEY}
+
+      # ── вердикт ─────────────────────────────────────────────────────────
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - LLM_PROXY=${LLM_PROXY}
+
+      # ── служебное ───────────────────────────────────────────────────────
+      - PUBLIC_BASE=https://avto.chistasdelka.ru
+      - GENERATED_DIR=/app/data/generated
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      # Сторож недоставленных оплат пишет в тот же чат, что и недвижимость —
+      # так все проблемы с оплатами видны в одном месте.
+      - ADMIN_TG_CODE=${ADMIN_TG_CODE}
+      - BOT_TOKEN=${BOT_TOKEN}
+      - BOT_USERNAME=ChistaSdelkaAlertBot
+      - OWNER_TG_CHAT_ID=${OWNER_TG_CHAT_ID}
+      # Счётчик Метрики отдельный — иначе воронки двух продуктов сольются
+      # и мерить конверсию авто будет нечем. Создан 08.08.2026 через
+      # management-API на аккаунте mihaeljordan23. Номер не секрет — он и так
+      # виден в коде страницы, поэтому остаётся здесь значением.
+      - METRIKA_COUNTER_ID=111408587
+      - YANDEX_METRIKA_TOKEN=${YANDEX_METRIKA_TOKEN}
+    volumes:
+      - site-avto-data:/app/data
+    networks:
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - "traefik.http.routers.avto.rule=Host(`avto.chistasdelka.ru`)"
+      - traefik.http.routers.avto.entrypoints=websecure
+      - traefik.http.routers.avto.tls=true
+      - traefik.http.routers.avto.tls.certresolver=letsencrypt
+      - traefik.http.services.avto.loadbalancer.server.port=8000
+      - "traefik.http.routers.avto-web.rule=Host(`avto.chistasdelka.ru`)"
+      - traefik.http.routers.avto-web.entrypoints=web
+      - traefik.http.routers.avto-web.middlewares=avto-redir
+      - traefik.http.middlewares.avto-redir.redirectscheme.scheme=https
+
+networks:
+  traefik:
+    external: true
+
+volumes:
+  site-avto-data:

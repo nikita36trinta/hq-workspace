@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="ru" x1="0.35" y1="0" x2="0.65" y2="1">
+      <stop offset="0" stop-color="#1a34e0"/><stop offset="1" stop-color="#e11f1f"/>
+    </linearGradient>
+    <linearGradient id="shg" gradientUnits="userSpaceOnUse" x1="29" y1="21" x2="29" y2="43">
+      <stop offset="0" stop-color="#1a34e0"/><stop offset="1" stop-color="#e11f1f"/>
+    </linearGradient>
+  </defs>
+  <!-- белая скруглённая плашка-фон, чтобы знак читался на тёмном табе -->
+  <rect x="0" y="0" width="64" height="64" rx="14" fill="#ffffff"/>
+  <g transform="translate(9.1,7.5) scale(0.79)">
+    <path d="M12.55 15.5 L23.80 9 Q29 6 34.20 9 L45.45 15.5 Q50.65 18.5 50.65 24.5 L50.65 37.5 Q50.65 43.5 45.45 46.5 L34.20 53 Q29 56 23.80 53 L12.55 46.5"
+          fill="none" stroke="url(#ru)" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+    <g transform="translate(17,19)" fill="none" stroke="url(#shg)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      <path d="m9 12 2 2 4-4"/>
+    </g>
+  </g>
+</svg>

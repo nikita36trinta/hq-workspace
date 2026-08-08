@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ЧистаяСделка — вариант 03 «Вы уже на финише», доработка доверия</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0b1220; --ink2:#334155; --mut:#6b7280; --line:#e6e9ef;
+  --bg:#eef1f5; --card:#fff; --soft:#f6f8fb;
+  --blue:#2563eb; --blue-d:#1d4ed8; --blue-bg:#eff6ff; --blue-line:#bfdbfe;
+  --green:#15803d; --green-bg:#f0fdf4; --green-line:#bbf7d0;
+  --r:18px;
+  --ru-white:#ffffff; --ru-blue:#0039a6; --ru-red:#d52b1e;
+}
+html{-webkit-text-size-adjust:100%}
+body{font:15px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  color:var(--ink);
+  background:radial-gradient(1100px 560px at 12% -6%,#e7edff 0,transparent 55%),
+    radial-gradient(900px 460px at 100% 0,#eafaf1 0,transparent 50%),var(--bg);
+  -webkit-font-smoothing:antialiased;padding-bottom:70px}
+.wrap{max-width:1140px;margin:0 auto;padding:0 24px}
+.masthead{padding:44px 0 6px}
+.brand{display:inline-flex;align-items:center;gap:10px;font-weight:800;font-size:16px;margin-bottom:16px}
+.brand .m{width:28px;height:28px;border-radius:9px;background:linear-gradient(135deg,#3056d3,#5b7cff);display:grid;place-items:center;color:#fff}
+.brand .m svg{width:16px;height:16px}.brand b{color:var(--blue)}
+h1{font-size:clamp(24px,3vw,34px);line-height:1.12;letter-spacing:-.025em;font-weight:820;max-width:22ch;text-wrap:balance}
+.lede{margin-top:13px;color:var(--ink2);font-size:15.5px;max-width:76ch;line-height:1.6}.lede b{color:var(--ink)}
+.warn{margin-top:16px;display:flex;gap:11px;align-items:flex-start;background:#fff;border:1px solid #fde68a;
+  border-left:3px solid #d97706;border-radius:12px;padding:13px 16px;max-width:80ch;font-size:13.5px;color:var(--ink2)}
+.warn svg{width:18px;height:18px;color:#b45309;flex:0 0 auto;margin-top:1px}.warn b{color:var(--ink)}
+.warn .no{color:#b91c1c;font-weight:700}.warn .ok{color:var(--green);font-weight:700}
+
+.grid{margin-top:32px;display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:26px;align-items:start}
+.variant{display:flex;flex-direction:column}
+.vhead{display:flex;align-items:baseline;gap:10px;margin-bottom:3px}
+.vnum{font-size:12px;font-weight:800;color:#fff;background:var(--ink);border-radius:7px;padding:3px 8px;flex:0 0 auto}
+.vname{font-size:16.5px;font-weight:750;letter-spacing:-.01em}
+.vtech{font-size:12.5px;color:var(--blue);font-weight:640;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px}
+.stage{background:linear-gradient(180deg,#dfe5ee,#eaeef4);border:1px solid #d5dbe6;border-radius:22px;padding:22px 18px;display:flex;justify-content:center}
+
+.modal{width:330px;max-width:100%;background:var(--card);border-radius:var(--r);
+  box-shadow:0 24px 60px -18px rgba(15,23,42,.32),0 2px 6px rgba(15,23,42,.08);overflow:hidden;position:relative;font-size:13.5px}
+.m-x{position:absolute;top:14px;right:14px;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:#9aa3b2;background:#f1f4f8}
+.m-x svg{width:14px;height:14px}
+.m-pad{padding:20px 18px}
+.m-eyebrow{font-size:11.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.m-obj{font-size:12.5px;color:var(--mut)}.m-obj b{color:var(--ink)}
+
+.prog{height:8px;background:#e3e9f2;border-radius:5px;overflow:hidden;margin:11px 0 4px}
+.prog i{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#4f83ff);border-radius:5px}
+.stepline{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:8px 0;border-bottom:1px solid #f1f4f8}
+.stepline:last-child{border-bottom:none}
+.stepline .ic{width:21px;height:21px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto}
+.stepline .ic.ok{background:var(--green);color:#fff}.stepline .ic.wait{background:#e3e9f2;color:#9aa3b2}
+.stepline .ic svg{width:11px;height:11px}
+.stepline.done{color:var(--ink)}.stepline.todo{color:var(--mut)}
+.hl{font-weight:800;font-size:16px;letter-spacing:-.01em;margin:14px 0 6px;line-height:1.25}
+.body{color:var(--ink2);font-size:13px;line-height:1.55}
+.cta{display:block;width:100%;text-align:center;background:var(--blue);color:#fff;font-weight:750;font-size:15px;
+  border:none;border-radius:12px;padding:14px;margin-top:14px;box-shadow:0 6px 16px -4px rgba(37,99,235,.5)}
+
+/* --- TRUST BLOCK A: источники (текст-бейджи + триколор-акцент) --- */
+.sources{margin-top:14px;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--soft)}
+.tricolor{height:4px;display:flex}
+.tricolor i{flex:1}.tricolor .w{background:var(--ru-white);box-shadow:inset 0 0 0 1px #eceff3}
+.tricolor .b{background:var(--ru-blue)}.tricolor .r{background:var(--ru-red)}
+.sources .in{padding:11px 13px 12px}
+.sources .cap{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;color:var(--ink2);margin-bottom:8px}
+.sources .cap svg{width:14px;height:14px;color:var(--blue)}
+.badges{display:flex;flex-wrap:wrap;gap:6px}
+.badge{font-size:11px;font-weight:700;color:var(--ink2);background:#fff;border:1px solid var(--line);border-radius:7px;padding:4px 9px;letter-spacing:.01em}
+
+/* --- TRUST BLOCK B: щит + список реестров --- */
+.official{margin-top:14px;background:#fff;border:1px solid var(--blue-line);border-radius:13px;padding:13px;display:flex;gap:11px}
+.official .shield{width:38px;height:38px;border-radius:11px;background:var(--blue-bg);border:1px solid var(--blue-line);display:grid;place-items:center;flex:0 0 auto}
+.official .shield svg{width:20px;height:20px;color:var(--blue)}
+.official .ot{font-size:12.3px;font-weight:750;color:var(--ink);margin-bottom:4px}
+.official .ol{font-size:11.6px;color:var(--ink2);line-height:1.5}
+.official .ol b{color:var(--ink)}
+
+.footrust{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:11px;font-size:11px;color:var(--mut)}
+.footrust span{display:inline-flex;align-items:center;gap:5px}
+.footrust svg{width:12px;height:12px;color:var(--green)}
+.yk{font-weight:800;font-size:11px;color:#111;background:#ffdd2d;border-radius:5px;padding:2px 6px;letter-spacing:-.01em}
+.dotsep{width:3px;height:3px;border-radius:50%;background:#cbd2dd;display:inline-block}
+
+.note{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.note .h{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.note .h svg{width:13px;height:13px}
+.note p{font-size:13px;color:var(--ink2);line-height:1.5}.note p b{color:var(--ink)}
+footer{margin-top:42px;text-align:center;color:var(--mut);font-size:12.5px}
+@media(max-width:520px){.wrap{padding:0 16px}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+  <symbol id="i-shieldcheck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-bank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M4 21V10M20 21V10M3 10 12 4l9 6M6 21v-7M10 21v-7M14 21v-7M18 21v-7"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12c.5.5 1 1.3 1 2h6c0-.7.5-1.5 1-2a7 7 0 0 0-4-12z"/></symbol>
+</svg>
+
+<div class="wrap">
+  <div class="masthead">
+    <div class="brand"><span class="m"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>Чистая<b>Сделка</b></div>
+    <h1>Вариант 03 «Вы уже на финише» + доверие</h1>
+    <p class="lede">Тот самый выбранный вариант (прогресс уже начат), усиленный <b>законными</b> сигналами доверия.
+      Две подачи блока «официальность» — А и Б. Ниже честно: почему без гербов и логотипов госорганов.</p>
+    <div class="warn">
+      <svg><use href="#i-alert"/></svg>
+      <div><b>Без гербов и логотипов ведомств — намеренно.</b>
+        <span class="no">Нельзя:</span> герб РФ (запрещён ФКЗ для коммерции), эмблемы Росреестра/ФССП (подразумевают гос-одобрение → закон о рекламе, ФАС).
+        <span class="ok">Можно и работает:</span> названия реестров текстом (это факт — мы берём оттуда данные), декоративный триколор-акцент, лого ЮKassa (наш реальный партнёр), гарантия, 152-ФЗ.</div>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- 3A -->
+    <div class="variant">
+      <div class="vhead"><span class="vnum">03·A</span><span class="vname">Источники: триколор + бейджи</span></div>
+      <div class="vtech">endowed progress + официальные реестры</div>
+      <div class="stage">
+        <div class="modal">
+          <div class="m-x"><svg><use href="#i-x"/></svg></div>
+          <div class="m-pad">
+            <div class="m-eyebrow">Проверка · шаг 1 из 2 пройден</div>
+            <div class="prog"><i style="width:60%"></i></div>
+            <div class="m-obj" style="margin-bottom:6px">Осталось проверить продавца — и отчёт готов</div>
+            <div class="stepline done"><span class="ic ok"><svg><use href="#i-check"/></svg></span><span><b>Объект проверен</b> — 48,4 м², найден в ЕГРН</span></div>
+            <div class="stepline todo"><span class="ic wait"><svg><use href="#i-lock"/></svg></span><span>Продавец — ФССП, банкротство, суды, аресты</span></div>
+            <div class="stepline todo"><span class="ic wait"><svg><use href="#i-lock"/></svg></span><span>Итоговый вердикт + PDF с рекомендациями</span></div>
+            <div class="hl">Половина уже позади</div>
+            <div class="body">Объект подтверждён. Остался один шаг — проверка продавца по официальным реестрам.</div>
+
+            <div class="sources">
+              <div class="tricolor"><i class="w"></i><i class="b"></i><i class="r"></i></div>
+              <div class="in">
+                <div class="cap"><svg><use href="#i-shieldcheck"/></svg>Данные из официальных государственных реестров</div>
+                <div class="badges">
+                  <span class="badge">ЕГРН · Росреестр</span>
+                  <span class="badge">ФССП России</span>
+                  <span class="badge">ЕФРСБ</span>
+                  <span class="badge">КАД Арбитр</span>
+                  <span class="badge">Реестр залогов ФНП</span>
+                </div>
+              </div>
+            </div>
+
+            <button class="cta">Завершить проверку <svg style="width:15px;height:15px;vertical-align:-2px"><use href="#i-arrow"/></svg></button>
+            <div class="footrust">
+              <span><svg><use href="#i-shield"/></svg>Гарантия возврата</span><span class="dotsep"></span>
+              <span>Оплата <span class="yk">ЮKassa</span></span><span class="dotsep"></span>
+              <span>152-ФЗ</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <div class="h"><svg><use href="#i-bulb"/></svg>Что здесь усилено</div>
+        <p><b>Триколор-полоска</b> (декор, не флаг-эмблема) + <b>названия реестров текстом</b> дают ощущение «официально/РФ» без юридического риска. Внизу — ЮKassa (легальный партнёр), гарантия, 152-ФЗ.</p>
+      </div>
+    </div>
+
+    <!-- 3B -->
+    <div class="variant">
+      <div class="vhead"><span class="vnum">03·Б</span><span class="vname">Источники: щит + перечень</span></div>
+      <div class="vtech">endowed progress + авторитет-блок</div>
+      <div class="stage">
+        <div class="modal">
+          <div class="m-x"><svg><use href="#i-x"/></svg></div>
+          <div class="m-pad">
+            <div class="m-eyebrow">Проверка · шаг 1 из 2 пройден</div>
+            <div class="prog"><i style="width:60%"></i></div>
+            <div class="m-obj" style="margin-bottom:6px">Осталось проверить продавца — и отчёт готов</div>
+            <div class="stepline done"><span class="ic ok"><svg><use href="#i-check"/></svg></span><span><b>Объект проверен</b> — 48,4 м², найден в ЕГРН</span></div>
+            <div class="stepline todo"><span class="ic wait"><svg><use href="#i-lock"/></svg></span><span>Продавец — ФССП, банкротство, суды, аресты</span></div>
+            <div class="stepline todo"><span class="ic wait"><svg><use href="#i-lock"/></svg></span><span>Итоговый вердикт + PDF с рекомендациями</span></div>
+            <div class="hl">Половина уже позади</div>
+            <div class="body">Объект подтверждён. Остался один шаг — проверка продавца.</div>
+
+            <div class="official">
+              <div class="shield"><svg><use href="#i-shieldcheck"/></svg></div>
+              <div>
+                <div class="ot">Проверяем по 5 государственным реестрам</div>
+                <div class="ol"><b>ЕГРН</b> (Росреестр) · <b>ФССП</b> · <b>ЕФРСБ</b> (банкротство) · <b>КАД Арбитр</b> · <b>Реестр залогов ФНП</b></div>
+              </div>
+            </div>
+            <div class="tricolor" style="border-radius:3px;overflow:hidden;margin-top:10px"><i class="w"></i><i class="b"></i><i class="r"></i></div>
+
+            <button class="cta">Завершить проверку <svg style="width:15px;height:15px;vertical-align:-2px"><use href="#i-arrow"/></svg></button>
+            <div class="footrust">
+              <span><svg><use href="#i-shield"/></svg>Вернём деньги, если не проверим</span><span class="dotsep"></span>
+              <span><span class="yk">ЮKassa</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <div class="h"><svg><use href="#i-bulb"/></svg>Чем отличается от А</div>
+        <p>Тот же смысл, но <b>компактнее и «серьёзнее»</b>: один щит + перечень в строку, триколор тонкой линией под ним. Меньше «пестроты» — ближе к премиум-подаче. Выбери, что роднее бренду.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>Триколор — декоративный акцент, не государственный флаг/герб. Названия реестров — раскрытие источника данных (факт). Логотипы ведомств и герб РФ не используются осознанно.</footer>
+</div>
+</body>
+</html>

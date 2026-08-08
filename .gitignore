@@ -8,3 +8,8 @@ node_modules/
 .runtime/
 .DS_Store
 registrant.env
+
+# Боевые ключи проектов. Рядом с каждым compose лежит .env.example с перечнем
+# переменных — он в репозитории, сами значения нет.
+.env
+**/.env

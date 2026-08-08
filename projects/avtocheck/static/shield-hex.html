@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Финальный знак — гексагон + градиентный щит</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--ink:#0b1220;--ink2:#334155;--mut:#6b7280;--line:#e6e9ef;--bg:#eef1f5;--card:#fff;--blue:#2563eb;--blue-line:#bfdbfe}
+body{font:15px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:var(--ink);
+  background:radial-gradient(1000px 500px at 12% -6%,#e7edff 0,transparent 55%),var(--bg);-webkit-font-smoothing:antialiased;padding:44px 0 70px}
+.wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+h1{font-size:clamp(23px,3vw,32px);letter-spacing:-.025em;font-weight:820;line-height:1.12}
+.lede{margin-top:12px;color:var(--ink2);max-width:76ch;line-height:1.6}.lede b{color:var(--ink)}
+.grid{margin-top:30px;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:20px}
+.cell{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 18px 18px;text-align:center;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+.cell.rec{border-color:var(--blue-line);box-shadow:0 8px 24px -12px rgba(37,99,235,.4)}
+.hexwrap{height:130px;display:flex;align-items:center;justify-content:center}
+.lab{font-size:12.5px;font-weight:800;margin-top:10px}
+.sub{font-size:12px;color:var(--mut);margin-top:4px;line-height:1.45;min-height:20px}
+.tile{width:108px;height:108px;border-radius:24px;background:#fff;display:grid;place-items:center;box-shadow:0 10px 26px -8px rgba(15,23,42,.32)}
+.tilebg{background:linear-gradient(135deg,#123a8f,#1f6fb2);padding:14px;border-radius:34px;display:inline-block}
+.dark{background:#0b1220}
+.official{background:#fff;border:1px solid var(--blue-line);border-radius:13px;padding:12px 14px;display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.official .ot{font-size:12.6px;font-weight:750;margin-bottom:4px}
+.official .ol{font-size:11.8px;color:var(--ink2);line-height:1.5}.official .ol b{color:var(--ink)}
+.ctx{margin-top:36px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;max-width:520px}
+.ctxh{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);margin-bottom:12px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="sh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <!-- рамка гексагона: синий(верх)→красный(низ) -->
+  <linearGradient id="ru" x1="0.35" y1="0" x2="0.65" y2="1">
+    <stop offset="0" stop-color="#1a34e0"/><stop offset="1" stop-color="#e11f1f"/>
+  </linearGradient>
+  <!-- ЩИТ: тоже градиент сверху→вниз, в координатах щита (0..24) -->
+  <linearGradient id="shg" gradientUnits="userSpaceOnUse" x1="12" y1="2" x2="12" y2="22">
+    <stop offset="0" stop-color="#1a34e0"/><stop offset="1" stop-color="#e11f1f"/>
+  </linearGradient>
+</svg>
+
+<div class="wrap">
+  <h1>Финальный знак — гексагон + градиентный щит</h1>
+  <p class="lede">Рамка и щит — оба с градиентом <b>синий→красный сверху вниз</b>. Пропуск слева, вертикальные грани, тонкая линия, скруглённые углы. Ниже — на светлом, на плитке и на тёмном фоне.</p>
+
+  <div class="grid">
+
+    <div class="cell rec">
+      <div class="hexwrap">
+        <svg width="108" height="114" viewBox="0 0 58 62">
+          <path d="M12.55 15.5 L23.80 9 Q29 6 34.20 9 L45.45 15.5 Q50.65 18.5 50.65 24.5 L50.65 37.5 Q50.65 43.5 45.45 46.5 L34.20 53 Q29 56 23.80 53 L12.55 46.5"
+                fill="none" stroke="url(#ru)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+          <svg x="17" y="19" width="24" height="24" viewBox="0 0 24 24">
+            <g fill="none" stroke="url(#shg)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
+            </g>
+          </svg>
+        </svg>
+      </div>
+      <div class="lab">На светлом</div><div class="sub">Основная подача.</div>
+    </div>
+
+    <div class="cell">
+      <div class="hexwrap">
+        <span class="tilebg"><span class="tile">
+          <svg width="72" height="76" viewBox="0 0 58 62">
+            <path d="M12.55 15.5 L23.80 9 Q29 6 34.20 9 L45.45 15.5 Q50.65 18.5 50.65 24.5 L50.65 37.5 Q50.65 43.5 45.45 46.5 L34.20 53 Q29 56 23.80 53 L12.55 46.5"
+                  fill="none" stroke="url(#ru)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+            <svg x="17" y="19" width="24" height="24" viewBox="0 0 24 24">
+              <g fill="none" stroke="url(#shg)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
+              </g>
+            </svg>
+          </svg>
+        </span></span>
+      </div>
+      <div class="lab">Плитка / favicon</div><div class="sub">Как иконка приложения.</div>
+    </div>
+
+    <div class="cell">
+      <div class="hexwrap">
+        <span class="tile dark">
+          <svg width="72" height="76" viewBox="0 0 58 62">
+            <path d="M12.55 15.5 L23.80 9 Q29 6 34.20 9 L45.45 15.5 Q50.65 18.5 50.65 24.5 L50.65 37.5 Q50.65 43.5 45.45 46.5 L34.20 53 Q29 56 23.80 53 L12.55 46.5"
+                  fill="none" stroke="url(#ru)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+            <svg x="17" y="19" width="24" height="24" viewBox="0 0 24 24">
+              <g fill="none" stroke="url(#shg)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
+              </g>
+            </svg>
+          </svg>
+        </span>
+      </div>
+      <div class="lab">На тёмном</div><div class="sub">Проверка контраста.</div>
+    </div>
+
+  </div>
+
+  <div class="ctx">
+    <div class="ctxh">В контексте блока «официальные реестры»</div>
+    <div class="official">
+      <svg width="44" height="47" viewBox="0 0 58 62" style="flex:0 0 auto">
+        <path d="M12.55 15.5 L23.80 9 Q29 6 34.20 9 L45.45 15.5 Q50.65 18.5 50.65 24.5 L50.65 37.5 Q50.65 43.5 45.45 46.5 L34.20 53 Q29 56 23.80 53 L12.55 46.5"
+              fill="none" stroke="url(#ru)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+        <svg x="17" y="19" width="24" height="24" viewBox="0 0 24 24">
+          <g fill="none" stroke="url(#shg)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>
+          </g>
+        </svg>
+      </svg>
+      <div>
+        <div class="ot">Проверяем по 5 государственным реестрам</div>
+        <div class="ol"><b>ЕГРН</b> (Росреестр) · <b>ФССП</b> · <b>ЕФРСБ</b> · <b>КАД Арбитр</b> · <b>Реестр залогов ФНП</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

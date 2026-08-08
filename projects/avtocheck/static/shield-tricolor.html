@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Щит-бокс с триколором — подачи</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0b1220;--ink2:#334155;--mut:#6b7280;--line:#e6e9ef;--bg:#eef1f5;--card:#fff;--soft:#f6f8fb;
+  --blue:#2563eb;--blue-bg:#eff6ff;--blue-line:#bfdbfe;
+  --ru-white:#fff;--ru-blue:#0039a6;--ru-red:#d52b1e;
+}
+body{font:15px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:var(--ink);
+  background:radial-gradient(1000px 500px at 12% -6%,#e7edff 0,transparent 55%),var(--bg);-webkit-font-smoothing:antialiased;padding:44px 0 70px}
+.wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+h1{font-size:clamp(23px,3vw,32px);letter-spacing:-.025em;font-weight:820;line-height:1.12}
+.lede{margin-top:12px;color:var(--ink2);max-width:72ch;line-height:1.6}
+.grid{margin-top:30px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:20px}
+.cell{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 18px;text-align:center;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+.cell.rec{border-color:var(--blue-line);box-shadow:0 8px 24px -12px rgba(37,99,235,.4)}
+.lab{font-size:12px;font-weight:800;color:var(--ink);margin-top:14px}
+.sub{font-size:12px;color:var(--mut);margin-top:4px;line-height:1.45;min-height:34px}
+.pick{display:inline-block;margin-top:9px;font-size:10.5px;font-weight:800;letter-spacing:.04em;color:var(--blue);text-transform:uppercase}
+.row{display:flex;gap:14px;align-items:center;justify-content:center}
+
+/* base box */
+.box{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;position:relative;overflow:hidden;flex:0 0 auto}
+.box svg{width:28px;height:28px;position:relative;z-index:2}
+.small{width:38px;height:38px;border-radius:11px}.small svg{width:20px;height:20px}
+
+/* 0 — current (reference) */
+.b0{background:var(--blue-bg);border:1px solid var(--blue-line)}
+.b0 svg{color:var(--blue)}
+
+/* 1 — soft bands, dark shield */
+.b1{background:#fff;border:1px solid var(--line)}
+.b1::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,
+  #ffffff 0 33.3%, #eaf0fb 33.3% 66.6%, #fdeeec 66.6% 100%)}
+.b1 svg{color:var(--ink)}
+
+/* 2 — bottom tricolor accent */
+.b2{background:var(--blue-bg);border:1px solid var(--blue-line)}
+.b2::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:linear-gradient(90deg,
+  var(--ru-white) 0 33.3%, var(--ru-blue) 33.3% 66.6%, var(--ru-red) 66.6% 100%);box-shadow:inset 0 1px 0 #e3e9f2}
+.b2 svg{color:var(--blue)}
+
+/* 3 — soft diagonal wash */
+.b3{background:linear-gradient(135deg,#ffffff 0%, #e9f0fd 45%, #fbe9e7 100%);border:1px solid #e7ecf5}
+.b3 svg{color:var(--blue)}
+
+/* 4 — tricolor ring/frame, white inside */
+.b4{background:#fff;padding:3px}
+.b4::before{content:"";position:absolute;inset:0;border-radius:16px;padding:2.5px;
+  background:linear-gradient(180deg,var(--ru-white),var(--ru-blue),var(--ru-red));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.b4 svg{color:var(--blue)}
+
+/* 5 — bold saturated bands, white shield */
+.b5{background:linear-gradient(180deg,#f4f6fb 0 33.3%, var(--ru-blue) 33.3% 66.6%, var(--ru-red) 66.6% 100%)}
+.b5 svg{color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+
+/* 6 — left tricolor bar + light field */
+.b6{background:var(--blue-bg);border:1px solid var(--blue-line)}
+.b6::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(180deg,
+  var(--ru-white) 0 33.3%, var(--ru-blue) 33.3% 66.6%, var(--ru-red) 66.6% 100%)}
+.b6 svg{color:var(--blue)}
+
+/* 7 — corner ribbon */
+.b7{background:var(--blue-bg);border:1px solid var(--blue-line)}
+.b7::before{content:"";position:absolute;top:-14px;right:-14px;width:28px;height:28px;transform:rotate(45deg);
+  background:linear-gradient(90deg,var(--ru-white),var(--ru-blue),var(--ru-red))}
+.b7 svg{color:var(--blue)}
+
+/* in-context mini official block */
+.ctx{margin-top:40px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;max-width:520px}
+.ctxh{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);margin-bottom:14px}
+.official{background:#fff;border:1px solid var(--blue-line);border-radius:13px;padding:13px;display:flex;gap:11px;margin-bottom:12px}
+.official .ot{font-size:12.6px;font-weight:750;margin-bottom:4px}
+.official .ol{font-size:11.8px;color:var(--ink2);line-height:1.5}.official .ol b{color:var(--ink)}
+.cxlab{font-size:11px;color:var(--mut);margin-bottom:6px}
+svg symbol{overflow:visible}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="sh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+</svg>
+<div class="wrap">
+  <h1>Заливка щит-бокса триколором — 7 подач</h1>
+  <p class="lede">От деликатной (для премиум-подачи) до смелой. Цвета — флага РФ (белый #fff · синий #0039A6 · красный #D52B1E), но как <b>декор элемента</b>, не флаг-эмблема. Щит везде остаётся читаемым.</p>
+
+  <div class="grid">
+    <div class="cell">
+      <div class="row"><span class="box b0"><svg><use href="#sh"/></svg></span></div>
+      <div class="lab">0 · Сейчас</div><div class="sub">Как в макете — просто голубой фон. Точка отсчёта.</div>
+    </div>
+    <div class="cell rec">
+      <div class="row"><span class="box b2"><svg><use href="#sh"/></svg></span></div>
+      <div class="lab">2 · Нижний акцент</div><div class="sub">Голубой фон + тонкая триколор-полоска снизу. Деликатно, щит синий и чёткий.</div>
+      <span class="pick">рекомендую</span>
+    </div>
+    <div class="cell">
+      <div class="row"><span class="box b1"><svg><use href="#sh"/></svg></span></div>
+      <div class="lab">1 · Мягкие полосы</div><div class="sub">Три бледные горизонтальные зоны, щит тёмный. Спокойно, «в тему».</div>
+    </div>
+    <div class="cell">
+      <div class="row"><span class="box b3"><svg><use href="#sh"/></svg></span></div>
+      <div class="lab">3 · Диагональная растяжка</div><div class="sub">Едва заметный градиент бело-сине-красный. Самый ненавязчивый.</div>
+    </div>
+    <div class="cell">
+      <div class="row"><span class="box b4"><svg><use href="#sh"/></svg></span></div>
+      <div class="lab">4 · Триколор-рамка</div><div class="sub">Белое поле + рамка градиентом. Аккуратно, «сертификат».</div>
+    </div>
+    <div class="cell">
+      <div class="row"><span class="box b6"><svg><use href="#sh"/></svg></span></div>
+      <div class="lab">6 · Боковая полоса</div><div class="sub">Триколор вертикальной планкой слева. Как «маркер официального».</div>
+    </div>
+    <div class="cell">
+      <div class="row"><span class="box b5"><svg><use href="#sh"/></svg></span></div>
+      <div class="lab">5 · Насыщенные полосы</div><div class="sub">Полноцветные бело-сине-красные зоны, щит белый. Смело/ярко.</div>
+    </div>
+    <div class="cell">
+      <div class="row"><span class="box b7"><svg><use href="#sh"/></svg></span></div>
+      <div class="lab">7 · Угловая лента</div><div class="sub">Триколор-уголок. Игриво, но щит чистый.</div>
+    </div>
+  </div>
+
+  <div class="ctx">
+    <div class="ctxh">В контексте блока — рекомендуемая №2</div>
+    <div class="official">
+      <span class="box small b2"><svg><use href="#sh"/></svg></span>
+      <div>
+        <div class="ot">Проверяем по 5 государственным реестрам</div>
+        <div class="ol"><b>ЕГРН</b> (Росреестр) · <b>ФССП</b> · <b>ЕФРСБ</b> · <b>КАД Арбитр</b> · <b>Реестр залогов ФНП</b></div>
+      </div>
+    </div>
+    <div class="cxlab">И для сравнения — смелая №5:</div>
+    <div class="official">
+      <span class="box small b5"><svg><use href="#sh"/></svg></span>
+      <div>
+        <div class="ot">Проверяем по 5 государственным реестрам</div>
+        <div class="ol"><b>ЕГРН</b> (Росреестр) · <b>ФССП</b> · <b>ЕФРСБ</b> · <b>КАД Арбитр</b> · <b>Реестр залогов ФНП</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

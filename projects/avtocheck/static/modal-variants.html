@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ЧистаяСделка — варианты продающей модалки превью</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0b1220; --ink2:#334155; --mut:#6b7280; --line:#e6e9ef;
+  --bg:#eef1f5; --card:#ffffff; --soft:#f6f8fb;
+  --blue:#2563eb; --blue-d:#1d4ed8; --blue-bg:#eff6ff; --blue-line:#bfdbfe;
+  --green:#15803d; --green-bg:#f0fdf4; --green-line:#bbf7d0;
+  --amber:#b45309; --amber-bg:#fffbeb; --amber-line:#fde68a;
+  --red:#dc2626; --red-bg:#fef2f2; --red-line:#fecaca;
+  --r:18px;
+}
+html{-webkit-text-size-adjust:100%}
+body{
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  color:var(--ink); background:
+    radial-gradient(1200px 600px at 15% -5%, #e7edff 0%, transparent 55%),
+    radial-gradient(1000px 500px at 100% 0%, #eafaf1 0%, transparent 50%),
+    var(--bg);
+  -webkit-font-smoothing:antialiased; padding-bottom:80px;
+}
+.wrap{max-width:1280px;margin:0 auto;padding:0 24px}
+
+/* header */
+.masthead{padding:46px 0 10px}
+.brand{display:inline-flex;align-items:center;gap:10px;font-weight:800;font-size:16px;letter-spacing:-.01em;margin-bottom:18px}
+.brand .m{width:28px;height:28px;border-radius:9px;background:linear-gradient(135deg,#3056d3,#5b7cff);display:grid;place-items:center;color:#fff}
+.brand .m svg{width:16px;height:16px}
+.brand b{color:var(--blue)}
+h1{font-size:clamp(26px,3.4vw,38px);line-height:1.1;letter-spacing:-.025em;font-weight:820;max-width:20ch;text-wrap:balance}
+.lede{margin-top:14px;color:var(--ink2);font-size:16px;max-width:74ch;line-height:1.6}
+.lede b{color:var(--ink)}
+.legend{margin-top:20px;display:flex;flex-wrap:wrap;gap:8px}
+.tag{font-size:12.5px;font-weight:600;color:var(--ink2);background:#fff;border:1px solid var(--line);
+  border-radius:999px;padding:6px 12px;display:inline-flex;align-items:center;gap:7px}
+.tag svg{width:13px;height:13px;color:var(--blue)}
+.ethic{margin-top:16px;display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--line);
+  border-left:3px solid var(--green);border-radius:12px;padding:12px 15px;max-width:78ch;font-size:13.5px;color:var(--ink2)}
+.ethic svg{width:17px;height:17px;color:var(--green);flex:0 0 auto;margin-top:1px}
+.ethic b{color:var(--ink)}
+
+/* grid of variants */
+.grid{margin-top:34px;display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:26px}
+.variant{display:flex;flex-direction:column}
+.vhead{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
+.vnum{font-size:12px;font-weight:800;color:#fff;background:var(--ink);border-radius:7px;
+  padding:3px 8px;letter-spacing:.02em;flex:0 0 auto}
+.vname{font-size:17px;font-weight:760;letter-spacing:-.01em}
+.vtech{font-size:12.5px;color:var(--blue);font-weight:640;text-transform:uppercase;letter-spacing:.04em;margin-bottom:13px}
+.stage{background:linear-gradient(180deg,#dfe5ee,#eaeef4);border:1px solid #d5dbe6;border-radius:22px;
+  padding:22px 18px;display:flex;justify-content:center}
+
+/* modal shell (mirrors product) */
+.modal{width:326px;max-width:100%;background:var(--card);border-radius:var(--r);
+  box-shadow:0 24px 60px -18px rgba(15,23,42,.32),0 2px 6px rgba(15,23,42,.08);
+  overflow:hidden;position:relative;font-size:13.5px}
+.m-x{position:absolute;top:14px;right:14px;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+  color:#9aa3b2;background:#f1f4f8}
+.m-x svg{width:14px;height:14px}
+.m-pad{padding:20px 18px}
+.m-eyebrow{font-size:11.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.m-obj{font-size:12.5px;color:var(--mut);margin-top:3px}
+.m-obj b{color:var(--ink);font-variant-numeric:tabular-nums}
+
+.win{background:var(--green-bg);border:1px solid var(--green-line);border-radius:13px;padding:13px 14px;margin-top:14px}
+.win .t{font-weight:800;color:var(--green);display:flex;align-items:center;gap:7px;font-size:13.5px}
+.win .t svg{width:16px;height:16px;flex:0 0 auto}
+.win .f{color:var(--ink2);margin-top:5px;font-size:12.8px}
+.win .a{color:var(--mut);font-size:11.8px;margin-top:3px}
+
+.hl{font-weight:800;font-size:16px;letter-spacing:-.01em;margin:15px 0 6px;line-height:1.25;text-wrap:balance}
+.hl.red{color:var(--red)} .hl.amber{color:var(--amber)} .hl.blue{color:var(--blue)}
+.body{color:var(--ink2);font-size:13px;line-height:1.55}
+
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0}
+.chip{font-size:11.8px;font-weight:600;background:#fff;border:1px solid var(--line);color:var(--mut);
+  border-radius:8px;padding:5px 10px;display:inline-flex;align-items:center;gap:6px}
+.chip svg{width:12px;height:12px;color:#9aa3b2}
+.chip.on{color:var(--green);border-color:var(--green-line);background:var(--green-bg)}
+.chip.on svg{color:var(--green)}
+
+.cta{display:block;width:100%;text-align:center;background:var(--blue);color:#fff;font-weight:750;font-size:15px;
+  border:none;border-radius:12px;padding:14px;margin-top:14px;letter-spacing:-.01em;box-shadow:0 6px 16px -4px rgba(37,99,235,.5)}
+.cta.big{padding:16px;font-size:16px}
+.sub{font-size:11.3px;color:var(--mut);text-align:center;margin-top:9px;line-height:1.5}
+.trust{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--mut)}
+.trust svg{width:12px;height:12px;color:var(--green)}
+.dotsep{width:3px;height:3px;border-radius:50%;background:#cbd2dd;display:inline-block}
+
+/* guarantee row */
+.guar{display:flex;gap:9px;align-items:flex-start;background:var(--green-bg);border:1px solid var(--green-line);
+  border-radius:11px;padding:10px 12px;margin-top:12px}
+.guar svg{width:16px;height:16px;color:var(--green);flex:0 0 auto;margin-top:1px}
+.guar span{font-size:12px;color:var(--green)}
+.guar b{color:#14532d}
+
+/* progress variant */
+.prog{height:8px;background:#e3e9f2;border-radius:5px;overflow:hidden;margin:6px 0 4px}
+.prog i{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#4f83ff);border-radius:5px}
+.stepline{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:7px 0;border-bottom:1px solid #f1f4f8}
+.stepline:last-child{border-bottom:none}
+.stepline .ic{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto}
+.stepline .ic.ok{background:var(--green);color:#fff}
+.stepline .ic.wait{background:#e3e9f2;color:#9aa3b2}
+.stepline .ic svg{width:11px;height:11px}
+.stepline.done{color:var(--ink)} .stepline.todo{color:var(--mut)}
+
+/* stakes variant */
+.stakes{display:flex;align-items:stretch;gap:10px;margin:14px 0}
+.stakes .col{flex:1;border-radius:12px;padding:13px;text-align:center}
+.stakes .big{background:#0b1220;color:#fff}
+.stakes .sm{background:var(--blue-bg);border:1px solid var(--blue-line)}
+.stakes .lab{font-size:11px;text-transform:uppercase;letter-spacing:.04em;opacity:.7}
+.stakes .num{font-size:22px;font-weight:820;letter-spacing:-.02em;margin-top:4px;font-variant-numeric:tabular-nums}
+.stakes .sm .num{color:var(--blue)}
+.stakes .arw{align-self:center;color:#9aa3b2}
+.stakes .arw svg{width:20px;height:20px}
+
+/* social proof */
+.stat{display:flex;gap:12px;margin:13px 0}
+.stat .s{flex:1;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:11px 12px;text-align:center}
+.stat .n{font-size:19px;font-weight:820;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums}
+.stat .l{font-size:11px;color:var(--mut);margin-top:2px;line-height:1.3}
+.sources{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin:12px 0 2px}
+.src{font-size:10.5px;font-weight:700;color:var(--ink2);background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 8px;letter-spacing:.01em}
+.review{display:flex;gap:9px;align-items:flex-start;background:var(--soft);border:1px solid var(--line);border-radius:11px;padding:11px 12px;margin-top:12px}
+.review .av{width:30px;height:30px;border-radius:50%;flex:0 0 auto;background:linear-gradient(135deg,#93b4ff,#2563eb);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px}
+.review .rt{font-size:12px;color:var(--ink2);line-height:1.45}
+.review .who{color:var(--mut);font-size:11px;margin-top:3px}
+.stars{color:#f59e0b;letter-spacing:1px;font-size:11px}
+
+/* risk cards (fear-of-specifics) */
+.rcard{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f1f4f8}
+.rcard:last-child{border-bottom:none}
+.rcard .ri{width:30px;height:30px;border-radius:9px;flex:0 0 auto;display:grid;place-items:center;background:var(--red-bg);color:var(--red)}
+.rcard .ri svg{width:15px;height:15px}
+.rcard .rx{font-size:12.3px;color:var(--ink2);line-height:1.4}
+.rcard .rx b{color:var(--ink)}
+
+/* minimal premium */
+.mini-shield{width:52px;height:52px;border-radius:15px;background:var(--blue-bg);border:1px solid var(--blue-line);
+  display:grid;place-items:center;margin:6px auto 14px}
+.mini-shield svg{width:26px;height:26px;color:var(--blue)}
+
+/* annotation */
+.note{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.note .h{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--blue);margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.note .h svg{width:13px;height:13px}
+.note p{font-size:13px;color:var(--ink2);line-height:1.5}
+.note .why{margin-top:8px;font-size:12.5px;color:var(--mut)}
+.note .why b{color:var(--ink)}
+
+footer{margin-top:44px;text-align:center;color:var(--mut);font-size:12.5px}
+@media(max-width:520px){.wrap{padding:0 16px}.stage{padding:16px 8px}}
+</style>
+</head>
+<body>
+
+<!-- icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+  <symbol id="i-shieldcheck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M6 21h12M3 7h18M7 7l-3 7a3 3 0 0 0 6 0L7 7zM17 7l-3 7a3 3 0 0 0 6 0l-3-7zM12 3 7 7M12 3l5 4"/></symbol>
+  <symbol id="i-gavel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 13-7 7M14.5 6.5 17 9M9 12l3 3M11 4l9 9M4 20h6"/></symbol>
+  <symbol id="i-coins" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="5"/><path d="M15.5 4.5a5 5 0 0 1 0 15M8 6v4M6 8h4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12c.5.5 1 1.3 1 2h6c0-.7.5-1.5 1-2a7 7 0 0 0-4-12z"/></symbol>
+</svg>
+
+<div class="wrap">
+  <div class="masthead">
+    <div class="brand"><span class="m"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span>Чистая<b>Сделка</b></div>
+    <h1>Продающая модалка превью — 6 направлений</h1>
+    <p class="lede">Каждый вариант ведёт к одному действию — <b>«Проверить продавца»</b> — но своим психологическим рычагом.
+      Все стилистически в бренде, тон — под российскую аудиторию: официальные источники, гарантия возврата, ЮKassa, без хайпа и «скама».
+      Объект для примера один: кв. <b>77:01:0004012:1122</b> · 48,4 м² · Пресненский, Москва.</p>
+    <div class="legend">
+      <span class="tag"><svg><use href="#i-shieldcheck"/></svg>победа + потеря</span>
+      <span class="tag"><svg><use href="#i-coins"/></svg>ставки против цены</span>
+      <span class="tag"><svg><use href="#i-check"/></svg>прогресс уже начат</span>
+      <span class="tag"><svg><use href="#i-shield"/></svg>соц-доказательство</span>
+      <span class="tag"><svg><use href="#i-alert"/></svg>конкретика риска</span>
+      <span class="tag"><svg><use href="#i-scale"/></svg>минимализм-доверие</span>
+    </div>
+    <div class="ethic">
+      <svg><use href="#i-shieldcheck"/></svg>
+      <div><b>Этическая граница соблюдена во всех вариантах.</b> Про конкретного продавца — только будущее время («проверим»),
+        никаких выдуманных вердиктов и «найдено N арестов» до реальной проверки. Цифры соц-доказательства помечены как placeholder — заменить на реальные перед запуском.</div>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- V1 — Победа + потеря -->
+    <div class="variant">
+      <div class="vhead"><span class="vnum">01</span><span class="vname">Победа, потом провал доверия</span></div>
+      <div class="vtech">loss aversion · endowed win</div>
+      <div class="stage">
+        <div class="modal">
+          <div class="m-x"><svg><use href="#i-x"/></svg></div>
+          <div class="m-pad">
+            <div class="m-eyebrow">Предварительная проверка</div>
+            <div class="m-obj">Объект: <b>77:01:0004012:1122</b></div>
+            <div class="win">
+              <div class="t"><svg><use href="#i-check"/></svg>Объект найден и подтверждён в Росреестре</div>
+              <div class="f">Квартира · 48,4 м² · 3 этаж · кад. стоимость 21,6 млн ₽</div>
+              <div class="a">Пресненский р-н, Москва · собственность частная</div>
+            </div>
+            <div class="hl red">Квартира чистая. А продавец?</div>
+            <div class="body">Люди теряют уже купленную квартиру не из-за неё, а из-за продавца: скрытого банкротства, долгов, арестов и оспоренных сделок. Проверим его по 4 реестрам.</div>
+            <div class="chips">
+              <span class="chip"><svg><use href="#i-lock"/></svg>ФССП и долги</span>
+              <span class="chip"><svg><use href="#i-lock"/></svg>Банкротство</span>
+              <span class="chip"><svg><use href="#i-lock"/></svg>Суды</span>
+              <span class="chip"><svg><use href="#i-lock"/></svg>Аресты и залоги</span>
+            </div>
+            <button class="cta">Проверить продавца <svg style="width:15px;height:15px;vertical-align:-2px"><use href="#i-arrow"/></svg></button>
+            <div class="trust"><svg><use href="#i-shield"/></svg>Гарантия возврата <span class="dotsep"></span> PDF за ~15 мин <span class="dotsep"></span> ЮKassa</div>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <div class="h"><svg><use href="#i-bulb"/></svg>Почему работает</div>
+        <p>Сначала бесплатная <b>победа</b> (нашли объект) — доказательство, что сервис реально работает и уже что-то дал. Затем разрыв: «а вот главного вы не знаете».</p>
+        <div class="why"><b>Для RU:</b> апеллирует к самому частому страху — «купил, а сделку отменили». Честно: про продавца — «проверим», без обвинений.</div>
+      </div>
+    </div>
+
+    <!-- V2 — Ставки против цены -->
+    <div class="variant">
+      <div class="vhead"><span class="vnum">02</span><span class="vname">Ставки против цены</span></div>
+      <div class="vtech">anchoring · price framing</div>
+      <div class="stage">
+        <div class="modal">
+          <div class="m-x"><svg><use href="#i-x"/></svg></div>
+          <div class="m-pad">
+            <div class="m-eyebrow">Предварительная проверка</div>
+            <div class="win">
+              <div class="t"><svg><use href="#i-check"/></svg>Объект найден в Росреестре</div>
+              <div class="f">48,4 м² · Пресненский · кад. стоимость 21,6 млн ₽</div>
+            </div>
+            <div class="stakes">
+              <div class="col big"><div class="lab">Ваша сделка</div><div class="num">21,6 млн ₽</div></div>
+              <div class="arw"><svg><use href="#i-arrow"/></svg></div>
+              <div class="col sm"><div class="lab">Проверка</div><div class="num">299 ₽</div></div>
+            </div>
+            <div class="hl blue">0,001% от суммы сделки — чтобы не потерять всё</div>
+            <div class="body">Одна оспоренная сделка или банкротство продавца — и суд может вернуть квартиру прежнему владельцу. Проверим продавца, пока не внесён аванс.</div>
+            <button class="cta big">Проверить продавца за 299 ₽</button>
+            <div class="sub">Консультация юриста — от 3 000 ₽. Здесь 299 ₽ · оплата через ЮKassa</div>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <div class="h"><svg><use href="#i-bulb"/></svg>Почему работает</div>
+        <p>Ставит рядом огромную сумму сделки и копеечную цену проверки. На фоне 21,6 млн ₽ цена 299 ₽ ощущается как «глупо не заплатить».</p>
+        <div class="why"><b>Для RU:</b> заякорение на цене юриста («от 3 000 ₽») усиливает ощущение выгоды. Работает на рациональных, «считающих» покупателей.</div>
+      </div>
+    </div>
+
+    <!-- V3 — Прогресс уже начат -->
+    <div class="variant">
+      <div class="vhead"><span class="vnum">03</span><span class="vname">Вы уже на финише</span></div>
+      <div class="vtech">endowed progress · Zeigarnik</div>
+      <div class="stage">
+        <div class="modal">
+          <div class="m-x"><svg><use href="#i-x"/></svg></div>
+          <div class="m-pad">
+            <div class="m-eyebrow">Проверка · шаг 1 из 2 пройден</div>
+            <div class="prog"><i style="width:60%"></i></div>
+            <div class="m-obj" style="margin-bottom:10px">Осталось проверить продавца — и отчёт готов</div>
+            <div class="stepline done"><span class="ic ok"><svg><use href="#i-check"/></svg></span><span><b>Объект проверен</b> — 48,4 м², найден в ЕГРН</span></div>
+            <div class="stepline todo"><span class="ic wait"><svg><use href="#i-lock"/></svg></span><span>Продавец — ФССП, банкротство, суды, аресты</span></div>
+            <div class="stepline todo"><span class="ic wait"><svg><use href="#i-lock"/></svg></span><span>Итоговый вердикт + PDF с рекомендациями</span></div>
+            <div class="hl">Половина уже позади</div>
+            <div class="body">Объект подтверждён. Остался один шаг — проверка продавца по официальным реестрам.</div>
+            <button class="cta">Завершить проверку <svg style="width:15px;height:15px;vertical-align:-2px"><use href="#i-arrow"/></svg></button>
+            <div class="trust"><svg><use href="#i-shield"/></svg>Гарантия возврата <span class="dotsep"></span> ЮKassa</div>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <div class="h"><svg><use href="#i-bulb"/></svg>Почему работает</div>
+        <p>Человек видит, что дело <b>уже начато и почти закончено</b>. Бросить на 60% психологически труднее, чем начать с нуля (эффект незавершённого действия).</p>
+        <div class="why"><b>Для RU:</b> «завершить», а не «купить» — снижает ощущение траты. Отлично стыкуется с пошаговым мастером ниже по воронке.</div>
+      </div>
+    </div>
+
+    <!-- V4 — Социальное доказательство + авторитет -->
+    <div class="variant">
+      <div class="vhead"><span class="vnum">04</span><span class="vname">Официально и не вы одни</span></div>
+      <div class="vtech">social proof · authority</div>
+      <div class="stage">
+        <div class="modal">
+          <div class="m-x"><svg><use href="#i-x"/></svg></div>
+          <div class="m-pad">
+            <div class="m-eyebrow">Предварительная проверка</div>
+            <div class="win">
+              <div class="t"><svg><use href="#i-check"/></svg>Объект найден в Росреестре</div>
+              <div class="f">48,4 м² · Пресненский · 21,6 млн ₽</div>
+            </div>
+            <div class="stat">
+              <div class="s"><div class="n">12 480</div><div class="l">проверок за месяц</div></div>
+              <div class="s"><div class="n">1 из 6</div><div class="l">со скрытым риском продавца</div></div>
+            </div>
+            <div class="hl">Проверяем по официальным реестрам</div>
+            <div class="sources">
+              <span class="src">Росреестр</span><span class="src">ФССП</span><span class="src">ЕФРСБ</span>
+              <span class="src">КАД Арбитр</span><span class="src">Реестр залогов ФНП</span>
+            </div>
+            <div class="review">
+              <div class="av">А</div>
+              <div><div class="stars">★★★★★</div><div class="rt">«Нашли долги у продавца, о которых он молчал. Сэкономил себе нервы и деньги.»</div><div class="who">Алексей, покупатель · Москва</div></div>
+            </div>
+            <button class="cta">Проверить продавца <svg style="width:15px;height:15px;vertical-align:-2px"><use href="#i-arrow"/></svg></button>
+            <div class="sub">299 ₽ · оплата через ЮKassa · гарантия возврата</div>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <div class="h"><svg><use href="#i-bulb"/></svg>Почему работает</div>
+        <p>Три опоры доверия сразу: <b>масштаб</b> (тысячи проверок), <b>частота риска</b> (1 из 6) и <b>авторитет</b> источников + живой отзыв.</p>
+        <div class="why"><b>Для RU:</b> названия госреестров = легитимность, ключевой фактор доверия. <b>Цифры и отзыв — placeholder, заменить на реальные</b> (иначе риск для доверия и по закону о рекламе).</div>
+      </div>
+    </div>
+
+    <!-- V5 — Конкретика риска -->
+    <div class="variant">
+      <div class="vhead"><span class="vnum">05</span><span class="vname">Что именно может пойти не так</span></div>
+      <div class="vtech">fear of specifics · education</div>
+      <div class="stage">
+        <div class="modal">
+          <div class="m-x"><svg><use href="#i-x"/></svg></div>
+          <div class="m-pad">
+            <div class="m-eyebrow">Предварительная проверка</div>
+            <div class="win" style="margin-bottom:2px">
+              <div class="t"><svg><use href="#i-check"/></svg>Объект найден в Росреестре · 48,4 м²</div>
+            </div>
+            <div class="hl amber" style="margin-top:14px">Три сценария, из-за которых теряют квартиру</div>
+            <div style="margin:6px 0 4px">
+              <div class="rcard"><span class="ri"><svg><use href="#i-coins"/></svg></span><span class="rx"><b>Продавец-банкрот.</b> Сделку до 3 лет назад отменит арбитражный управляющий — квартиру вернут в конкурсную массу.</span></div>
+              <div class="rcard"><span class="ri"><svg><use href="#i-gavel"/></svg></span><span class="rx"><b>Оспоренная сделка.</b> Наследники или супруг подают иск — суд может признать продажу недействительной.</span></div>
+              <div class="rcard"><span class="ri"><svg><use href="#i-alert"/></svg></span><span class="rx"><b>Долги и аресты.</b> Приставы наложат арест на имущество — сделку не зарегистрируют.</span></div>
+            </div>
+            <div class="body" style="margin-top:8px">Проверим, есть ли эти риски у <b>вашего</b> продавца — по официальным реестрам.</div>
+            <button class="cta">Проверить продавца <svg style="width:15px;height:15px;vertical-align:-2px"><use href="#i-arrow"/></svg></button>
+            <div class="sub">299 ₽ · гарантия возврата · ЮKassa</div>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <div class="h"><svg><use href="#i-bulb"/></svg>Почему работает</div>
+        <p>Абстрактный «риск» превращается в <b>три конкретных, узнаваемых кошмара</b> с механикой последствий. Конкретика пугает и продаёт сильнее общих слов.</p>
+        <div class="why"><b>Для RU:</b> все три сценария — реальные юридические механизмы (не выдумка), это обучает и повышает экспертность бренда. Про <i>вашего</i> продавца — честное «проверим, есть ли».</div>
+      </div>
+    </div>
+
+    <!-- V6 — Минимализм-доверие -->
+    <div class="variant">
+      <div class="vhead"><span class="vnum">06</span><span class="vname">Спокойная премиум-подача</span></div>
+      <div class="vtech">minimalism · trust-first</div>
+      <div class="stage">
+        <div class="modal">
+          <div class="m-x"><svg><use href="#i-x"/></svg></div>
+          <div class="m-pad" style="padding:26px 20px 22px;text-align:center">
+            <div class="mini-shield"><svg><use href="#i-shieldcheck"/></svg></div>
+            <div style="font-weight:800;font-size:18px;letter-spacing:-.015em;line-height:1.25;text-wrap:balance">Объект найден в&nbsp;Росреестре</div>
+            <div class="m-obj" style="margin-top:5px">48,4 м² · Пресненский · 21,6 млн ₽</div>
+            <div class="body" style="margin:14px auto 0;max-width:30ch">Остался главный вопрос сделки — <b>чист ли продавец.</b> Проверим по ФССП, банкротству, судам и арестам.</div>
+            <button class="cta big" style="margin-top:18px">Проверить продавца</button>
+            <div class="trust" style="margin-top:12px">
+              <svg><use href="#i-shield"/></svg>Гарантия возврата
+              <span class="dotsep"></span><svg><use href="#i-clock"/></svg>~15 минут
+              <span class="dotsep"></span><svg><use href="#i-doc"/></svg>PDF с вердиктом
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <div class="h"><svg><use href="#i-bulb"/></svg>Почему работает</div>
+        <p>Никакого давления — <b>воздух, один знак-щит, одна мысль, одна кнопка.</b> Продаёт спокойствием и ощущением надёжного, дорогого сервиса.</p>
+        <div class="why"><b>Для RU:</b> premium-аудитория (дорогая недвижимость) реагирует на сдержанность лучше, чем на «крик». Контраст к вариантам 1 и 5.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>Статичные макеты для выбора направления · ЧистаяСделка · интерактив и данные объекта — из бэкенда после утверждения варианта</footer>
+</div>
+
+</body>
+</html>

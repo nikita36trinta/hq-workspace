@@ -1,0 +1,2764 @@
+<!doctype html>
+<!--
+  ============================================================
+  ЧистаяСделка — лендинг v2 «PRODUCT-FIRST» (финтех-эстетика)
+  Самодостаточный файл: без внешних скриптов/шрифтов/картинок.
+
+  Подключён к бэкенду: POST /api/check запускает реальную проверку
+  (ЕФРСБ + ФССП + суды), генерируется настоящий PDF (GET /api/report/{id}),
+  оплата — через POST /api/pay (сейчас тестовая заглушка ЮKassa).
+
+  TODO перед продакшеном:
+  [ ] METRIKA_ID — вставить номер счётчика Яндекс.Метрики
+  [ ] YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY — подключить реальную оплату
+  [ ] FSSP_API_TOKEN — платный API судебных приставов для полной проверки
+  [ ] ANTHROPIC_API_KEY — LLM-вердикт вместо детерминированных правил
+  [ ] Футер: email поддержки, ИНН/ОГРНИП, наименование ИП/ООО
+  [ ] Оферта и Политика обработки ПДн
+  ============================================================
+-->
+<html lang="ru">
+<head>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Проверка авто по VIN и госномеру — залог, аресты, ДТП | ЧистаяСделка Авто</title>
+<meta name="description" content="Проверка автомобиля перед покупкой: залог в реестре ФНП и лизинг — в реальном времени, аресты, розыск, ДТП, история регистраций. У каждого блока указана дата актуальности данных. PDF-отчёт от 199 ₽.">
+<style>
+/* ================= base ================= */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0a0a0a;
+  --muted:#6b7280;
+  --line:#e5e7eb;
+  --bg:#ffffff;
+  --bg-soft:#f8fafc;
+  --accent:#2563EB;
+  --accent-dark:#1d4ed8;
+  --accent-soft:#eff6ff;
+  /* цвета риска — используются ТОЛЬКО внутри макета отчёта */
+  --ok:#16a34a;
+  --warn:#d97706;
+  --bad:#dc2626;
+  --radius:16px;
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color:var(--ink);
+  background:var(--bg);
+  line-height:1.55;
+  font-size:16px;
+  -webkit-font-smoothing:antialiased;
+}
+img,svg{max-width:100%;display:block}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+section{padding:72px 0}
+h2{font-size:clamp(26px,4vw,34px);letter-spacing:-.02em;line-height:1.2;margin-bottom:12px}
+.sub{color:var(--muted);max-width:640px;margin-bottom:40px;font-size:17px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border:0;cursor:pointer;font:inherit;font-weight:600;
+  border-radius:12px;padding:14px 24px;font-size:16px;
+  background:var(--accent);color:#fff;transition:background .15s,transform .1s;
+  white-space:nowrap;
+}
+.btn:hover{background:var(--accent-dark);text-decoration:none}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--bg-soft)}
+.note{font-size:13px;color:var(--muted)}
+
+/* ================= header ================= */
+header{
+  position:sticky;top:0;z-index:50;
+  background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+}
+.nav{display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{font-weight:800;font-size:18px;letter-spacing:-.02em;color:var(--ink)}
+.logo span{color:var(--accent)}
+.nav a.mini{color:var(--muted);font-size:14px;margin-right:20px}
+.nav a.mini:hover{color:var(--ink);text-decoration:none}
+.nav .btn{padding:9px 18px;font-size:14px;border-radius:10px}
+.nav-links{display:flex;align-items:center}
+
+/* ================= hero ================= */
+.hero{padding:64px 0 80px}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}
+.hero h1{font-size:clamp(30px,4.6vw,46px);line-height:1.12;letter-spacing:-.025em;margin-bottom:16px}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p.lead{color:var(--muted);font-size:18px;margin-bottom:28px;max-width:480px}
+.check-form{display:flex;gap:10px;max-width:520px}
+.check-form input{
+  flex:1;min-width:0;font:inherit;padding:14px 16px;
+  border:1.5px solid var(--line);border-radius:12px;outline:none;
+  transition:border-color .15s;
+}
+.check-form input:focus{border-color:var(--accent)}
+.check-form input.err{border-color:var(--bad);animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+#checkLoader{text-align:center;padding:26px 8px 14px}
+.cl-spinner{width:46px;height:46px;margin:0 auto 18px;border:4px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:clspin .9s linear infinite}
+@keyframes clspin{to{transform:rotate(360deg)}}
+.cl-status{font-weight:700;font-size:15.5px;color:#0a0a0a;min-height:22px;transition:opacity .25s}
+.cl-bar{height:6px;background:var(--accent-soft);border-radius:6px;margin:16px auto 12px;max-width:280px;overflow:hidden}
+.cl-bar i{display:block;height:100%;width:4%;background:var(--accent);border-radius:6px;transition:width .8s ease}
+.cl-note{font-size:12.5px;color:#6b7280;max-width:330px;margin:0 auto;line-height:1.5}
+.hero .hint{margin-top:10px}
+.hero-badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+.hero-badges span{
+  font-size:12.5px;color:var(--muted);border:1px solid var(--line);
+  border-radius:999px;padding:5px 12px;background:#fff;
+}
+
+/* ================= report mockup ================= */
+.report{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:0 24px 64px rgba(15,23,42,.13),0 4px 12px rgba(15,23,42,.05);
+  padding:22px 22px 20px;max-width:460px;margin-left:auto;
+  font-size:14px;position:relative;
+}
+.report-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:6px}
+.report-head .rt{font-weight:700;font-size:15px}
+.report-head .robj{color:var(--muted);font-size:12.5px;margin-top:3px;word-break:break-word}
+.report-head .rtag{
+  font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--accent);
+  background:var(--accent-soft);border-radius:6px;padding:4px 8px;white-space:nowrap;
+}
+/* gauge */
+.gauge{width:210px;margin:8px auto 0;text-align:center}
+.gauge svg{overflow:visible}
+#needle{
+  transform-origin:100px 100px;transform:rotate(-90deg);
+  transition:transform 1.4s cubic-bezier(.34,1.3,.5,1);
+}
+.report.play #needle{transform:rotate(4deg)}   /* середина шкалы — средний риск */
+.report.pending #needle{transform:rotate(-90deg);transition-duration:.5s}
+.gauge-labels{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);
+  margin-top:-6px;padding:0 4px;text-transform:lowercase}
+.verdict{margin:6px 0 14px;text-align:center}
+.verdict b{font-size:22px;letter-spacing:.02em;color:var(--warn);display:block;line-height:1.1}
+.verdict small{color:var(--muted);font-size:12px}
+.report.pending .verdict b{color:var(--muted)}
+/* rows */
+.rrows{border-top:1px solid var(--line)}
+.rrow{
+  display:flex;align-items:center;gap:10px;padding:9px 2px;
+  border-bottom:1px solid #f1f5f9;
+  opacity:0;transform:translateY(6px);
+}
+.report.play .rrow{animation:rowin .45s ease forwards}
+.report.pending .rrow,.report.static .rrow{opacity:1;transform:none;animation:none}
+@keyframes rowin{to{opacity:1;transform:none}}
+.report.play .rrow:nth-child(1){animation-delay:.35s}
+.report.play .rrow:nth-child(2){animation-delay:.55s}
+.report.play .rrow:nth-child(3){animation-delay:.75s}
+.report.play .rrow:nth-child(4){animation-delay:.95s}
+.report.play .rrow:nth-child(5){animation-delay:1.15s}
+.report.play .rrow:nth-child(6){animation-delay:1.35s}
+.ric{
+  width:20px;height:20px;border-radius:50%;flex:none;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;line-height:1;
+}
+.ric.ok{background:#dcfce7;color:var(--ok)}
+.ric.warn{background:#fef3c7;color:var(--warn)}
+.ric.pend{background:#f1f5f9;color:#94a3b8}
+.rmain{flex:1;min-width:0}
+.rname{font-weight:600;font-size:13px;line-height:1.3}
+.rsrc{font-size:11px;color:var(--muted)}
+.rres{font-size:12px;font-weight:600;white-space:nowrap}
+.rres.ok{color:var(--ok)}
+.rres.warn{color:var(--warn)}
+.rres.pend{color:#94a3b8;font-weight:500}
+/* recommendations */
+.recs{
+  margin-top:14px;background:var(--bg-soft);border-radius:10px;padding:12px 14px;
+}
+.recs .rct{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);
+  text-transform:uppercase;margin-bottom:6px}
+.recs ul{list-style:none}
+.recs li{font-size:12.5px;color:#374151;padding-left:14px;position:relative;margin-top:4px}
+.recs li::before{content:"—";position:absolute;left:0;color:#9ca3af}
+.report-cta{display:none;width:100%;margin-top:14px;font-size:15px;padding:13px}
+.report.pending .report-cta{display:inline-flex}
+
+/* ================= sources ================= */
+.soft{background:var(--bg-soft)}
+.cards6{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.scard{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:22px;
+}
+.scard .db{
+  display:inline-block;font-size:12px;font-weight:700;letter-spacing:.04em;
+  color:var(--accent);background:var(--accent-soft);border-radius:6px;
+  padding:4px 10px;margin-bottom:12px;
+}
+.scard h3{font-size:16px;margin-bottom:6px;letter-spacing:-.01em}
+.scard p{font-size:14px;color:var(--muted)}
+
+/* ================= risks ================= */
+.risks{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.rcard{border:1px solid var(--line);border-radius:var(--radius);padding:24px}
+.rcard .law{font-size:12px;color:var(--muted);border:1px solid var(--line);
+  border-radius:999px;padding:3px 10px;display:inline-block;margin-bottom:14px}
+.rcard h3{font-size:17px;margin-bottom:8px;letter-spacing:-.01em}
+.rcard p{font-size:14px;color:#374151}
+
+/* ================= fz266 ================= */
+.fz{
+  border:1px solid var(--line);border-left:4px solid var(--accent);
+  border-radius:var(--radius);padding:28px 32px;background:#fff;
+  display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;
+}
+.fz h2{font-size:22px}
+.fz p{font-size:15px;color:#374151;margin-top:8px}
+.fz ol{margin:8px 0 0 18px;font-size:15px;color:#374151}
+.fz ol li{margin-top:8px}
+.fz .flag{font-weight:600;color:var(--ink)}
+
+/* ================= compare ================= */
+.compare{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:stretch}
+.ccol{border:1px solid var(--line);border-radius:var(--radius);padding:26px;background:#fff;display:flex;flex-direction:column}
+.ccol.us{border:2px solid var(--accent);position:relative;box-shadow:0 12px 40px rgba(37,99,235,.12)}
+.ccol.us .flagtop{
+  position:absolute;top:-12px;left:50%;transform:translateX(-50%);
+  background:var(--accent);color:#fff;font-size:11.5px;font-weight:700;
+  border-radius:999px;padding:4px 12px;letter-spacing:.03em;white-space:nowrap;
+}
+.ccol .who{font-weight:700;font-size:16px}
+.ccol .price{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:6px 0 14px}
+.ccol .price small{font-size:13px;font-weight:500;color:var(--muted)}
+.ccol ul{list-style:none;font-size:14px;color:#374151;flex:1}
+.ccol li{padding:7px 0 7px 24px;border-top:1px solid #f1f5f9;position:relative}
+.ccol li::before{content:"·";position:absolute;left:8px;color:#9ca3af;font-weight:700}
+.ccol.us li::before{content:"✓";color:var(--accent);font-size:12px;left:4px;top:9px}
+.ccol li.minus::before{content:"—";color:#9ca3af;font-size:12px;left:4px;top:9px}
+
+/* ================= pricing ================= */
+.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:stretch}
+.plan{border:1px solid var(--line);border-radius:var(--radius);padding:28px;background:#fff;display:flex;flex-direction:column;position:relative}
+.plan.hot{border:2px solid var(--accent);box-shadow:0 12px 40px rgba(37,99,235,.12)}
+.plan .hotlabel{
+  position:absolute;top:-12px;left:50%;transform:translateX(-50%);
+  background:var(--accent);color:#fff;font-size:11.5px;font-weight:700;
+  border-radius:999px;padding:4px 12px;white-space:nowrap;
+}
+.plan h3{font-size:17px}
+.plan .pprice{font-size:32px;font-weight:800;letter-spacing:-.03em;margin:10px 0 2px}
+.plan .pprice small{font-size:14px;font-weight:500;color:var(--muted)}
+.plan .pper{font-size:13px;color:var(--muted);margin-bottom:16px}
+.plan ul{list-style:none;font-size:14px;color:#374151;flex:1;margin-bottom:20px}
+.plan li{padding:6px 0 6px 22px;position:relative}
+.plan li::before{content:"✓";position:absolute;left:0;color:var(--accent);font-size:12px;font-weight:700}
+.guarantee{margin-top:24px;text-align:center;font-size:14px;color:var(--muted)}
+.guarantee b{color:var(--ink)}
+
+/* ================= faq ================= */
+.faq{max-width:760px}
+.faq details{border-bottom:1px solid var(--line)}
+.faq summary{
+  cursor:pointer;list-style:none;font-weight:600;font-size:16px;
+  padding:18px 36px 18px 0;position:relative;
+}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{
+  content:"+";position:absolute;right:4px;top:50%;transform:translateY(-50%);
+  font-size:22px;font-weight:400;color:var(--muted);transition:transform .2s;
+}
+.faq details[open] summary::after{transform:translateY(-50%) rotate(45deg)}
+.faq details p{padding:0 0 18px;color:#374151;font-size:15px;max-width:680px}
+
+/* ================= footer ================= */
+footer{border-top:1px solid var(--line);padding:40px 0 48px;background:var(--bg-soft)}
+footer .cols{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap}
+footer .disc{font-size:13px;color:var(--muted);max-width:560px}
+footer .links{font-size:14px;display:flex;flex-direction:column;gap:8px}
+footer .links a{color:var(--muted)}
+footer .todo{font-size:13px;color:var(--muted)}
+
+/* ================= modal ================= */
+.modal-back{
+  position:fixed;inset:0;background:rgba(10,10,10,.5);z-index:100;
+  /* высокая модалка не обрезается сверху: overlay сам скроллится, align-items:flex-start
+     не даёт клипнуть верх, а margin:auto на .modal центрирует её, когда места хватает */
+  display:none;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;
+}
+.modal-back.open{display:flex}
+.modal{
+  background:#fff;border-radius:var(--radius);max-width:440px;width:100%;
+  padding:28px;position:relative;box-shadow:0 30px 80px rgba(15,23,42,.3);
+  margin:auto;max-height:calc(100vh - 40px);overflow:auto;
+}
+/* CTA-оплаты всегда видна: прилипает к низу модалки, не уходит за экран при длинном превью */
+/* Липкий блок с кнопкой. Вместо мягкой тени вверх — узкая полоса РАЗМЫТИЯ по
+   верхней кромке: контент, уезжающий под кнопку, смазывается и гаснет. Это и
+   честнее (видно, что под блоком что-то есть), и занимает меньше места, чем
+   растушёванная тень на 22 пикселя. */
+.cta-sticky{position:sticky;bottom:-16px;background:#eff6ff;margin:8px -16px -16px;
+  padding:10px 16px 14px;z-index:6;border-radius:0 0 12px 12px}
+/* Полоса появляется ТОЛЬКО когда под блоком реально есть прокручиваемый контент
+   (класс ставит stickyFade). Раньше рисовалась всегда — и на коротких шагах, где
+   скроллить нечего, ложилась поверх поля ввода и съедала его нижнюю границу. */
+.cta-sticky.fade::before{content:"";position:absolute;left:0;right:0;top:-20px;height:20px;
+  pointer-events:none;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  background:linear-gradient(to bottom,rgba(239,246,255,0),rgba(239,246,255,.92));
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 65%);
+  mask-image:linear-gradient(to bottom,transparent,#000 65%)}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   МОБИЛЬНАЯ ОПЛАТА: не модалка, а отдельный экран.
+   Две трети трафика — смартфоны, но внутри оплаты они конвертируют вдвое хуже
+   десктопа (8,7% против 18,2% из открывших). На стороне ЮKassa разницы нет —
+   ломалось здесь. Четыре причины, все от того, что стилей под мобильный не было:
+     1. двойной скролл — прокручивались и подложка, и модалка;
+     2. контенту доставалось 264 px из 360 (20 px подложки + 28 px модалки
+        с каждой стороны) — отсюда обрывы вроде «Ульянин Никита Юр…»;
+     3. у .cta-sticky отрицательные поля -16px не совпадали с padding 28px,
+        поэтому кнопка вылезала за край и накрывала текст собой;
+     4. max-height:100vh не учитывает адресную строку — низ обрезался.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (max-width:640px){
+  .modal-back{padding:0;align-items:stretch;overflow:hidden}   /* скролл только внутри */
+  .modal{
+    max-width:none;width:100%;margin:0;border-radius:0;
+    height:100dvh;max-height:100dvh;          /* dvh честно учитывает адресную строку */
+    padding:0 16px;                            /* 328 px контенту вместо 264 */
+    overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  }
+  /* Заголовок закреплён сверху: всегда понятно, где ты и как выйти */
+  .modal h3{position:sticky;top:0;z-index:7;background:#fff;
+    margin:0 -16px 4px;padding:16px 52px 10px 16px;border-bottom:1px solid var(--line)}
+  .modal .x{position:fixed;top:14px;right:12px;z-index:8}
+  /* Поля совпали с padding модалки — кнопка больше не вылезает и не накрывает текст.
+     env(safe-area-inset-bottom) уводит её из-под жестовой полосы айфона. */
+  .cta-sticky{bottom:0;margin:10px -16px 0;border-radius:0;
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+  .modal form,.modal .mt{padding-bottom:4px}
+}
+.modal .x{
+  position:absolute;top:14px;right:14px;border:0;background:none;cursor:pointer;
+  font-size:22px;color:var(--muted);line-height:1;padding:6px;
+}
+.modal h3{font-size:20px;letter-spacing:-.01em;margin-bottom:4px}
+.modal .mt{color:var(--muted);font-size:14px;margin-bottom:20px}
+.modal .mt b{color:var(--ink)}
+.modal label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px}
+.modal input[type=text],.modal input[type=email]{
+  width:100%;font:inherit;padding:12px 14px;border:1.5px solid var(--line);
+  border-radius:10px;outline:none;transition:border-color .15s;
+}
+.modal input:focus{border-color:var(--accent)}
+.modal input.err{border-color:var(--bad)}
+.pdn{display:flex;gap:10px;align-items:flex-start;margin:18px 0;font-size:13px;color:var(--muted)}
+.pdn input{margin-top:3px;accent-color:var(--accent);flex:none;width:16px;height:16px}
+.modal .btn{width:100%}
+.modal .merr{color:var(--bad);font-size:13px;margin-top:10px;display:none}
+.modal .merr.show{display:block}
+.modal .mtodo{margin-top:12px;font-size:12.5px;color:var(--muted);background:var(--bg-soft);
+  border-radius:8px;padding:10px 12px;display:none}
+.modal .mtodo.show{display:block}
+
+/* ================= mobile ================= */
+@media (max-width:920px){
+  section{padding:56px 0}
+  .hero{padding:40px 0 56px}
+  .hero-grid{grid-template-columns:1fr;gap:36px}
+  .report{margin:0 auto}
+  .cards6{grid-template-columns:1fr 1fr}
+  .risks,.compare,.plans{grid-template-columns:1fr}
+  .fz{grid-template-columns:1fr;padding:24px}
+  .ccol.us,.plan.hot{order:-1}
+  .nav a.mini{display:none}
+}
+@media (max-width:560px){
+  .cards6{grid-template-columns:1fr}
+  .check-form{flex-direction:column}
+  .check-form .btn{width:100%}
+
+  /* Первый экран на телефоне: до поля ввода человек проходил заголовок в три
+     строки с висячим словом и абзац в пять строк 18-м кеглем. Поле — главное,
+     ради чего пришли, — оказывалось у самого сгиба. */
+  .hero{padding:22px 0 40px}
+  /* 30px (нижняя граница clamp) ломали заголовок на ТРИ строки с рваным правым
+     краем: отступы справа 165 / 66 / 170 px. Глаз читает такую пилу как «блок
+     сдвинут влево», хотя слева везде ровно 20. При 28px строк две, разброс 21. */
+  .hero h1{font-size:28px;text-wrap:balance;letter-spacing:-.02em}
+  .hero p.lead{font-size:15.5px;line-height:1.5;margin-bottom:18px}
+  .hero-badges{gap:6px;margin-top:18px}
+  .hero-badges span{font-size:11.5px;padding:4px 10px}
+  .nav .btn{padding:8px 14px;font-size:13px}         /* шапка липкая — кнопку оставляем */
+  .hero .hint{font-size:11.5px;line-height:1.45}
+}
+@media (prefers-reduced-motion:reduce){
+  #needle{transition:none}
+  .report.play .rrow{animation-duration:.01s;animation-delay:0s!important}
+}
+
+/* ================= unified controls & focus (a11y) ================= */
+input[type=text],input[type=email],input[type=tel],input[type=number],input[type=search],input[type=url],input[type=password],input[type=date],select,textarea{
+  font:inherit;color:var(--ink);background:#fff;
+  border:1.5px solid var(--line);border-radius:10px;
+  padding:12px 14px;outline:none;
+  transition:border-color .15s ease,box-shadow .15s ease,background-color .15s ease;
+}
+input[type=text]:hover,input[type=email]:hover,input[type=tel]:hover,input[type=number]:hover,input[type=search]:hover,input[type=url]:hover,input[type=password]:hover,input[type=date]:hover,select:hover,textarea:hover{
+  border-color:#cbd5e1;
+}
+input:focus-visible,select:focus-visible,textarea:focus-visible{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(37,99,235,.18);
+}
+button:focus-visible,.btn:focus-visible,a.btn:focus-visible,summary:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(37,99,235,.35);
+}
+input[type=checkbox]:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;
+}
+
+/* generic select — кастомная стрелка в дизайн-системе */
+select{
+  appearance:none;-webkit-appearance:none;-moz-appearance:none;
+  padding-right:38px;cursor:pointer;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M1 1l5 5 5-5'/></svg>");
+  background-repeat:no-repeat;background-position:right 14px center;background-size:12px 8px;
+}
+select:focus{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%232563EB' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M1 1l5 5 5-5'/></svg>")}
+select::-ms-expand{display:none}
+
+/* ================= micro-transitions on hovers ================= */
+.btn{transition:background .18s ease,transform .1s ease,box-shadow .18s ease}
+.scard,.rcard,.plan,.ccol{
+  transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
+  will-change:transform;
+}
+.scard:hover,.rcard:hover{
+  transform:translateY(-2px);
+  box-shadow:0 10px 28px rgba(15,23,42,.07);
+  border-color:#dbe1e8;
+}
+.plan:hover,.ccol:hover{
+  transform:translateY(-2px);
+  box-shadow:0 14px 40px rgba(15,23,42,.09);
+}
+.plan.hot:hover,.ccol.us:hover{
+  box-shadow:0 18px 48px rgba(37,99,235,.18);
+}
+.faq summary{transition:color .15s ease}
+.faq summary:hover{color:var(--accent)}
+footer .links a{transition:color .15s ease}
+footer .links a:hover{color:var(--ink);text-decoration:none}
+.nav a.mini{transition:color .15s ease}
+
+/* ================= кастомный календарь (desktop only) ================= */
+.dp-wrap{position:relative}
+.dp-cal{
+  position:absolute;top:calc(100% + 6px);left:0;z-index:20;
+  background:#fff;border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 24px 56px rgba(15,23,42,.16),0 4px 12px rgba(15,23,42,.06);
+  padding:14px;width:296px;
+  display:none;
+  user-select:none;
+  font-size:13px;
+  animation:dpin .14s ease-out;
+}
+@keyframes dpin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.dp-cal.open{display:block}
+.dp-head{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:4px;margin-bottom:10px;
+}
+.dp-nav{
+  background:transparent;border:0;cursor:pointer;
+  padding:6px 8px;border-radius:8px;
+  color:var(--muted);font-size:13px;line-height:1;font-weight:600;
+  transition:background .12s ease,color .12s ease;
+}
+.dp-nav:hover{background:var(--bg-soft);color:var(--ink)}
+.dp-nav:focus-visible{background:var(--accent-soft);color:var(--accent);outline:none}
+.dp-title{
+  flex:1;text-align:center;
+  background:transparent;border:0;cursor:pointer;
+  font-weight:600;font-size:13.5px;color:var(--ink);
+  letter-spacing:-.01em;
+  padding:6px 8px;border-radius:8px;
+  transition:background .12s ease;
+}
+.dp-title:hover{background:var(--bg-soft)}
+.dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.dp-wd{
+  text-align:center;font-size:10.5px;color:var(--muted);
+  padding:6px 0 4px;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;
+}
+.dp-day{
+  text-align:center;padding:7px 0;border-radius:8px;cursor:pointer;
+  color:var(--ink);font-size:13px;
+  transition:background .12s ease,color .12s ease;
+}
+.dp-day.out{color:#cbd5e1}
+.dp-day:hover{background:var(--accent-soft);color:var(--accent)}
+.dp-day.today{font-weight:700;color:var(--accent)}
+.dp-day.sel,.dp-day.sel.today{background:var(--accent);color:#fff;font-weight:600}
+.dp-day.sel:hover{background:var(--accent-dark);color:#fff}
+.dp-years{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:240px;overflow:auto}
+.dp-year{
+  text-align:center;padding:10px 0;border-radius:8px;cursor:pointer;
+  color:var(--ink);font-size:13px;
+  transition:background .12s ease,color .12s ease;
+}
+.dp-year:hover{background:var(--accent-soft);color:var(--accent)}
+.dp-year.sel{background:var(--accent);color:#fff;font-weight:600}
+.dp-months{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.dp-month{
+  text-align:center;padding:10px 6px;border-radius:8px;cursor:pointer;
+  color:var(--ink);font-size:13px;
+  transition:background .12s ease,color .12s ease;
+}
+.dp-month:hover{background:var(--accent-soft);color:var(--accent)}
+.dp-month.sel{background:var(--accent);color:#fff;font-weight:600}
+
+/* мобильный брейкпоинт — используем нативный picker */
+@media (max-width:640px){
+  .dp-cal{display:none !important}
+}
+  /* Автоподстановка адреса (DaData) */
+  .addr-suggest{position:fixed;z-index:9999;background:#fff;border:1px solid var(--line);
+    border-radius:10px;box-shadow:0 14px 34px rgba(10,10,10,.14);max-height:260px;overflow:auto}
+  .addr-item{padding:10px 13px;font-size:14px;cursor:pointer;border-bottom:1px solid #f1f5f9;color:#0a0a0a}
+  .addr-item:last-child{border-bottom:none}
+  .addr-item:hover,.addr-item.active{background:var(--accent-soft)}
+
+  /* ── Варианты экрана цены (визуальный A/B/C, см. price_variants.js) ────────
+     Префикс .pv-, чтобы плечи не задевали остальную вёрстку лендинга. */
+  /* B — бланк заключения */
+  .pv-doc{border:1px solid #e5e7eb;border-radius:12px;padding:14px;background:
+    repeating-linear-gradient(0deg,#fff,#fff 22px,#fafafa 22px,#fafafa 23px)}
+  .pv-doc .hd{display:flex;justify-content:space-between;font-family:'SF Mono',ui-monospace,Menlo,monospace;
+    font-size:11px;color:#94a3b8;border-bottom:1px solid #e5e7eb;padding-bottom:7px;margin-bottom:9px}
+  .pv-doc .ttl{font-size:15px;font-weight:700;margin-bottom:6px}
+  .pv-doc .ln{height:9px;border-radius:3px;background:#eef2f7;margin:7px 0}
+  .pv-doc .ln.s{width:62%}
+  .pv-doc .ln.m{width:84%}
+  .pv-doc .seal{margin-top:11px;font-size:11px;color:#94a3b8;text-align:right}
+  /* C — две колонки «он знает / вы знаете». На 390px колонка ~165px, поэтому
+     маркер висит на первой строке, а между пунктами дан воздух. */
+  .pv-two{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+  .pv-side{border:1px solid #e5e7eb;border-radius:12px;padding:12px 11px 13px}
+  .pv-side.you{border-color:#fecaca;background:#fef2f2}
+  .pv-side .who{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;
+    margin-bottom:9px;white-space:nowrap}
+  .pv-side.you .who{color:#b91c1c}
+  .pv-side ul{list-style:none;font-size:12.5px;line-height:1.42;margin:0;padding:0}
+  .pv-side li{padding:0 0 9px 16px;position:relative;color:#374151}
+  .pv-side li:last-child{padding-bottom:0}
+  .pv-side li::before{content:'✓';position:absolute;left:0;top:0;line-height:1.42;
+    color:#16a34a;font-weight:800;font-size:11.5px}
+  .pv-side.you li::before{content:'—';color:#b91c1c}
+  @media (max-width:340px){ .pv-two{grid-template-columns:1fr} }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="logo">Чистая<span>Сделка</span></div>
+    <div class="nav-links">
+      <a class="mini" href="#sources">Что проверяем</a>
+      <a class="mini" href="#compare">Сравнение</a>
+      <a class="mini" href="#pricing">Тарифы</a>
+      <a class="mini" href="#faq">Вопросы</a>
+      <button class="btn" data-tariff="base" data-cta>Проверить авто</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Проверка автомобиля перед покупкой — <em>залог, аресты, ДТП</em></h1>
+      <p class="lead">Главное — <b>залог и лизинг</b>: их проверяем в реестре ФНП <b>в момент запроса</b>. Заложенную машину забирает банк, и это единственный риск, от которого не спасает осмотр. Плюс аресты, розыск, ДТП и история регистраций. PDF с вердиктом на почту.</p>
+      <form class="check-form" id="heroForm" autocomplete="off">
+        <input id="heroInput" type="text" inputmode="text"
+               placeholder="VIN или госномер"
+               aria-label="VIN или государственный номер автомобиля">
+        <button class="btn" type="submit">Проверить</button>
+      </form>
+      <!-- VIN просим первым не для красоты: опознание по нему стоит нам вдвое
+           дешевле, чем по госномеру (конвертация — отдельный платный запрос). -->
+      <p class="note hint">Например WBA11AD0305R89199 — или номер вида Т114НК977</p>
+
+
+      <div class="hero-badges">
+        <span>Реестр залогов ФНП</span><span>Федресурс</span><span>ГИБДД</span>
+        <span>ФТС</span><span>ФГИС «Такси»</span>
+      </div>
+    </div>
+
+    <!-- живой макет отчёта -->
+    <div class="report static" id="report" aria-label="Пример риск-отчёта">
+      <div class="report-head">
+        <div>
+          <div class="rt">Риск при покупке автомобиля</div>
+          <div class="robj" id="reportObj">BMW X1, 2020 · VIN WBA1…9199</div>
+        </div>
+        <span class="rtag" id="reportTag">ПРИМЕР ОТЧЁТА</span>
+      </div>
+
+      <div class="gauge" aria-hidden="true">
+        <svg viewBox="0 0 200 112" width="210" height="118">
+          <path d="M 20 100 A 80 80 0 0 1 60 30.7"  fill="none" stroke="#16a34a" stroke-width="13" stroke-linecap="round"/>
+          <path d="M 63 28.9 A 80 80 0 0 1 137 28.9" fill="none" stroke="#f59e0b" stroke-width="13" stroke-linecap="round"/>
+          <path d="M 140 30.7 A 80 80 0 0 1 180 100" fill="none" stroke="#dc2626" stroke-width="13" stroke-linecap="round"/>
+          <g id="needle">
+            <line x1="100" y1="100" x2="100" y2="34" stroke="#0a0a0a" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="100" cy="100" r="7" fill="#0a0a0a"/>
+            <circle cx="100" cy="100" r="2.6" fill="#fff"/>
+          </g>
+        </svg>
+        <div class="gauge-labels"><span>низкий</span><span>средний</span><span>высокий</span></div>
+      </div>
+
+      <!-- Пример показывает СРЕДНИЙ риск, а не «всё чисто». Две причины.
+           Первая: так честнее — по нашей базе 66% готовых отчётов (260 из 392)
+           дают средний или высокий риск, то есть «чисто» как раз нетипично.
+           Вторая: прежний пример сам себе противоречил — стрелка и подпись
+           говорили «существенных рисков не обнаружено», а строкой ниже висела
+           ипотека банка. Ровно то расхождение шкалы с находками, которое мы
+           считаем ошибкой в самом продукте. -->
+      <!-- Пример показывает СРЕДНИЙ риск и найденное ДТП намеренно. «Всё чисто»
+           в примере обещает то, чего мы не гарантируем, и расходится с типичным
+           результатом: у машины с пробегом почти всегда есть что показать. -->
+      <div class="verdict">
+        <b id="verdictText">СРЕДНИЙ</b>
+        <small id="verdictSub">машина была в ДТП</small>
+      </div>
+
+      <div class="rrows" id="rrows">
+        <div class="rrow" data-name="Залог и лизинг" data-src="Реестр залогов ФНП · сегодня"
+             data-ico="ok" data-res="не найдено" data-rescls="ok">
+          <span class="ric ok">✓</span>
+          <div class="rmain"><div class="rname">Залог и лизинг</div><div class="rsrc">Реестр залогов ФНП · проверено сегодня</div></div>
+          <span class="rres ok">не найдено</span>
+        </div>
+        <div class="rrow" data-name="Ограничения на регистрацию" data-src="ГИБДД"
+             data-ico="ok" data-res="не найдено" data-rescls="ok">
+          <span class="ric ok">✓</span>
+          <div class="rmain"><div class="rname">Ограничения на регистрацию</div><div class="rsrc">ГИБДД · данные на 24.03.2023</div></div>
+          <span class="rres ok">не найдено</span>
+        </div>
+        <div class="rrow" data-name="Розыск" data-src="ГИБДД"
+             data-ico="ok" data-res="не найдено" data-rescls="ok">
+          <span class="ric ok">✓</span>
+          <div class="rmain"><div class="rname">Розыск</div><div class="rsrc">ГИБДД · данные на 24.03.2023</div></div>
+          <span class="rres ok">не найдено</span>
+        </div>
+        <div class="rrow" data-name="ДТП" data-src="ГИБДД"
+             data-ico="warn" data-res="1 ДТП" data-rescls="warn">
+          <span class="ric warn">!</span>
+          <div class="rmain"><div class="rname">ДТП</div><div class="rsrc">ГИБДД · данные на 01.01.2023</div></div>
+          <span class="rres warn">1 ДТП</span>
+        </div>
+        <div class="rrow" data-name="История регистраций" data-src="ГИБДД"
+             data-ico="warn" data-res="4 владельца" data-rescls="warn">
+          <span class="ric warn">!</span>
+          <div class="rmain"><div class="rname">История регистраций</div><div class="rsrc">ГИБДД · данные на 15.08.2023</div></div>
+          <span class="rres warn">4 владельца</span>
+        </div>
+        <div class="rrow" data-name="Такси и каршеринг" data-src="ФГИС «Такси»"
+             data-ico="ok" data-res="не найдено" data-rescls="ok">
+          <span class="ric ok">✓</span>
+          <div class="rmain"><div class="rname">Такси и каршеринг</div><div class="rsrc">ФГИС «Такси» · данные на 15.08.2023</div></div>
+          <span class="rres ok">не найдено</span>
+        </div>
+      </div>
+
+      <div class="recs" id="recs">
+        <div class="rct">Рекомендации</div>
+        <ul>
+          <li>Машина была в ДТП — проверьте геометрию кузова и качество ремонта на подъёмнике.</li>
+          <li>Четыре владельца за шесть лет — частая перепродажа обычно означает скрытую проблему.</li>
+          <li>Данные ГИБДД в отчёте на 2023 год: перед сделкой сверьтесь на портале Госуслуг, это бесплатно.</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============ SOURCES ============ -->
+<section class="soft" id="sources">
+  <div class="wrap">
+    <h2>Что именно проверяем</h2>
+    <p class="sub">Восемь блоков по государственным источникам. По каждому — не сырые данные, а вывод: нашли или нет, что это значит и на какую дату сведения актуальны.</p>
+    <div class="cards6">
+      <div class="scard">
+        <span class="db">Реестр залогов ФНП · онлайн</span>
+        <h3>Залог и лизинг</h3>
+        <p>Главная проверка. Заложенную машину банк забирает даже у добросовестного покупателя — по статье 353 ГК залог сохраняется при смене собственника. Осмотр на подъёмнике этого не покажет. Запрашиваем <b>в момент формирования отчёта</b>.</p>
+      </div>
+      <div class="scard">
+        <span class="db">ГИБДД</span>
+        <h3>Ограничения на регистрацию</h3>
+        <p>Запрет регистрационных действий от приставов, судов или таможни. С таким запретом машину не переоформят на вас: деньги отданы, автомобиль числится за продавцом.</p>
+      </div>
+      <div class="scard">
+        <span class="db">ГИБДД</span>
+        <h3>Розыск и утилизация</h3>
+        <p>Числится ли автомобиль в розыске и не подан ли он в утиль. Утилизированную машину на учёт не поставят, розыскную — изымут.</p>
+      </div>
+      <div class="scard">
+        <span class="db">ГИБДД</span>
+        <h3>ДТП</h3>
+        <p>Даты, тип происшествия, регион и перечень повреждённых элементов. Серьёзный удар в силовые части кузова меняет геометрию — и цену.</p>
+      </div>
+      <div class="scard">
+        <span class="db">ЕАИСТО</span>
+        <h3>Пробег и скрутки</h3>
+        <p>Показания одометра из диагностических карт. Если записей меньше двух — так и пишем: по одной точке вывод о скрутке сделать нельзя. Пустой блок не выдаём за «чисто».</p>
+      </div>
+      <div class="scard">
+        <span class="db">ГИБДД</span>
+        <h3>История регистраций</h3>
+        <p>Сколько владельцев и как долго каждый держал машину. Четыре собственника за три года — почти всегда признак скрытой проблемы или перекупа.</p>
+      </div>
+      <div class="scard">
+        <span class="db">ФГИС «Такси»</span>
+        <h3>Такси и каршеринг</h3>
+        <p>Работала ли машина в найме. Ресурс у таксовавшего автомобиля выработан втрое быстрее, а в объявлении об этом не пишут.</p>
+      </div>
+      <div class="scard">
+        <span class="db">ФТС</span>
+        <h3>Таможня</h3>
+        <p>Ввозился ли автомобиль из-за границы и завершено ли оформление. Незакрытая процедура — это неоплаченный утильсбор и отказ в регистрации.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TRUST: гарантия + образец ============ -->
+<section id="trust">
+  <div class="wrap">
+    <h2>Почему результату можно доверять</h2>
+    <p class="sub">Мы говорим то, чего не говорит никто на этом рынке: у каждого блока стоит дата, на которую верны данные. Не «ДТП не найдено», а «ДТП не найдено по данным на 01.01.2023».</p>
+    <div class="cards6">
+      <div class="scard">
+        <span class="db">Честно</span>
+        <h3>Дата у каждой строки</h3>
+        <p>Залог и лизинг мы запрашиваем онлайн — там стоит сегодняшняя дата. Сведения ГИБДД сейчас приходят из архивных выгрузок, и мы пишем это прямо в отчёте, а не выдаём за свежую проверку.</p>
+      </div>
+      <div class="scard">
+        <span class="db">Честно</span>
+        <h3>Пустое не выдаём за чистое</h3>
+        <p>Если по машине нет диагностических карт, мы пишем «данных нет», а не «скруток не обнаружено». Отсутствие записи — это не доказательство исправности, и делать вид, что это одно и то же, нельзя.</p>
+      </div>
+      <div class="scard">
+        <span class="db">Гарантия</span>
+        <h3>Не проверили — вернём деньги</h3>
+        <p>Если источники не ответили и отчёт получился пустым, возвращаем оплату полностью. Вы платите за результат, а не за попытку.</p>
+      </div>
+      <div class="scard">
+        <span class="db">Сначала бесплатно</span>
+        <h3>Сперва покажем машину, потом попросим денег</h3>
+        <p>Введите VIN — бесплатно покажем марку, модель, год и характеристики, чтобы вы убедились: нашли именно вашу. Оплата только за проверки и PDF, когда уже видно, что получите.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RISKS ============ -->
+<section>
+  <div class="wrap">
+    <h2>Почему это важно</h2>
+    <p class="sub">Три сценария, в которых покупатель теряет и деньги, и машину. Ни один из них не виден при осмотре — даже на подъёмнике у хорошего мастера.</p>
+    <div class="risks">
+      <div class="rcard">
+        <span class="law">ст. 353 ГК РФ</span>
+        <h3>Машина в залоге у банка</h3>
+        <p>При смене собственника залог сохраняется. Продавец берёт ваши деньги, перестаёт платить по кредиту — и банк через суд забирает автомобиль у вас. Добросовестность покупателя спасает только если залог не был зарегистрирован в реестре ФНП. Проверка занимает секунды, а стоит потери всей суммы.</p>
+      </div>
+      <div class="rcard">
+        <span class="law">ФЗ-229 «Об исполнительном производстве»</span>
+        <h3>Запрет регистрационных действий</h3>
+        <p>У продавца долги — пристав наложил запрет. Договор подписан, деньги отданы, а в ГИБДД разворачивают: машина остаётся оформленной на прежнего владельца. Снимать запрет придётся через него же, и делать это он уже не обязан.</p>
+      </div>
+      <div class="rcard">
+        <span class="law">ст. 15 ГК РФ</span>
+        <h3>Скрученный пробег и битый кузов</h3>
+        <p>Одометр скручивают на сотню тысяч за пятнадцать минут, следы ДТП прячут под шпаклёвкой и полировкой. Разница в цене между честными двумястами тысячами и нарисованными восьмьюдесятью — сотни тысяч рублей, которые вы переплачиваете и не докажете потом в суде.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FZ-266 ============ -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="fz">
+      <div>
+        <h2>Честно про данные ГИБДД</h2>
+        <p>Публичный доступ к базе ГИБДД для сторонних сервисов сейчас закрыт. Данные о ДТП, ограничениях и регистрациях приходят из архивных выгрузок — у нас, и у большинства других сервисов тоже. Разница в том, что мы пишем дату каждой выгрузки прямо в отчёте, а не выдаём трёхлетний срез за сегодняшнюю проверку.</p>
+      </div>
+      <div>
+        <p>Что это значит для вас на практике:</p>
+        <ol>
+          <li><span class="flag">Залог и лизинг — актуальны на сегодня.</span> Реестр ФНП открыт, мы опрашиваем его в момент формирования отчёта. Это и есть главный риск покупки, и он закрыт полностью.</li>
+          <li><span class="flag">Данные ГИБДД — со сроком.</span> Мы показываем дату, а свежие сведения об ограничениях вы бесплатно сверите на Госуслугах за пару минут. Мы прямо говорим как, вместо того чтобы делать вид, что этого шага не нужно.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMPARE ============ -->
+<section class="soft" id="compare">
+  <div class="wrap">
+    <h2>Чем мы отличаемся</h2>
+    <p class="sub">Мы не делаем вид, что крупных сервисов не существует. У них шире охват — у нас честнее про сроки данных и дешевле там, где риск настоящий.</p>
+    <div class="compare">
+      <div class="ccol">
+        <div class="who">Крупные сервисы проверки</div>
+        <div class="price">329 – 499 ₽ <small>· за отчёт</small></div>
+        <ul>
+          <li>Шире охват: сервисная история у дилеров, расчёты страховых, объявления с фото</li>
+          <li>Свежие данные ГИБДД по договорам с операторами</li>
+          <li class="minus">Дата актуальности данных в отчёте не указывается</li>
+          <li class="minus">Пустой блок часто подаётся как «ничего не найдено»</li>
+        </ul>
+      </div>
+      <div class="ccol us">
+        <span class="flagtop">честно про сроки</span>
+        <div class="who">ЧистаяСделка Авто</div>
+        <div class="price">от <span class="js-object-price">199 ₽</span> <small>· 5 минут</small></div>
+        <ul>
+          <li><b>Залог и лизинг — в реальном времени.</b> Главный риск покупки закрыт полностью</li>
+          <li>У каждой строки отчёта стоит дата, на которую верны данные</li>
+          <li>«Данных нет» и «чисто» — разные формулировки, мы их не путаем</li>
+          <li>Вердикт и рекомендации: о чём торговаться, что проверить на осмотре</li>
+          <li>Возврат, если источники не ответили</li>
+        </ul>
+      </div>
+      <div class="ccol">
+        <div class="who">Выездная диагностика</div>
+        <div class="price">3 000 – 8 000 ₽ <small>· по записи</small></div>
+        <ul>
+          <li>Живой осмотр кузова, подвески, двигателя, компьютерная диагностика</li>
+          <li class="minus">Не видит залог, аресты и запреты — это не про железо</li>
+          <li class="minus">Дорого и долго, когда смотришь пятую машину за неделю</li>
+          <li>Правильный шаг после нашей проверки — по той машине, что прошла отбор</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRICING ============ -->
+<section id="pricing">
+  <div class="wrap">
+    <h2>Тарифы</h2>
+    <p class="sub">Тарифы делятся не по количеству строк, а по свежести данных. Дешёвый — только то, что проверяется прямо сейчас. Полный — всё, что есть, с датой у каждого блока.</p>
+    <div class="plans">
+      <div class="plan">
+        <h3>Проверка на залог</h3>
+        <div class="pprice"><span class="js-object-price">199 ₽</span></div>
+        <div class="pper">данные актуальны на сегодня</div>
+        <ul>
+          <li>Залог в реестре ФНП — запрос в реальном времени</li>
+          <li>Лизинг по базе Федресурса</li>
+          <li>Марка, модель, год, двигатель по VIN</li>
+          <li>PDF-отчёт · готовность ~2 минуты</li>
+        </ul>
+        <button class="btn ghost" data-tariff="object" data-cta>Проверить на залог</button>
+      </div>
+      <div class="plan hot">
+        <span class="hotlabel">полная проверка</span>
+        <h3>Все проверки</h3>
+        <div class="pprice"><span class="js-base-price">449 ₽</span></div>
+        <div class="pper">8 блоков, у каждого своя дата</div>
+        <ul>
+          <li>Всё из проверки на залог</li>
+          <li>Ограничения, розыск, ДТП, история регистраций</li>
+          <li>Пробег, такси и каршеринг, таможня</li>
+          <li>Вердикт риска и рекомендации к осмотру</li>
+        </ul>
+        <button class="btn" data-tariff="base" data-cta>Проверить полностью</button>
+      </div>
+    </div>
+    <!-- Оговорка про архивные данные стоит ПОД тарифами, а не в подвале: человек
+         читает её ровно перед решением о покупке, а не после списания денег. -->
+    <p class="guarantee"><b>Гарантия возврата:</b> если источники не ответят и отчёт получится пустым — вернём 100% оплаты.<br>
+    <span style="font-weight:400;color:#6b7280">Сведения ГИБДД в полном тарифе поступают из архивных выгрузок — дата актуальности указана у каждого блока в отчёте. Залог и лизинг проверяются в реальном времени.</span></p>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="soft" id="faq">
+  <div class="wrap">
+    <h2>Вопросы и ответы</h2>
+    <div class="faq" style="margin-top:32px">
+      <details>
+        <summary>Насколько свежие у вас данные?</summary>
+        <p>По-разному, и мы пишем это у каждого блока. <b>Залог и лизинг</b> — реестр Федеральной нотариальной палаты и Федресурс — запрашиваются в момент формирования отчёта, там всегда сегодняшняя дата. <b>Сведения ГИБДД</b> — ДТП, ограничения, розыск, история регистраций — сейчас поступают из архивных выгрузок, потому что публичный доступ к базе для сторонних сервисов закрыт. В отчёте у каждой такой строки стоит дата, на которую данные верны. Мы считаем, что показать дату честнее, чем выдавать архив за сегодняшнюю проверку.</p>
+      </details>
+      <details>
+        <summary>Тогда зачем платить, если данные не самые свежие?</summary>
+        <p>Резонный вопрос. За 199 ₽ вы получаете <b>только актуальное</b> — залог и лизинг, то есть ровно тот риск, от которого не спасёт ни осмотр, ни диагностика: заложенную машину банк забирает и у добросовестного покупателя. За 449 ₽ добавляются остальные блоки: они не заменяют проверку на Госуслугах, но дают картину истории автомобиля в одном документе за пять минут. Если вам нужны исключительно свежие сведения ГИБДД — они бесплатны на портале Госуслуг, и мы прямо пишем об этом в отчёте.</p>
+      </details>
+      <details>
+        <summary>Откуда вы берёте данные?</summary>
+        <p>Из государственных реестров и официальных источников: реестр уведомлений о залоге движимого имущества Федеральной нотариальной палаты, Федресурс, базы Госавтоинспекции, ЕАИСТО (диагностические карты), ФТС, ФГИС «Такси». Никаких «слитых баз» и серых источников не используем.</p>
+      </details>
+      <details>
+        <summary>Что если по машине ничего не нашлось?</summary>
+        <p>Мы пишем «данных нет», а не «всё чисто» — это разные вещи. Отсутствие записи о ДТП не доказывает, что машина не билась: происшествие могли оформить по европротоколу или не оформлять вовсе. Пустой блок — повод внимательнее смотреть машину живьём, а не расслабиться.</p>
+      </details>
+      <details>
+        <summary>Проверяете ли вы продавца?</summary>
+        <p>Пока нет — отчёт про автомобиль, а не про человека. Долги продавца на сделку с машиной влияют косвенно: из-за них приставы накладывают запрет регистрационных действий, и этот запрет мы видим в блоке «Ограничения». Если планируете сделку через договор с рассрочкой или задатком — проверку продавца имеет смысл заказывать отдельно.</p>
+      </details>
+      <details>
+        <summary>Насколько это быстро?</summary>
+        <p>Проверка на залог — около двух минут. Полный отчёт — до пяти. Если источник временно недоступен, срок может вырасти; мы предупредим на почту и пришлём отчёт, как только соберём. Если собрать не удастся — вернём деньги.</p>
+      </details>
+      <details>
+        <summary>Что делать, если найдутся риски?</summary>
+        <p>В отчёте будет не просто «найдено ДТП», а что это значит и что делать: какие узлы смотреть на подъёмнике, какие документы просить у продавца, о чём торговаться и в каком случае от машины лучше отказаться. Залог и запрет регистрации — основания уйти со сделки, а не торговаться.</p>
+      </details>
+      <details>
+        <summary>Что с безопасностью моих данных?</summary>
+        <p>Мы обрабатываем данные по 152-ФЗ: используем их только для формирования вашего отчёта, не передаём третьим лицам и удаляем по вашему запросу. Отчёт получаете только вы на указанный email.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="wrap cols">
+    <div class="disc">
+      <div class="logo" style="margin-bottom:10px">Чистая<span>Сделка</span></div>
+      <p>Сервис предоставляет предварительный скрининг рисков по открытым официальным источникам и не является юридическим заключением или юридической услугой. Результаты носят информационный характер; для окончательного решения по сделке рекомендуем консультацию юриста.</p>
+      <p style="margin-top:12px">
+        Самозанятый Ульянин Никита Юрьевич · ИНН 772459697062 · e-mail: <a href="mailto:support@chistasdelka.ru">support@chistasdelka.ru</a>
+      </p>
+    </div>
+    <div class="links">
+      <a href="/privacy">Политика обработки персональных данных</a>
+      <a href="/consent">Согласие на обработку персональных данных</a>
+      <a href="/offer">Публичная оферта</a>
+      <a href="#pricing">Тарифы</a>
+      <a href="#faq">Вопросы и ответы</a>
+    </div>
+  </div>
+</footer>
+
+<!-- ============ COOKIE BANNER ============ -->
+<div id="cookieBar" role="dialog" aria-label="Уведомление об использовании cookie"
+     style="display:none;position:fixed;left:16px;right:16px;bottom:16px;z-index:120;
+            background:#0a0a0a;color:#fff;border-radius:14px;padding:14px 18px;
+            box-shadow:0 20px 60px rgba(0,0,0,.35);
+            align-items:center;gap:14px;flex-wrap:wrap;
+            font-size:14px;line-height:1.5;max-width:1088px;margin:0 auto;">
+  <div style="flex:1;min-width:220px">
+    Мы используем cookie и Яндекс.Метрику для работы сайта и аналитики. Продолжая пользоваться сайтом, вы соглашаетесь с этим. Подробнее — в
+    <a href="/privacy" style="color:#93c5fd;text-decoration:underline">Политике</a>.
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button id="cookieAccept" type="button"
+      style="font:inherit;font-weight:600;font-size:14px;padding:10px 16px;
+             border-radius:10px;border:0;background:#2563EB;color:#fff;cursor:pointer">
+      Принять
+    </button>
+  </div>
+</div>
+
+<!-- ============ CHECKOUT MODAL ============ -->
+<div class="modal-back" id="modalBack" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal">
+    <button class="x" id="modalClose" aria-label="Закрыть">×</button>
+    <h3 id="modalTitle">Запуск проверки</h3>
+    <p class="mt" id="modalTariff" style="display:none">Тариф: <b>Базовая — 1 490 ₽</b></p>
+    <form id="checkoutForm" novalidate>
+      <!-- Полей продавца в авто-версии нет: отчёт про машину, а не про человека.
+           Разметку не удаляю, а скрываю — если добавим проверку продавца по ФИО
+           (ФССП, банкротство), конвейер под неё в app.py остался рабочим. -->
+      <div style="display:none">
+        <input type="text" id="coFio" autocomplete="off">
+        <div class="dp-wrap" id="coDobWrap">
+          <input type="text" id="coDob" autocomplete="off" inputmode="numeric" maxlength="10">
+          <div class="dp-cal" id="coDobCal" role="dialog" aria-label="Календарь"></div>
+        </div>
+      </div>
+      <label for="coObj">VIN или государственный номер</label>
+      <input type="text" id="coObj" placeholder="WBA11AD0305R89199" autocomplete="off"
+             autocapitalize="characters" spellcheck="false">
+      <p class="note" style="font-size:12.5px;color:var(--muted);margin:-8px 0 12px">
+        VIN — 17 знаков, в ПТС, СТС и под лобовым стеклом. Госномер тоже подойдёт,
+        но по VIN проверка точнее.</p>
+      <div id="coPassportBlock" style="display:none">
+        <div style="display:flex;gap:10px">
+          <input type="text" id="coPasSeria" inputmode="numeric" maxlength="4" autocomplete="off">
+          <input type="text" id="coPasNomer" inputmode="numeric" maxlength="6" autocomplete="off">
+        </div>
+      </div>
+      <label for="coEmail">Email для отчёта</label>
+      <input type="email" id="coEmail" placeholder="you@example.com" autocomplete="email">
+      <label class="pdn">
+        <input type="checkbox" id="coPdn" required>
+        <span>Согласен(на) на обработку персональных данных согласно <a href="/consent" target="_blank" rel="noopener">Согласию</a> и <a href="/privacy" target="_blank" rel="noopener">Политике</a>.</span>
+      </label>
+      <p class="note" style="font-size:12.5px;color:var(--muted);margin:-6px 0 12px">Нажимая «Проверить бесплатно», вы принимаете условия <a href="/offer" target="_blank" rel="noopener">Публичной оферты</a>.</p>
+      <button class="btn" type="submit" id="payBtn">Проверить бесплатно</button>
+      <p class="merr" id="modalErr"></p>
+      <p class="mtodo" id="modalTodo">Демо-режим: тестовая оплата. Отчёт всё равно сформирован — скачайте PDF ниже.</p>
+    </form>
+    <div id="checkLoader" style="display:none">
+      <div class="cl-spinner"></div>
+      <div class="cl-status" id="clStatus">Ищем автомобиль по VIN…</div>
+      <div class="cl-bar"><i id="clBar"></i></div>
+      <div class="cl-note" id="clNote">Определяем марку, модель и год выпуска — это займёт несколько секунд.</div>
+    </div>
+    <div id="resultBox" style="display:none;margin-top:18px;padding:14px 16px;background:var(--bg-soft);border-radius:12px">
+      <div id="riskGauge" style="width:190px;margin:2px auto 0;text-align:center">
+        <svg viewBox="0 0 200 112" width="190" height="112" style="overflow:visible">
+          <path d="M 20 100 A 80 80 0 0 1 60 30.7"  fill="none" stroke="#16a34a" stroke-width="13" stroke-linecap="round"/>
+          <path d="M 63 28.9 A 80 80 0 0 1 137 28.9" fill="none" stroke="#f59e0b" stroke-width="13" stroke-linecap="round"/>
+          <path d="M 140 30.7 A 80 80 0 0 1 180 100" fill="none" stroke="#dc2626" stroke-width="13" stroke-linecap="round"/>
+          <g id="previewNeedle" style="transform-box:view-box;transform-origin:100px 100px;transition:transform 1s cubic-bezier(.22,1,.36,1)">
+            <line x1="100" y1="100" x2="100" y2="36" stroke="#0a0a0a" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="100" cy="100" r="7" fill="#0a0a0a"/><circle cx="100" cy="100" r="2.6" fill="#fff"/>
+          </g>
+        </svg>
+        <div style="display:flex;justify-content:space-between;font-size:10.5px;color:#6b7280;margin-top:-4px;padding:0 4px"><span>низкий</span><span>средний</span><span>высокий</span></div>
+      </div>
+      <div id="resultRisk" style="font-weight:900;font-size:24px;text-align:center;margin:4px 0 10px"></div>
+      <div id="resultHead" style="font-size:14px;color:#374151;margin-bottom:8px"></div>
+      <div id="resultBody" style="font-size:13.5px;color:#374151;margin-bottom:10px;line-height:1.5"></div>
+      <ul id="resultChecks" style="font-size:13px;list-style:none;padding:0;margin:0 0 10px"></ul>
+      <a id="resultPdfLink" class="btn" style="display:none" href="#" target="_blank" rel="noopener">Скачать PDF-отчёт</a>
+      <div id="unlockCta" style="display:none"></div>
+      <div id="monitorCta" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid #e5e7eb">
+        <!-- Мониторинг продавца из версии для недвижимости здесь не к месту:
+             машину покупают за дни, а не за недели, и человек нам не интересен.
+             Зато уместен повторный залог: он появляется в реестре в тот же день,
+             и проверить его перед передачей денег — реальная нужда. -->
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Повторная проверка залога в день сделки — 99 ₽</div>
+        <div style="font-size:12.5px;color:#6b7280;margin-bottom:10px">Между просмотром и передачей денег проходит несколько дней, и за это время продавец может заложить машину в микрофинансовой организации. Запись появляется в реестре ФНП в тот же день. Проверим ещё раз прямо перед сделкой — пришлём результат за минуту.</div>
+        <button id="monitorBtn" class="btn ghost" type="button" onclick="startMonitoring()">Проверить залог перед сделкой — 99 ₽</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- градиенты фирменного знака (гексагон + щит: синий→красный сверху вниз) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="cs-ru" x1="0.35" y1="0" x2="0.65" y2="1"><stop offset="0" stop-color="#1a34e0"/><stop offset="1" stop-color="#e11f1f"/></linearGradient>
+  <linearGradient id="cs-shg" gradientUnits="userSpaceOnUse" x1="12" y1="2" x2="12" y2="22"><stop offset="0" stop-color="#1a34e0"/><stop offset="1" stop-color="#e11f1f"/></linearGradient>
+</defs></svg>
+<script>window.ANALYTICS_CONFIG = {endpoint:'/api/goal', metrika:111408587};</script>
+<script src="/static/analytics.js"></script>
+<!-- Варианты экрана цены (визуальный A/B/C). Грузится до основного скрипта:
+     wizFinal/wizObjectOnly спрашивают renderPriceVariant при отрисовке. -->
+<!-- Версия в ссылке обязательна: файл переехал с недвижимости на авто, и у
+     всех, кто заходил раньше, в кэше лежит экран цены про квартиры. Меняете
+     содержимое — двигайте номер, иначе правку увидят только новые посетители. -->
+<script src="/static/price_variants.js?v=auto2"></script>
+<script>
+/* ================= tracking ================= */
+var METRIKA_ID = 111408587; // TODO: вставить номер счётчика Метрики
+var TARIFFS = {
+  base:    {title:'Базовая',     price:'1 490 ₽'},
+  ext:     {title:'Расширенная', price:'2 990 ₽'},
+  realtor: {title:'Риелторам — 10 проверок', price:'9 900 ₽'}
+};
+// A/B/n тест цены (раунд 2: 299/490/690/5299-премиум) — вариант с сервера (кука cs_variant).
+// Значения до ответа /api/prices. Держим их равными боевым: пока грузится
+// конфиг, экран уже нарисован, и старые 499/299 мигали ценой, которой нет.
+window.CS_VARIANT = 'B'; window.CS_GUARANTEE = true; window.CS_PREMIUM = false; window.CS_PRICE = 449; window.CS_OBJECT_PRICE = 199; window.CS_OBJECT_PRICE_STR = '199 ₽'; window.CS_BUMP_PRICE = 299; window.CS_KIT_PRICE = 199; window.CS_LOADED = false;
+(function(){
+  fetch('/api/variant').then(function(r){return r.json();}).then(function(d){
+    window.CS_VARIANT = d.variant; window.CS_GUARANTEE = !!d.guarantee; window.CS_PREMIUM = !!d.premium;
+    window.CS_PRICE = d.price; window.CS_OBJECT_PRICE = d.object_price; window.CS_OBJECT_PRICE_STR = d.object_price_str; window.CS_BUMP_PRICE = d.bump_price || window.CS_BUMP_PRICE; window.CS_KIT_PRICE = d.kit_price || window.CS_KIT_PRICE; window.CS_LOADED = true;
+    TARIFFS.base.price = d.price_str;
+    if(d.premium){ TARIFFS.base.title = 'Премиум-проверка'; }
+    var els = document.querySelectorAll('.js-base-price');
+    for(var i=0;i<els.length;i++) els[i].textContent = d.price_str;
+    var oels = document.querySelectorAll('.js-object-price');
+    for(var k=0;k<oels.length;k++) oels[k].textContent = d.object_price_str || oels[k].textContent;
+    // тег визита для сегментации воронки по варианту в Метрике
+    try{ if(typeof ym==='function') ym(111408587,'params',{ab_variant:d.variant}); }catch(e){}
+  }).catch(function(){});
+})();
+// аналитика — вендор-модуль analytics.js (goal, сквозной id, visit, abandonment).
+// Тонкий алиас, чтобы существующие вызовы goal(...) работали без правок.
+function goal(name, params){ try{ return window.Analytics && Analytics.goal(name, params||{}); }catch(e){} }
+
+/* ================= cookie / analytics consent (152-ФЗ) ================= */
+var COOKIE_KEY = 'cs_cookie_consent'; // 'accepted' | 'necessary'
+function getCookieChoice(){
+  try{ return localStorage.getItem(COOKIE_KEY); }catch(e){ return null; }
+}
+function setCookieChoice(v){
+  try{ localStorage.setItem(COOKIE_KEY, v); }catch(e){}
+}
+function loadMetrika(){
+  // Метрика загружается ТОЛЬКО после согласия «Принять».
+  if(!METRIKA_ID || window.__metrikaLoaded) return;
+  window.__metrikaLoaded = true;
+  (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+    m[i].l=1*new Date();k=e.createElement(t),a=e.getElementsByTagName(t)[0],
+    k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
+    (window,document,"script","https://mc.yandex.ru/metrika/tag.js","ym");
+  ym(METRIKA_ID, "init", {clickmap:true, trackLinks:true, accurateTrackBounce:true});
+  console.log('[metrika] would load counter', METRIKA_ID);
+}
+(function initCookieBar(){
+  var bar = document.getElementById('cookieBar');
+  var accept = document.getElementById('cookieAccept');
+  var necessary = document.getElementById('cookieNecessary');
+  var choice = getCookieChoice();
+  loadMetrika();                       // аналитика грузится сразу (информ-модель)
+  if(choice){ return; }                // выбор уже был — баннер не показываем
+  // показать информационный баннер (первый визит)
+  bar.style.display = 'flex';
+  accept.addEventListener('click', function(){
+    setCookieChoice('accepted');
+    bar.style.display = 'none';
+    loadMetrika();
+  });
+  necessary && necessary.addEventListener('click', function(){
+    setCookieChoice('necessary');
+    bar.style.display = 'none';
+  });
+})();
+
+/* ================= elements ================= */
+var report     = document.getElementById('report');
+var reportObj  = document.getElementById('reportObj');
+var reportTag  = document.getElementById('reportTag');
+var verdictText= document.getElementById('verdictText');
+var verdictSub = document.getElementById('verdictSub');
+var rrows      = document.getElementById('rrows');
+var recs       = document.getElementById('recs');
+var heroForm   = document.getElementById('heroForm');
+var heroInput  = document.getElementById('heroInput');
+
+var modalBack  = document.getElementById('modalBack');
+var modalTariff= document.getElementById('modalTariff');
+var coFio      = document.getElementById('coFio');
+var coDob      = document.getElementById('coDob');
+var coObj      = document.getElementById('coObj');
+var coEmail    = document.getElementById('coEmail');
+var coPdn      = document.getElementById('coPdn');
+var modalErr   = document.getElementById('modalErr');
+var modalTodo  = document.getElementById('modalTodo');
+var payBtn     = document.getElementById('payBtn');
+var resultBox  = document.getElementById('resultBox');
+var resultRisk = document.getElementById('resultRisk');
+var resultHead = document.getElementById('resultHead');
+var resultBody = document.getElementById('resultBody');
+var resultChecks = document.getElementById('resultChecks');
+var resultPdfLink = document.getElementById('resultPdfLink');
+
+/* ================= demo animation ================= */
+var demoPlayed = false;
+function playDemo(){
+  if(demoPlayed) return;
+  demoPlayed = true;
+  report.classList.remove('static');
+  // reflow, then play
+  void report.offsetWidth;
+  report.classList.add('play');
+  setTimeout(function(){ goal('report_demo_view'); }, 2000);
+}
+if('IntersectionObserver' in window){
+  // подготовим к анимации: скрыть строки до входа во вьюпорт
+  report.classList.remove('static');
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){ playDemo(); io.disconnect(); }
+    });
+  }, {threshold:.4});
+  io.observe(report);
+  // страховка: если через 2.5с так и не показали (вьюпорт-краевой случай) — играем
+  setTimeout(playDemo, 2500);
+}else{
+  report.classList.add('play');
+  demoPlayed = true;
+  goal('report_demo_view');
+}
+
+/* ================= hero check flow ================= */
+var currentObject = '';
+var checkStarted = false;      // ввели объект в героя (открылась форма)
+var checkRunStarted = false;   // реально запустили проверку (сабмит формы → лоадер)
+
+// Пошаговый трекинг заполнения формы ФИО/ДР — видно, на каком поле отваливаются.
+// Событие поля шлётся ОДИН раз за загрузку, как только в поле появилось осмысленное значение.
+(function(){
+  var f = {};
+  function step(el, ev, min){
+    if(!el) return;
+    el.addEventListener('input', function(){
+      if(f[ev]) return;
+      if((el.value || '').trim().length >= (min || 2)){ f[ev] = true; goal(ev); }
+    });
+  }
+  step(coFio, 'co_fio', 2);
+  step(coDob, 'co_dob', 6);
+  step(coEmail, 'co_email', 3);
+})();
+
+function setRowsPending(){
+  Array.prototype.forEach.call(rrows.children, function(row){
+    var ic  = row.querySelector('.ric');
+    var res = row.querySelector('.rres');
+    ic.className = 'ric pend';
+    ic.textContent = '…';
+    res.className = 'rres pend';
+    res.textContent = 'будет проверено';
+  });
+}
+function setRowsDemo(){
+  Array.prototype.forEach.call(rrows.children, function(row){
+    var ic  = row.querySelector('.ric');
+    var res = row.querySelector('.rres');
+    var cls = row.getAttribute('data-ico');
+    ic.className = 'ric ' + cls;
+    ic.textContent = (cls === 'warn') ? '!' : '✓';
+    res.className = 'rres ' + row.getAttribute('data-rescls');
+    res.textContent = row.getAttribute('data-res');
+  });
+}
+
+heroForm.addEventListener('submit', function(e){
+  e.preventDefault();
+  var val = heroInput.value.trim();
+  if(!val){
+    heroInput.classList.add('err');
+    heroInput.focus();
+    setTimeout(function(){ heroInput.classList.remove('err'); }, 600);
+    return;
+  }
+  currentObject = val;
+  if(!checkStarted){ goal('check_started', {object: val}); checkStarted = true; }
+  else{ goal('check_started', {object: val, repeat: true}); }
+
+  // пересобираем макет под введённый объект
+  report.classList.remove('play','static');
+  report.classList.add('pending');
+  reportObj.textContent = val;
+  reportTag.textContent = 'ВАШ ОБЪЕКТ';
+  verdictText.textContent = '—';
+  verdictSub.textContent = 'вердикт будет готов через ~15 минут';
+  setRowsPending();
+  recs.style.display = 'none';
+
+  // на мобиле — доскроллить до макета
+  if(window.matchMedia('(max-width:920px)').matches){
+    report.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+  // и сразу открываем чекаут (раньше это делала отдельная кнопка карточки).
+  openCheckout('base');
+});
+
+/* ================= checkout ================= */
+var currentTariff = 'base';
+var emailLeftSent = false;
+
+function openCheckout(tariff){
+  currentTariff = TARIFFS[tariff] ? tariff : 'base';
+  var _obj = (currentObject || (coObj && coObj.value) || (heroInput && heroInput.value) || '').trim();
+  // #1: без введённого объекта модалка ушла бы в тупик (превью по пустому → ошибка, поле
+  // ввода спрятано). Вместо этого ведём к hero-полю: фокус + скролл + мягкая подсказка.
+  if(!_obj){
+    if(heroInput){
+      try{ heroInput.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){}
+      setTimeout(function(){ try{ heroInput.focus(); }catch(e){} }, 350);
+      heroInput.style.transition = 'box-shadow .2s';
+      heroInput.style.boxShadow = '0 0 0 3px rgba(37,99,235,.35)';
+      setTimeout(function(){ heroInput.style.boxShadow = ''; }, 1600);
+      if(heroInput.placeholder && heroInput.placeholder.indexOf('Укажите') < 0){
+        heroInput.setAttribute('data-ph0', heroInput.placeholder);
+        heroInput.placeholder = 'VIN или госномер';
+        setTimeout(function(){ var p=heroInput.getAttribute('data-ph0'); if(p) heroInput.placeholder=p; }, 4000);
+      }
+    }
+    goal('cta_empty_object', {tariff: currentTariff});
+    return;
+  }
+  coObj.value = _obj;
+  modalTariff.style.display = 'block';
+  // #3: экранируем пользовательский ввод объекта (XSS через adder/suggest-address).
+  var _esc = function(s){ return String(s||'').replace(/[<>&"]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); };
+  modalTariff.innerHTML = 'Проверяем объект: <b>' + (_esc(coObj.value) || '—') + '</b>';
+  modalErr.classList.remove('show');
+  modalTodo.classList.remove('show');
+  resultBox.style.display = 'none';
+  // НОВАЯ ВОРОНКА: сразу превью по объекту — форму ПДн (ФИО/ДР/email) не показываем до оплаты.
+  document.getElementById('checkoutForm').style.display = 'none';
+  document.getElementById('checkLoader').style.display = 'none';
+  modalBack.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  if(window.__hideAllSuggests) window.__hideAllSuggests.forEach(function(fn){ try{ fn(); }catch(e){} });
+  if(heroInput) heroInput.blur();
+  goal('checkout_open', {tariff: currentTariff});
+  runPreview();  // бесплатное превью объекта — без сбора персональных данных
+}
+function closeCheckout(){
+  // закрыли модалку во время загрузки → считаем уходом (секунда фиксируется)
+  try{ if(window.Analytics){ Analytics.abandonNow(); Analytics.stopLoading(); } }catch(e){}
+  // диагностика трения: закрыли форму, не запустив РЕАЛЬНУЮ проверку — какие поля заполнили.
+  // Раньше тут был !checkStarted, но он ставится ещё на геройском вводе (до формы) → событие
+  // никогда не слалось. Правильный флаг — checkRunStarted (сабмит формы, старт лоадера).
+  try{
+    if(modalBack.classList.contains('open') && !checkRunStarted){
+      var f = [];
+      if(coFio && coFio.value.trim()) f.push('fio');
+      if(coDob && coDob.value.trim()) f.push('dob');
+      if(coObj && coObj.value.trim()) f.push('obj');
+      if(coEmail && coEmail.value.trim()) f.push('email');
+      goal('checkout_abandon', {fields: f.join(',') || 'none'});
+    }
+  }catch(e){}
+  modalBack.classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.getElementById('modalClose').addEventListener('click', closeCheckout);
+modalBack.addEventListener('click', function(e){ if(e.target === modalBack) closeCheckout(); });
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape' && modalBack.classList.contains('open')) closeCheckout();
+});
+
+/* все CTA-кнопки с data-cta */
+Array.prototype.forEach.call(document.querySelectorAll('[data-cta]'), function(btn){
+  btn.addEventListener('click', function(){
+    var tariff = btn.getAttribute('data-tariff') || 'base';
+    goal('cta_click', {tariff: tariff});
+    openCheckout(tariff);
+  });
+});
+
+function validEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v); }
+
+coEmail.addEventListener('blur', function(){
+  if(!emailLeftSent && validEmail(coEmail.value.trim())){
+    emailLeftSent = true;
+    goal('email_left', {tariff: currentTariff});
+  }
+});
+
+function validDob(v){ return /^\d{2}\.\d{2}\.\d{4}$/.test(v) || /^\d{4}-\d{2}-\d{2}$/.test(v); }
+
+function renderResult(res){
+  var paid = res.paid === true;
+  var isPreview = res.risk === 'preview';
+  var riskColor = {
+    'низкий':'#16a34a', 'средний':'#d97706', 'высокий':'#dc2626', 'preview':'#d97706'
+  }[res.risk] || '#0a0a0a';
+  resultRisk.textContent = isPreview ? '?' : (res.risk||'').toUpperCase();
+  resultRisk.style.color = riskColor;
+  // поворот стрелки: preview — на границу «низкий/средний» (не в зелёном), знак вопроса
+  var ang = {'низкий':-58,'средний':0,'высокий':58,'preview':-29}[res.risk];
+  var nd = document.getElementById('previewNeedle');
+  if(nd){ nd.style.transform='rotate(0deg)';
+    setTimeout(function(){ nd.style.transform='rotate('+(ang||0)+'deg)'; }, 60); }
+  // В превью спидометр с «?» читается как «сломано» — прячем; ведём с прогресса (вариант 03).
+  var _gauge = document.getElementById('riskGauge'), _showTop = !isPreview;
+  if(_gauge) _gauge.style.display = _showTop ? '' : 'none';
+  resultRisk.style.display = _showTop ? '' : 'none';
+  resultHead.style.display = _showTop ? '' : 'none';
+  resultBody.style.display = _showTop ? '' : 'none';
+  resultHead.textContent = isPreview
+    ? 'Предварительно — итоговый риск ещё не определён'
+    : (res.headline || '');
+  resultBody.textContent = isPreview
+    ? (res.object_preview
+        ? 'Машина опознана по VIN. Залог, ограничения ГИБДД, розыск, ДТП, пробег, такси и таможню проверим после оплаты — с датой актуальности по каждой базе.'
+        : (res.addr_unresolved
+            ? 'По этому VIN машину не нашли. Проверьте номер: в VIN ровно 17 знаков, и в нём не бывает букв O, I и Q.'
+            : 'Полную проверку по 8 базам с вердиктом запустим после оплаты.'))
+    : (res.body || '');
+  var iconMap = {
+    'found':'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+    'not_found':'✓','not_checked':'?',
+    'pending':'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'};
+  // locked — блок, не входящий в базовый тариф. Тот же замок, что у pending:
+  // человек видит, что строка существует и что именно он не купил.
+  iconMap['locked'] = iconMap['pending'];
+  var iconCol = {'found':'#d97706','not_found':'#16a34a','not_checked':'#6b7280','pending':'#9ca3af','locked':'#9ca3af'};
+  resultChecks.innerHTML = '';
+  if(isPreview && res.object_preview){
+    // Сырой ответ нужен вариантам экрана цены (price_variants.js): им важны
+    // отдельные поля, а не готовые строки, которые собираются ниже для карточки.
+    window._objRaw = res.object_preview;
+    var o = res.object_preview, parts = [];
+    // Марка и модель — крупно, рядом с галочкой. Это единственное, по чему
+    // человек за секунду понимает «да, это моя машина» и не боится платить.
+    var name = [o.marka, o.model].filter(Boolean).join(' ');
+    if(name) parts.push(name);
+    var more = [];
+    // Год выпуска VIN-декодер знает не всегда: тогда бэкенд присылает «с 07.2019» —
+    // год поколения. Подпись плитки меняем под то, что реально пришло, иначе
+    // получится обещание точного года там, где его нет.
+    if(o.year) more.push([String(o.year).indexOf('с ') === 0 ? 'Поколение' : 'Год', o.year]);
+    if(o.engine) more.push(['Двигатель', o.engine]);
+    if(o.body) more.push(['Кузов', o.body]);
+    if(o.vin) more.push(['VIN', o.vin]);
+    window._objMore = more;
+    window._objExtra = '';
+    window._objFound = true;
+    window._objFacts = parts.join(' · ');
+    // Серую строку под названием не занимаем: VIN уже стоит плиткой, а дублировать
+    // его крупно — значит вытеснить вниз кнопку оплаты.
+    window._objAddr = '';
+  } else if(isPreview){
+    window._objFound = false; window._objFacts = ''; window._objAddr = ''; window._objExtra = '';
+    window._objMore = [];
+  }
+  // Объект не опознан — показываем хотя бы разобранный адрес. Пустое место читается
+  // как «сервис сломался», а «регион · район · посёлок · улица · индекс» — как «вас
+  // поняли». Приходит тем же ответом DaData, дополнительных запросов нет.
+  if(isPreview){ window._objParsed = (res.parsed_address || []); }
+  // Опознан дом целиком, а номера квартиры мы не знаем — предложим его назвать.
+  // Без этого человек оплачивает проверку ЗДАНИЯ: собственник дома и обременения
+  // дома, где про его квартиру нет ни строчки.
+  if(isPreview){ window._flatUnknown = (res.flat_unknown === true); }
+  // Новые территории (округа 93–96): сведений ЕГРН по ним нет ни в одном источнике.
+  // Объект мы не проверим — и человек узнаёт это ДО оплаты, а не получив половину
+  // отчёта. Раньше он платил и упирался в «объект не найден» уже после.
+  if(isPreview){ window._noEgrn = (res.no_egrn_district || ''); }
+  // Источник данных недоступен — платный отчёт тоже не соберётся. Оплату в этом
+  // состоянии не предлагаем вовсе: взять деньги и не выдать отчёт хуже, чем
+  // потерять заявку. Человеку говорим прямо и зовём вернуться.
+  if(isPreview){ window._srcDown = (res.source_down === true); }
+  // Выбор квартиры — только когда номер НЕ вводили и дом многоквартирный. Если
+  // номер назвали, а квартира не нашлась, список показывать бессмысленно: её там
+  // нет, мы только что искали. В этом случае человек видит разбор адреса, и два
+  // больших блока не занимают экран разом.
+  if(isPreview && res.show_candidates){
+    // Человек узнаёт свою квартиру по номеру, даже не зная кадастрового. Источник
+    // платный и по умолчанию выключен — тогда просто показываем прежнюю подсказку.
+    try{ offerObjectCandidates(window._lastObjectRef || ''); }catch(e){}
+    // Объект не опознан бесплатным источником — просто не показываем его
+    // характеристики. Никаких панелей и объяснений: это наша внутренняя кухня,
+    // а не проблема человека. Проверка запускается как обычно — платные
+    // государственные базы видят больше публичной карты, и заранее мы не знаем,
+    // найдётся объект там или нет.
+  }
+  var _escc = function(s){ return String(s||'').replace(/[<>&"]/g,function(x){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[x];}); };
+  (isPreview ? [] : (res.checks||[])).forEach(function(c){
+    var li = document.createElement('li');
+    li.style.padding = '4px 0';
+    li.style.borderBottom = '1px solid #f1f5f9';
+    var dStyle = c.locked ? 'color:#9ca3af;font-style:italic' : 'color:#374151';
+    // #23: экранируем поля проверок (name/source/detail) — данные из внешних реестров.
+    li.innerHTML = '<span style="display:inline-block;width:18px;font-weight:700;color:'+
+      (iconCol[c.status]||'#6b7280')+'">'+(iconMap[c.status]||'?')+'</span> '+
+      '<b>'+_escc(c.name)+'</b> · <span style="color:#6b7280">'+_escc(c.source)+'</span><br>'+
+      '<span style="font-size:12px;margin-left:22px;'+dStyle+'">'+_escc(c.detail)+'</span>';
+    resultChecks.appendChild(li);
+  });
+  window._lastReportId = res.report_id;
+  var unlock = document.getElementById('unlockCta');
+  var mon = document.getElementById('monitorCta');
+  if(paid){
+    resultPdfLink.href = res.report_url;
+    resultPdfLink.style.display = 'inline-flex';
+    if(unlock) unlock.style.display = 'none';
+    if(mon) mon.style.display = 'block';   // мониторинг — апселл после оплаты
+  }else{
+    resultPdfLink.style.display = 'none';
+    if(mon) mon.style.display = 'none';
+    if(unlock){
+      var price = (TARIFFS[currentTariff] && TARIFFS[currentTariff].price) || '1 490 ₽';
+      var nf = res.n_flags || 0;
+      var plural = function(n,a,b,c){ n=Math.abs(n)%100; var n1=n%10;
+        if(n>10&&n<20)return c; if(n1>1&&n1<5)return b; if(n1==1)return a; return c; };
+      var hook = isPreview
+        ? ''
+        : nf > 0
+        ? '<div style="font-weight:800;font-size:15px;color:#b45309;margin-bottom:4px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg> Найдено '+nf+' '+plural(nf,'сигнал','сигнала','сигналов')+', требующих внимания</div>'+
+          '<div style="font-size:13px;color:#374151;margin-bottom:12px">Что именно нашли по каждой базе и насколько это опасно для вашей сделки — в полном отчёте с рекомендациями юриста, что делать.</div>'
+        : '<div style="font-weight:800;font-size:15px;color:#15803d;margin-bottom:4px">✓ Явных стоп-факторов не обнаружено</div>'+
+          '<div style="font-size:13px;color:#374151;margin-bottom:12px">Зафиксируйте это официально: PDF-отчёт с вердиктом и датой проверки — для сделки, нотариуса и банка. И проверьте детали, которые видны только в полном отчёте.</div>';
+      // Гарантия — привязана к техрезультату (проверено/нет), без размытых формулировок.
+      var guarantee = (!isPreview && window.CS_GUARANTEE)
+        ? '<div style="display:flex;gap:9px;align-items:flex-start;margin-bottom:12px;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px">'+
+          '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" style="flex:0 0 auto;margin-top:1px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'+
+          '<div style="font-size:12.5px;color:#166534"><b>Гарантия.</b> Не смогли проверить по официальным реестрам — вернём '+price+'.</div></div>'
+        : '';
+      // Блок ценности «что откроется» (V2) — только для базовых тарифов (у премиума состав уже перечислен).
+      var v2 = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" style="flex:0 0 auto;margin-top:1px">';
+      var opens = (isPreview || window.CS_PREMIUM) ? '' :
+        '<div style="background:#fff;border:1px solid #dbeafe;border-radius:10px;padding:13px;margin-bottom:12px">'+
+        '<div style="font-size:12.5px;font-weight:800;color:#1d4ed8;margin-bottom:9px">В полном отчёте откроется:</div>'+
+        '<div style="display:flex;flex-direction:column;gap:9px">'+
+        '<div style="display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:#374151">'+v2+'<path d="M20 6 9 17l-5-5"/></svg><span><b>Детали по 8 проверкам</b> — залог, ограничения, розыск, ДТП, пробег</span></div>'+
+        '<div style="display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:#374151">'+v2+'<path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg><span><b>Рекомендации юриста</b> — что проверить перед авансом</span></div>'+
+        '<div style="display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:#374151">'+v2+'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span><b>PDF с вердиктом и датой</b> — для сделки, нотариуса, банка</span></div>'+
+        '</div></div>';
+      // Вариант D: премиум-пакет — состав честно шире (ИНН-проверка включена).
+      var premium = window.CS_PREMIUM
+        ? '<div style="margin-bottom:12px;padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px">'+
+          '<div style="font-weight:800;font-size:13.5px;color:#92400e;margin-bottom:6px">Премиум-проверка — всё включено:</div>'+
+          '<div style="font-size:12.5px;color:#374151;line-height:1.7">'+
+          '· Полный отчёт: объект в ЕГРН + долги и приставы (ФССП)<br>'+
+          '· <b>Банкротство продавца</b> (Федресурс) — включено, без доплаты<br>'+
+          '· <b>Арбитражные дела</b> (КАД Арбитр) — включено, без доплаты<br>'+
+          '· Отдельный вывод юриста по рискам ИНН + обновлённый PDF</div></div>'
+        : '';
+      var btnLabel = window.CS_PREMIUM ? 'Премиум-проверка — '+price : 'Разблокировать полный отчёт — '+price;
+      // Якорь цены: для премиума сравниваем с полной юрпроверкой сделки (5299 выглядит выгодно),
+      // для базовых — с разовой консультацией юриста.
+      var anchor = window.CS_PREMIUM
+        ? 'Юридическая проверка сделки у юриста — от 20 000 ₽ · оплата через ЮKassa'
+        : 'Консультация юриста — от 3 000 ₽ · здесь '+price+' · оплата через ЮKassa';
+      // ===== Пошаговый мастер вовлечения =====
+      // Вместо одной большой формы + оплаты дробим сбор на микро-шаги (email→ФИО→ДР).
+      // Каждый «Далее» повышает вложенность (sunk-cost + последовательность); между
+      // шагами — честная иллюзия ПОДГОТОВКИ (процесс, НЕ выдуманный вердикт про продавца).
+      window._wiz = {step:0, email:'', fio:'', dob:'', price:price, btnLabel:btnLabel, anchor:anchor};
+      unlock.style.display = 'block';
+      unlock.innerHTML =
+        '<div style="margin-top:14px;padding:16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px">'+
+        hook + premium + opens + guarantee +
+        '<div id="wizBox"></div>'+
+        '</div>';
+      wizRender(0);
+    }
+  }
+  // В превью (мастер) у голубой карточки своя подложка — убираем внешнюю серую,
+  // чтобы не было двойной вложенной плашки. Для оплаченного отчёта серая остаётся.
+  if(isPreview){ resultBox.style.background='transparent'; resultBox.style.padding='0'; }
+  else{ resultBox.style.background=''; resultBox.style.padding=''; }
+  resultBox.style.display = 'block';
+}
+
+/* ===== Order bump: модалка перед оплатой — обычный или расширенный (+199₽) ===== */
+function _bumpPrices(){
+  var base = window.CS_PRICE || 499;
+  var fmt = function(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₽'; };
+  // Цену доплаты берём с сервера (CS_BUMP_PRICE): она была зашита числом здесь и
+  // в тексте карточки, и подъём 199 → 299 показал бы одну сумму, а списал другую.
+  var add = window.CS_BUMP_PRICE || 299;
+  return {base: base, add: add, ext: base + add,
+          baseStr: fmt(base), extStr: fmt(base + add), addStr: fmt(add)};
+}
+function showBumpModal(){
+  var p = _bumpPrices();
+  var ovl = document.getElementById('bumpOvl');
+  if(!ovl){
+    ovl = document.createElement('div');
+    ovl.id = 'bumpOvl';
+    ovl.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:120;display:flex;align-items:center;justify-content:center;padding:18px';
+    ovl.addEventListener('click', function(e){ if(e.target===ovl){ ovl.style.display='none'; var b=document.getElementById('unlockBtn'); if(b){b.disabled=false; b.textContent='Разблокировать полный отчёт — '+(TARIFFS.base.price||'');} } });
+    document.body.appendChild(ovl);
+  }
+  ovl.innerHTML =
+    '<div style="background:#fff;border-radius:16px;max-width:460px;width:100%;padding:24px 22px;box-shadow:0 20px 60px rgba(0,0,0,.3)">'+
+    '<h3 style="font-size:18px;margin:0 0 6px">Выберите вариант отчёта</h3>'+
+    '<p style="font-size:13px;color:#6b7280;margin:0 0 16px">Оба открывают полный отчёт сразу после оплаты.</p>'+
+    '<button type="button" onclick="proceedPay(true)" style="display:block;width:100%;text-align:left;background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer">'+
+      '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:15px">Расширенный отчёт</b><b style="font-size:16px;color:#b45309">'+p.extStr+'</b></div>'+
+      '<div style="font-size:12.5px;color:#374151;margin-top:5px">Всё из обычного <b>+ проверка залогов и обременений</b> движимого имущества продавца (реестр залогов ФНП) + вердикт юриста с их учётом. <span style="color:#b45309">+'+p.addStr+'</span></div></button>'+
+    '<button type="button" onclick="proceedPay(false)" style="display:block;width:100%;text-align:left;background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px 16px;cursor:pointer">'+
+      '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:15px">Обычный отчёт</b><b style="font-size:16px">'+p.baseStr+'</b></div>'+
+      '<div style="font-size:12.5px;color:#6b7280;margin-top:5px">Объект в ЕГРН + долги и приставы (ФССП) + вердикт юриста + PDF.</div></button>'+
+    '<div style="font-size:11.5px;color:#9ca3af;margin-top:10px;text-align:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Оплата через ЮKassa · гарантия возврата</div></div>';
+  ovl.style.display = 'flex';
+  goal('bump_shown');
+}
+
+/* ===== Пошаговый мастер вовлечения (email → ФИО → ДР → разблокировка) ===== */
+(function(){ if(!document.getElementById('wizsp-kf')){ var st=document.createElement('style');
+  st.id='wizsp-kf'; st.textContent='@keyframes wizsp{to{transform:rotate(360deg)}}'; document.head.appendChild(st); } })();
+var ICO_CHK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" style="vertical-align:-2px"><path d="M20 6 9 17l-5-5"/></svg>';
+var ICO_LOCK = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" style="vertical-align:-1px"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+// Красный замок — «риск ещё не проверен» (не найденная проблема; подпись честно говорит «осталось проверить»).
+var ICO_LOCK_RED = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2" style="vertical-align:-1px"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+// Фирменный знак: правильный гексагон (пропуск слева, скруглённые углы) + щит, оба градиентом
+// синий→красный. Градиенты cs-ru / cs-shg определены один раз в конце body.
+function hexMark(px){
+  px = px || 40; var h = Math.round(px*62/58);
+  return '<svg width="'+px+'" height="'+h+'" viewBox="0 0 58 62" style="flex:0 0 auto;display:block">'+
+    '<path d="M12.55 15.5 L23.80 9 Q29 6 34.20 9 L45.45 15.5 Q50.65 18.5 50.65 24.5 L50.65 37.5 Q50.65 43.5 45.45 46.5 L34.20 53 Q29 56 23.80 53 L12.55 46.5" fill="none" stroke="url(#cs-ru)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>'+
+    '<svg x="17" y="19" width="24" height="24" viewBox="0 0 24 24"><g fill="none" stroke="url(#cs-shg)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></g></svg></svg>';
+}
+function wizStepLine(done, html){
+  var ic = done
+    ? '<span style="width:21px;height:21px;border-radius:50%;background:#16a34a;color:#fff;display:inline-grid;place-items:center;flex:0 0 auto"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>'
+    : '<span style="width:21px;height:21px;border-radius:50%;background:#fef2f2;display:inline-grid;place-items:center;flex:0 0 auto">'+ICO_LOCK_RED+'</span>';
+  // Иконку держим у ПЕРВОЙ строки, а не по центру блока: в строке «машина
+  // опознана» под заголовком идут четыре плитки, и центрированная галочка
+  // уезжала на середину карточки, к слову «двигатель».
+  return '<div style="display:flex;align-items:flex-start;gap:9px;font-size:12.5px;padding:8px 0;border-bottom:1px solid #eef1f5;color:'+(done?'#0a0a0a':'#6b7280')+'">'+
+    '<span style="display:inline-flex;margin-top:1px;flex:0 0 auto">'+ic+'</span><span>'+html+'</span></div>';
+}
+// Иллюзия — ПОДГОТОВКА запроса (честно: реальную платную проверку шлём после оплаты).
+// У машины проверяется САМА МАШИНА: VIN уже введён, а ФИО и дата рождения
+// продавца не нужны ни одной из восьми баз. Шаг остался ровно один — куда
+// прислать отчёт. Лишние вопросы здесь стоили бы заявок и не давали ничего.
+var WIZ_STEPS = [
+  {key:'email', ev:'wizard_email', label:'Куда прислать готовый отчёт?',
+   sub:'PDF придёт на почту сразу после проверки.', ph:'Ваш email', type:'email',
+   labor:'Готовим запросы по VIN…'}
+];
+// Плитки «кадастровый номер · статус · собственность · в реестре с» и таблица
+// разобранного адреса. Обе рисуются одинаково в тизере и в шаге мастера, поэтому
+// вынесены сюда, а не продублированы трижды.
+function _escHtml(s){
+  return String(s==null?'':s).replace(/[<>&"]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];});
+}
+
+// indent — левый отступ в пикселях: у разных вариантов пейволла своя сетка (28 у
+// тизера, 20 у карточек). Раньше я подгонял его заменой по готовой строке, и в
+// мастере вёрстка разъезжалась — параметр надёжнее.
+function objMoreHtml(indent){
+  var m = window._objMore || [];
+  if(!m.length) return '';
+  var ml = (indent == null ? 28 : indent);
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:6px;margin:8px 0 0 '+ml+'px">'+
+    m.map(function(p){
+      var mono = p[0].indexOf('номер') > -1 ? 'font-family:ui-monospace,Menlo,monospace;font-size:11.5px;' : 'font-size:12.5px;';
+      return '<div style="background:#f8fafc;border:1px solid #e6e9ef;border-radius:9px;padding:7px 9px">'+
+        '<div style="font-size:10px;color:#94a3b8;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">'+_escHtml(p[0])+'</div>'+
+        '<div style="'+mono+'color:#334155;font-weight:700;margin-top:1px;word-break:break-word">'+_escHtml(p[1])+'</div></div>';
+    }).join('')+'</div>';
+}
+
+function objParsedHtml(indent){
+  if(window._objFound) return '';
+  var p = window._objParsed || [];
+  if(!p.length) return '';
+  var ml = (indent == null ? 28 : indent);
+  return '<div id="objParsedBox" style="border:1px solid #e5e7eb;border-radius:11px;overflow:hidden;margin:9px 0 0 '+ml+'px;background:#fff">'+
+    p.map(function(r, i){
+      return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;'+
+        'padding:8px 12px;font-size:12.3px;'+(i ? 'border-top:1px solid #f1f5f9;' : '')+'">'+
+        '<span style="color:#6b7280;flex:0 0 auto">'+_escHtml(r[0])+'</span>'+
+        '<span style="font-weight:650;color:#334155;text-align:right">'+_escHtml(r[1])+'</span></div>';
+    }).join('')+'</div>'+
+    '<div style="font-size:11.5px;color:#94a3b8;margin:8px 0 0 '+ml+'px;line-height:1.45">'+
+    'После оплаты проверим по платным государственным базам — они видят больше публичных источников.</div>';
+}
+
+// Честное предупреждение по новым территориям. Показываем на всех экранах до
+// оплаты: сведений ЕГРН по округам 93–96 нет ни у одного источника, объект мы не
+// проверим. Продавца проверим полностью — ради этого человек и остаётся.
+function noEgrnHtml(ml){
+  if(!window._noEgrn) return '';
+  var m = (ml == null ? 0 : ml);
+  return '<div style="display:flex;gap:9px;align-items:flex-start;background:#fffbeb;border:1px solid #fde68a;'+
+    'border-radius:11px;padding:11px 12px;margin:0 0 11px '+m+'px">'+
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" style="flex:0 0 auto;margin-top:1px" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>'+
+    '<div style="font-size:12px;color:#92400e;line-height:1.5">'+
+    '<b>Объект мы проверить не сможем.</b> Он в '+_escHtml(window._noEgrn)+' кадастровом округе — '+
+    'по новым регионам Росреестр пока не публикует сведения ЕГРН, и данных нет ни в одном источнике.'+
+    '<div style="margin-top:5px">Продавца проверим полностью: долги у приставов, банкротство, суды, залоги.</div>'+
+    '</div></div>';
+}
+
+function wizTeaser(){
+  var chip = function(t){ return '<span style="display:flex;align-items:center;gap:7px;font-size:12px;color:#475569;'+
+    'background:#f8fafc;border:1px solid #e6e9ef;border-radius:9px;padding:8px 10px;line-height:1.2">'+
+    '<span style="width:18px;height:18px;border-radius:6px;background:#fef2f2;display:inline-grid;place-items:center;flex:0 0 auto">'+ICO_LOCK_RED+'</span>'+t+'</span>'; };
+  // Если объект реально найден — показываем его данные (адрес/площадь/этаж/стоимость) в бейдже.
+  var esc = function(s){ return String(s||'').replace(/[<>&"]/g, function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); };
+  var facts = window._objFound ? (window._objFacts || '') : '';
+  var addr = window._objFound ? (window._objAddr || '') : '';
+  var details = '';
+  if(facts) details += '<div style="font-size:12.5px;color:#334155;font-weight:600;margin:2px 0 0 28px">'+esc(facts)+'</div>';
+  if(addr)  details += '<div style="font-size:11.5px;color:#94a3b8;margin:2px 0 0 28px;line-height:1.4">'+esc(addr)+'</div>';
+  details += objMoreHtml(28) + objParsedHtml(28);
+  // По новым территориям «объект принят в проверку» — неправда: принять его мы не
+  // можем ничем. Вместо зелёной галочки — то же предупреждение, что и на других
+  // экранах, иначе человек читает противоположные утверждения подряд.
+  if(window._noEgrn){
+    return noEgrnHtml(0) + (objParsedHtml(0) || '') +
+      '<div style="font-size:12px;color:#6b7280;margin:0 0 11px 0">Проверим продавца по реестрам:</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:15px">'+
+      chip('ФССП и долги')+chip('Банкротство')+chip('Суды (КАД)')+chip('Аресты, залоги')+'</div>';
+  }
+  return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">'+
+    '<span style="width:20px;height:20px;border-radius:50%;background:#dcfce7;display:inline-grid;place-items:center;flex:0 0 auto">'+
+    '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>'+
+    // «Принят в ЕГРН» — неправда: ЕГРН ничего не принимал, объект мы там как раз
+    // не нашли. Про ЕГРН говорим только когда он действительно подтверждён.
+    '<span style="font-size:13px;font-weight:750;color:#15803d">'+
+    (window._objFound?'Машина опознана по VIN':'VIN принят в проверку')+'</span></div>'+
+    details +
+    '<div style="font-size:12px;color:#6b7280;margin:'+(details?'9px':'3px')+' 0 11px 28px">Осталось проверить по реестрам:</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:15px">'+
+    chip('Залог и лизинг')+chip('Ограничения ГИБДД')+chip('Розыск и ДТП')+chip('Пробег и такси')+'</div>';
+}
+function wizRender(step){
+  window._wiz.step = step;
+  var box = document.getElementById('wizBox'); if(!box) return;
+  // Карточку мастера прячет выбор квартиры. Сбрасываем это при КАЖДОЙ
+  // отрисовке, а не только по кнопке «моей квартиры нет»: после выбора
+  // квартиры проверка перезапускается, и без сброса экран оставался пустым.
+  candShowWizard(true);
+  // Гейт стоит на входе в мастер — до всех шагов и до любого экрана цены,
+  // иначе кнопку оплаты пришлось бы гасить в четырёх местах и одно бы забылось.
+  if(window._srcDown){
+    box.innerHTML =
+      '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:15px 16px">'+
+      '<div style="font-weight:800;font-size:15px;color:#92400e;margin-bottom:5px">Источник данных сейчас недоступен</div>'+
+      '<div style="font-size:13px;color:#78350f;line-height:1.55">Проверить машину прямо сейчас мы не сможем, '+
+      'поэтому и оплату не предлагаем. Обычно это занимает несколько минут — попробуйте чуть позже.</div></div>'+
+      '<div class="cta-sticky"><button class="btn" style="width:100%;margin-top:12px" type="button" '+
+      'onclick="location.reload()">Попробовать снова</button></div>';
+    goal('source_down', {});
+    return;
+  }
+  if(step === 0){
+    // Вариант 03 «Вы уже на финише» (endowed progress): объект уже проверен → остался продавец.
+    var esc0 = function(s){ return String(s||'').replace(/[<>&"]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); };
+    var facts = window._objFound ? (window._objFacts||'') : '';
+    var addr0 = window._objFound ? (window._objAddr||'') : '';
+    var extra0 = window._objFound ? (window._objExtra||'') : '';
+    var objLine = window._objFound
+      ? '<b>Машина опознана по VIN</b>'+(facts?'<div style="font-size:11.8px;color:#334155;font-weight:600;margin-top:2px">'+esc0(facts)+'</div>':'')+
+        (extra0?'<div style="font-size:11.5px;color:#475569;margin-top:1px">'+esc0(extra0)+'</div>':'')+
+        (addr0?'<div style="font-size:11px;color:#94a3b8;margin-top:1px;line-height:1.4">'+esc0(addr0)+'</div>':'')+
+        objMoreHtml(0)
+      : (window._noEgrn
+          ? '<b>Объект в '+_escHtml(window._noEgrn)+' округе — проверить не сможем</b>'
+            + objParsedHtml(0)
+          : '<b>VIN принят в проверку</b>' + objParsedHtml(0));
+    // По новым территориям ЕГРН из списка убираем: обещать его на том же экране,
+    // где мы честно написали «объект проверить не сможем», — противоречие.
+    var official =
+      '<div style="display:flex;gap:11px;align-items:center;background:#fff;border:1px solid #bfdbfe;border-radius:12px;padding:10px 12px;margin:13px 0 2px">'+
+      hexMark(40)+
+      '<div><div style="font-size:12.3px;font-weight:750;color:#0a0a0a;margin-bottom:3px">Проверяем по 5 государственным реестрам</div>'+
+      '<div style="font-size:11.3px;color:#334155;line-height:1.45"><b>ГИБДД</b> · <b>Реестр залогов ФНП</b> · <b>Федресурс</b> · <b>ЕАИСТО</b> · <b>ФГИС «Такси»</b></div></div></div>';
+    box.innerHTML =
+      '<div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Проверка · шаг 1 из 2 пройден</div>'+
+      '<div style="height:7px;background:#e3e9f2;border-radius:4px;overflow:hidden;margin-bottom:12px"><i style="display:block;height:100%;width:60%;background:linear-gradient(90deg,#2563eb,#4f83ff)"></i></div>'+
+      wizStepLine(true, objLine)+
+      wizStepLine(false, 'Залог, ограничения, розыск, ДТП, пробег')+
+      wizStepLine(false, 'Итоговый вердикт + PDF с рекомендациями')+
+      // Про объект говорим только когда он действительно подтверждён. Если нет —
+      // просто не упоминаем его: ни «подтверждён» (это была бы неправда), ни
+      // объяснений, почему не вышло. Человеку нужен следующий шаг, а не наша кухня.
+      '<div style="font-weight:800;font-size:16px;letter-spacing:-.01em;margin:13px 0 5px">Половина уже позади</div>'+
+      '<div style="font-size:13px;color:#374151;line-height:1.5">'+
+        (window._objFound ? 'Машина опознана. ' : '')+
+        'Остался один шаг — проверка по официальным реестрам и итоговый вердикт.</div>'+
+      noEgrnHtml(0)+
+      official+
+      '<div class="cta-sticky"><button class="btn" style="width:100%" type="button" onclick="wizStart()">Проверить →</button>'+
+      // Вторичным стилем, как «Не знаю ФИО продавца»: заметно, но не спорит с
+      // основным действием. Тем, кто и правда покупает дом целиком, ничего не мешает.
+      (window._flatUnknown
+        ? '<button type="button" onclick="askFlatNo()" style="width:100%;margin-top:10px;'+
+          'background:#fff;color:#2563eb;border:1.5px solid #bfdbfe;border-radius:12px;padding:13px;'+
+          'font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Указать номер квартиры</button>'+
+          '<div style="font-size:11px;color:#94a3b8;margin-top:8px;text-align:center;line-height:1.5">'+
+          'Сейчас в проверку уйдёт дом целиком. Если покупаете квартиру — назовите её номер.</div>'
+        : '')+
+      '</div>';
+    return;
+  }
+  if(step >= 1 && step <= WIZ_STEPS.length){
+    var s = WIZ_STEPS[step-1];
+    var val = (window._wiz[s.key] || '').replace(/"/g,'&quot;');
+    var inpS = 'width:100%;border:1.5px solid #cbd5e1;border-radius:10px;padding:12px 13px;font-size:16px;box-sizing:border-box';
+    var attr = s.type==='email' ? 'type="email" inputmode="email" autocomplete="email"'
+             : s.type==='dob' ? 'inputmode="numeric" maxlength="10" autocomplete="off"'
+             : 'autocomplete="off"';
+    box.innerHTML = wizTeaser() +
+      '<div style="height:6px;background:#e3e9f2;border-radius:4px;margin-bottom:14px;overflow:hidden"><i style="display:block;height:100%;width:'+(65+step*10)+'%;background:linear-gradient(90deg,#2563eb,#4f83ff);transition:width .4s"></i></div>'+
+      '<div style="font-weight:800;font-size:15.5px;color:#0a0a0a;margin-bottom:3px">'+s.label+'</div>'+
+      '<div style="font-size:12.5px;color:#6b7280;margin-bottom:11px">'+s.sub+'</div>'+
+      '<input id="wizInput" value="'+val+'" placeholder="'+s.ph+'" '+attr+' style="'+inpS+'">'+
+      '<div class="merr" id="wizErr" style="color:#dc2626;font-size:12.5px;margin:8px 0 0;display:none"></div>'+
+      // Согласие живёт ВНУТРИ липкого блока, а не после него: у .cta-sticky
+      // отрицательное нижнее поле, и всё, что идёт следом, затягивало под кнопку —
+      // текст был наполовину скрыт. Внутри он всегда виден целиком.
+      '<div class="cta-sticky"><button class="btn" style="width:100%;margin-top:12px" type="button" onclick="wizNext()">Далее →</button>'+
+      // #10: юр-основание сохранения email до оплаты (152-ФЗ) — согласие действием.
+      (s.key==='email' ? '<div style="font-size:10.5px;color:#94a3b8;margin-top:9px;text-align:center;line-height:1.5">Нажимая «Далее», вы соглашаетесь на обработку email согласно <a href="/privacy" target="_blank" rel="noopener" style="color:#94a3b8">Политике</a> — пришлём отчёт и статус проверки.</div>' : '')+
+      // На шаге ФИО — выход для тех, у кого нет ФИО продавца: проверка только объекта.
+      // Крупная кнопка, но вторичным (контурным) стилем — заметная, но не спорит с «Далее».
+      // Тоже ВНУТРИ липкого блока: снаружи её затягивало под него и накрывало тенью.
+      // По новым территориям выхода «не знаю ФИО» нет: объект там не проверяется
+      // ничем, и без ФИО продавца проверять было бы нечего вовсе. Вместо кнопки —
+      // прямое объяснение, почему ФИО здесь обязательно.
+      (s.key==='fio' ? (window._noEgrn
+        ? '<div style="font-size:11.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;'+
+          'border-radius:10px;padding:10px 12px;margin-top:10px;line-height:1.5">'+
+          'Объект в '+_escHtml(window._noEgrn)+' округе мы проверить не можем, поэтому проверка идёт '+
+          'только по продавцу — без его ФИО проверять нечего.</div>'
+        : '<button type="button" onclick="wizObjectOnly()" style="width:100%;margin-top:10px;'+
+        'background:#fff;color:#2563eb;border:1.5px solid #bfdbfe;border-radius:12px;padding:13px;'+
+        'font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Не знаю ФИО продавца →</button>') : '')+
+      '</div>';
+    var inp = document.getElementById('wizInput');
+    if(inp){ try{ inp.focus(); }catch(e){}
+      if(s.type==='dob'){ inp.addEventListener('input', function(){
+        var x=(inp.value||'').replace(/\D/g,'').slice(0,8), o='';
+        if(x.length>0)o=x.slice(0,2); if(x.length>=3)o+='.'+x.slice(2,4); if(x.length>=5)o+='.'+x.slice(4,8);
+        inp.value=o; }); }
+      inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); wizNext(); } }); }
+    return;
+  }
+  wizFinal();  // step > длины → финальная разблокировка
+}
+function wizStart(){ goal('wizard_start', {tariff: currentTariff}); wizRender(1); }
+function wizValidate(s, v){
+  if(s.type==='email'){ return validEmail(v) ? '' : 'Укажите корректный email — на него придёт отчёт.'; }
+  if(s.type==='dob'){ return validDob(v) ? '' : 'Дата рождения в формате ДД.ММ.ГГГГ.'; }
+  if(s.key==='fio'){ return v.split(/\s+/).filter(Boolean).length>=2 ? '' : 'Впишите ФИО продавца полностью (фамилия и имя).'; }
+  return v ? '' : 'Заполните поле.';
+}
+function wizNext(){
+  var step = window._wiz.step, s = WIZ_STEPS[step-1];
+  var inp = document.getElementById('wizInput'), err = document.getElementById('wizErr');
+  var v = ((inp && inp.value) || '').trim();
+  var msg = wizValidate(s, v);
+  if(msg){ if(err){ err.textContent=msg; err.style.display='block'; } return; }
+  window._wiz[s.key] = v;
+  goal(s.ev, {tariff: currentTariff});
+  if(s.key==='email'){ wizSaveLead(v); }   // ранний lead-capture: ловим контакт ещё до оплаты
+  wizLabor(s.labor, function(){ wizRender(step+1); });
+}
+function wizLabor(msg, cb){
+  var box = document.getElementById('wizBox'); if(!box){ cb(); return; }
+  box.innerHTML = '<div style="padding:28px 12px;text-align:center">'+
+    '<div style="width:34px;height:34px;border:3px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;margin:0 auto 14px;animation:wizsp .8s linear infinite"></div>'+
+    '<div style="font-size:14px;color:#374151;font-weight:600">'+msg+'</div></div>';
+  setTimeout(cb, 1300 + Math.floor(Math.random()*500));
+}
+function wizSaveLead(email){
+  try{ fetch('/api/lead', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({report_id: window._lastReportId, email: email, object_ref: (currentObject||'')})}); }catch(e){}
+}
+/* ===== Согласие 152-ФЗ =====
+   Галочки больше нет: согласие даётся нажатием кнопки. Закон формы не диктует —
+   ст. 9 требует, чтобы согласие было конкретным, информированным и однозначным,
+   а форма любая, «позволяющая подтвердить факт получения». Раз явного действия
+   с галочкой не будет, вся защита переезжает в ЗАПИСЬ: текст ниже уходит на
+   сервер дословно вместе с версией, и там к нему добавляются время, IP,
+   user-agent и страница (_record_consent в app.py).
+   ВАЖНО: меняете текст — поднимите версию, иначе в старых заказах будет
+   значиться формулировка, которой человек не видел. */
+// Формулировка про «данные продавца» пришла из недвижимости и здесь была бы
+// ложной: по машине мы обрабатываем VIN и email, персональных данных продавца
+// не запрашиваем вовсе. Раз текст другой — версия новая, иначе в заказах
+// значилась бы формулировка, которой человек не видел.
+var CONSENT_V = 'auto-v1-2026-08-08';
+var CONSENT_TEXT = 'Нажимая кнопку, вы соглашаетесь на обработку VIN и email ' +
+  'для проверки автомобиля согласно Политике конфиденциальности.';
+function consentLine(){
+  // Мелкий кегль намеренно: это правовая сноска, а не аргумент к покупке.
+  return '<div style="font-size:10px;color:#64748b;line-height:1.4;margin:0 0 8px">'+
+    'Нажимая кнопку, вы соглашаетесь на обработку VIN и email для проверки автомобиля '+
+    'согласно <a href="/privacy" target="_blank" rel="noopener">Политике</a>.</div>';
+}
+
+/* Есть ли под липкой кнопкой непрочитанный контент. Ищем ближайший
+   прокручиваемый контейнер и сравниваем позицию с концом: у самого низа
+   размывать уже нечего, полосу убираем. */
+function stickyFade(){
+  var sticky = document.querySelectorAll('.cta-sticky');
+  for(var i=0;i<sticky.length;i++){
+    var el = sticky[i], cont = el.parentElement, found = null;
+    while(cont && cont !== document.body){
+      if(cont.scrollHeight > cont.clientHeight + 4){ found = cont; break; }
+      cont = cont.parentElement;
+    }
+    var need = false;
+    if(found){
+      // до низа осталось больше двух пикселей → под кнопкой ещё что-то есть
+      need = (found.scrollHeight - found.clientHeight - found.scrollTop) > 2;
+      if(!found._fadeBound){
+        found.addEventListener('scroll', function(){ stickyFade(); }, {passive:true});
+        found._fadeBound = true;
+      }
+    }
+    el.classList.toggle('fade', need);
+  }
+}
+window.addEventListener('resize', stickyFade);
+/* Пересчитываем после ЛЮБОЙ перерисовки модалки, а не вставляем вызов в каждый
+   из шести шагов мастера: иначе новый экран однажды добавят и забудут. */
+(function(){
+  var back = document.getElementById('modalBack');
+  if(!back || !('MutationObserver' in window)) return;
+  var t = null;
+  new MutationObserver(function(){
+    clearTimeout(t);
+    t = setTimeout(stickyFade, 30);   // после того как браузер посчитал размеры
+  }).observe(back, {childList:true, subtree:true});
+})();
+
+function wizFinal(){
+  var box = document.getElementById('wizBox'); if(!box) return;
+  // Экран «сначала найдём вашу квартиру» убран вместе с серверным отказом: молчание
+  // бесплатного источника не значит, что объекта нет. Оплата идёт, проверка идёт по
+  // платным базам. Не нашлось и там — просим уточнить ПИСЬМОМ, а не кнопкой: иначе
+  // человек начнёт перебирать адреса, а каждый перебор стоит нам платного запроса.
+  goal('seller_form_shown', {tariff: currentTariff});   // финал мастера = «увидел экран оплаты»
+  // Единое событие для воронки: экран цены у двух веток называется по-разному
+  // (seller_form_shown / object_only_chosen), и в дашборде шаг просто отсутствовал —
+  // тот самый, где уходит 80% дошедших.
+  goal('price_shown', {tariff: 'base'});
+  // Визуальный A/B/C: плечи B и C рисуют экран цены иначе (price_variants.js).
+  // Плечо A — контроль, идёт дальше по этому коду. Если вариант почему-то не
+  // отрисовался, тоже падаем на контрольный экран: без экрана оплаты человека
+  // оставлять нельзя.
+  if(typeof renderPriceVariant === 'function' && renderPriceVariant('wizBox')) return;
+  var esc = function(s){ return String(s||'').replace(/[<>&"]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); };
+  var fio = esc(window._wiz.fio||'');
+  var facts = window._objFound ? (window._objFacts||'') : '';
+  var addr = window._objFound ? (window._objAddr||'') : '';
+  // строка «получите»
+  var getRow = function(icoColor, ico, title, desc){
+    return '<div style="display:flex;gap:10px;align-items:flex-start">'+
+      '<span style="width:24px;height:24px;border-radius:8px;background:'+icoColor+'22;color:'+icoColor+';display:inline-grid;place-items:center;flex:0 0 auto;margin-top:1px">'+ico+'</span>'+
+      '<div style="font-size:12.5px;line-height:1.45"><b style="color:#0a0a0a">'+title+'</b><div style="color:#6b7280;font-size:12px">'+desc+'</div></div></div>';
+  };
+  var svgSeller = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>';
+  var svgDoc = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>';
+  var svgScale = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M7 21h10M4 8h16M6 8l-2.5 6a3 3 0 0 0 5 0L6 8zM18 8l-2.5 6a3 3 0 0 0 5 0L18 8z"/></svg>';
+  box.innerHTML =
+    // прогресс завершён — «всё готово»
+    '<div style="height:6px;background:#e3e9f2;border-radius:4px;margin-bottom:13px;overflow:hidden"><i style="display:block;height:100%;width:100%;background:linear-gradient(90deg,#16a34a,#22c55e)"></i></div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+hexMark(38)+
+      '<div><div style="font-size:16px;font-weight:820;letter-spacing:-.01em;color:#0a0a0a;line-height:1.15">Всё готово — запускаем проверку</div>'+
+      '<div style="font-size:12px;color:#6b7280;margin-top:2px">Данные собраны. Отчёт будет готов за ~5 минут.</div></div></div>'+
+    // объект + продавец (что уже известно). По новым территориям зелёной плашки
+    // нет вовсе: «объект принят в проверку» там было бы неправдой.
+    (window._noEgrn ? noEgrnHtml(0) + (objParsedHtml(0) || '') :
+    '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:11px;padding:11px 13px;margin-bottom:11px">'+
+      '<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:#15803d">'+ICO_CHK+' '+(window._objFound?'Машина опознана по VIN':'VIN принят в проверку')+'</div>'+
+      (facts?'<div style="font-size:12px;color:#334155;font-weight:600;margin:4px 0 0 20px">'+esc(facts)+'</div>':'')+
+      (addr?'<div style="font-size:11px;color:#94a3b8;margin:2px 0 0 20px;line-height:1.4">'+esc(addr)+'</div>':'')+
+      objMoreHtml(20)+
+      objParsedHtml(20)+
+    '</div>')+
+    // Жёлтый блок «Квартиру теряют не из-за неё, а из-за продавца» убран
+    // (решение владельца 05.08.2026): на экране цены он занимал место перед
+    // списком «что вы получите», а пугать человека, который уже дошёл до
+    // оплаты, незачем — он и так здесь.
+    // ЦЕННОСТЬ: что откроется за деньги
+    '<div style="font-size:11.5px;font-weight:800;color:#1d4ed8;text-transform:uppercase;letter-spacing:.04em;margin-bottom:9px">Что вы получите</div>'+
+    '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">'+
+      // Строка «Итоговый вердикт риска» убрана (решение владельца 05.08.2026).
+      getRow('#2563eb', svgSeller, 'Проверка по 8 реестрам', 'Залог и лизинг · ограничения ГИБДД · розыск · ДТП · пробег · такси · таможня')+
+      getRow('#15803d', svgDoc, 'PDF-отчёт с датами баз', 'По каждой проверке — когда источник в последний раз обновлялся')+
+    '</div>'+
+    // гарантия
+    (window.CS_GUARANTEE?'<div style="display:flex;gap:8px;align-items:flex-start;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:9px 11px;margin-bottom:12px">'+
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" style="flex:0 0 auto;margin-top:1px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'+
+      '<div style="font-size:11.5px;color:#166534"><b>Гарантия.</b> Не смогли проверить по реестрам — вернём деньги.</div></div>':'')+
+    '<div class="merr" id="wizErr" style="color:#dc2626;font-size:12.5px;margin:0 0 8px;display:none"></div>'+
+    // Согласие — строкой НАД кнопкой, внутри липкого блока: так оно всегда на
+    // экране вместе с кнопкой, а не уезжает за сгиб, как уезжала галочка.
+    '<div class="cta-sticky">'+consentLine()+
+    '<button id="unlockBtn" class="btn" style="width:100%" type="button" onclick="wizPay()">'+window._wiz.btnLabel+'</button>'+
+    // FALLBACK: не готов за полную цену → предложить проверку только объекта (спасаем уходящих в ноль).
+    // По новым территориям этот тариф не предлагаем вовсе: продавать проверку
+    // объекта, которую мы физически не выполним, нельзя.
+    (window._noEgrn ? '' :
+    '<div style="text-align:center;margin-top:11px;padding-top:11px;border-top:1px solid #dbeafe">'+
+      '<div style="font-size:12px;color:#6b7280;margin-bottom:7px">Нужны только стоп-факторы?</div>'+
+      '<button type="button" onclick="wizObjectOnly()" style="width:100%;background:#fff;color:#2563eb;border:1.5px solid #bfdbfe;border-radius:11px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Залог, ограничения, розыск — '+(window.CS_OBJECT_PRICE_STR||'199 ₽')+'</button></div>')+
+    '<div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;font-size:11.5px;color:#6b7280">'+
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" style="flex:0 0 auto"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'+
+      'Безопасная оплата через'+YK_BADGE+'</div></div>';
+}
+// ЮKassa — реальный платёжный партнёр (мерчант вправе показывать бейдж). Без цен.
+// Вордмарк в фирменной подаче: светлая пилюля + «Ю» в фиолетовом ЮKassa.
+var YK_BADGE = '<span style="display:inline-flex;align-items:center;font-weight:800;font-size:12.5px;'+
+  'background:#fff;border:1px solid #e6e9ef;border-radius:6px;padding:3px 8px;letter-spacing:-.01em;line-height:1;'+
+  'box-shadow:0 1px 1px rgba(15,23,42,.04)">'+
+  '<span style="color:#7B57DF">Ю</span><span style="color:#16151a">Kassa</span></span>';
+// Ветка «нет ФИО» → проверка ТОЛЬКО объекта (обременения/собственники/история по ЕГРН).
+// Честно: продавца не проверяем (для этого нужно ФИО), можно дозаказать. Цена ниже.
+function wizObjectOnly(){
+  goal('object_only_chosen', {});
+  goal('price_shown', {tariff: 'object'});   // тот же шаг воронки, что и у полного тарифа
+  window._wiz.objectOnly = true;
+  var box = document.getElementById('wizBox'); if(!box) return;
+  // Визуальный A/B/C — то же, что в wizFinal: плечи B и C рисуют свой экран,
+  // A и любой сбой варианта уходят на контрольный.
+  if(typeof renderPriceVariant === 'function' && renderPriceVariant('wizBox')) return;
+  // Тот же снятый гейт, что и в wizFinal: оплату не блокируем.
+  var esc = function(s){ return String(s||'').replace(/[<>&"]/g,function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}); };
+  var facts = window._objFound ? (window._objFacts||'') : '';
+  var addr = window._objFound ? (window._objAddr||'') : '';
+  var getRow = function(icoColor, ico, title, desc){
+    return '<div style="display:flex;gap:10px;align-items:flex-start">'+
+      '<span style="width:24px;height:24px;border-radius:8px;background:'+icoColor+'22;color:'+icoColor+';display:inline-grid;place-items:center;flex:0 0 auto;margin-top:1px">'+ico+'</span>'+
+      '<div style="font-size:12.5px;line-height:1.45"><b style="color:#0a0a0a">'+title+'</b><div style="color:#6b7280;font-size:12px">'+desc+'</div></div></div>';
+  };
+  var svgKey = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 19 4M15 5l2 2M13 7l2 2"/></svg>';
+  var svgHome = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>';
+  var svgHist = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 8v4l3 2"/></svg>';
+  box.innerHTML =
+    '<div style="height:6px;background:#e3e9f2;border-radius:4px;margin-bottom:13px;overflow:hidden"><i style="display:block;height:100%;width:100%;background:linear-gradient(90deg,#16a34a,#22c55e)"></i></div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">'+hexMark(38)+
+      '<div><div style="font-size:16px;font-weight:820;letter-spacing:-.01em;color:#0a0a0a;line-height:1.15">Базовая проверка</div>'+
+      '<div style="font-size:12px;color:#6b7280;margin-top:2px">Три стоп-фактора: из-за них машину забирают или не ставят на учёт.</div></div></div>'+
+    '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:11px;padding:11px 13px;margin-bottom:11px">'+
+      '<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:#15803d">'+ICO_CHK+' '+(window._objFound?'Машина опознана по VIN':'VIN принят в проверку')+'</div>'+
+      (facts?'<div style="font-size:12px;color:#334155;font-weight:600;margin:4px 0 0 20px">'+esc(facts)+'</div>':'')+
+      (addr?'<div style="font-size:11px;color:#94a3b8;margin:2px 0 0 20px;line-height:1.4">'+esc(addr)+'</div>':'')+
+      objMoreHtml(20)+
+      objParsedHtml(20)+
+    '</div>'+
+    '<div style="font-size:11.5px;font-weight:800;color:#1d4ed8;text-transform:uppercase;letter-spacing:.04em;margin-bottom:9px">Что вы получите</div>'+
+    '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:13px">'+
+      getRow('#dc2626', svgKey, 'Залог и лизинг', 'Залог переходит вместе с машиной — банк заберёт её у вас (ст. 353 ГК)')+
+      getRow('#2563eb', svgHome, 'Ограничения ГИБДД', 'Запрет на регистрацию: машину не переоформят на вас')+
+      getRow('#15803d', svgHist, 'Розыск + PDF-отчёт', 'Числится ли в розыске — на ваш email')+
+    '</div>'+
+    // Разницу между тарифами говорим прямо на экране покупки, а не обнаруживаем
+    // её в отчёте. Иначе базовый тариф читается как «полный, но дешевле».
+    '<div style="font-size:11.5px;color:#6b7280;background:#f8fafc;border:1px solid #e6e9ef;'+
+    'border-radius:10px;padding:9px 11px;margin-bottom:13px;line-height:1.5">'+
+    'ДТП, пробег, история регистраций, работа в такси и таможня — в полном отчёте за '+
+    ((window.CS_PRICE||449)+' ₽')+'.</div>'+
+    // Жёлтая рамка «Продавца не проверяем» убрана (решение владельца 05.08.2026):
+    // человек и так выбрал объектный тариф осознанно, а ссылка «Знаю ФИО —
+    // проверить и продавца» под кнопкой остаётся и говорит то же самое короче.
+    '<div class="merr" id="wizErrObj" style="color:#dc2626;font-size:12.5px;margin:0 0 8px;display:none"></div>'+
+    '<div class="cta-sticky">'+consentLine()+
+    '<button id="unlockBtn" class="btn" style="width:100%" type="button" onclick="wizPayObject()">Базовая проверка — '+(window.CS_OBJECT_PRICE_STR||'199 ₽')+'</button>'+
+    // Возврат на экран полного тарифа. Зовём wizFinal напрямую, а не по номеру
+    // шага: номера сдвигаются при любой правке WIZ_STEPS, и ссылка молча уводила
+    // бы на форму email, которую человек уже заполнил.
+    '<div style="text-align:center;margin-top:10px"><a href="#" onclick="window._wiz.objectOnly=false;wizFinal();return false" style="font-size:12px;color:#6b7280;text-decoration:none">← Полный отчёт — вся история машины</a></div>'+
+    '<div style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;font-size:11.5px;color:#6b7280">'+
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" style="flex:0 0 auto"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'+
+      'Безопасная оплата через'+YK_BADGE+'</div></div>';
+}
+/* ===== Развилка объектного тарифа: обычный или с пакетом к сделке ===== */
+function showKitModal(){
+  var obj = window.CS_OBJECT_PRICE || 299;
+  var add = window.CS_KIT_PRICE || 299;
+  var fmt = function(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₽'; };
+  var ovl = document.getElementById('kitOvl');
+  if(!ovl){
+    ovl = document.createElement('div');
+    ovl.id = 'kitOvl';
+    ovl.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:120;display:flex;align-items:center;justify-content:center;padding:18px';
+    ovl.addEventListener('click', function(e){ if(e.target===ovl){ ovl.style.display='none'; } });
+    document.body.appendChild(ovl);
+  }
+  ovl.innerHTML =
+    '<div style="background:#fff;border-radius:16px;max-width:460px;width:100%;padding:24px 22px;box-shadow:0 20px 60px rgba(0,0,0,.3)">'+
+    '<h3 style="font-size:18px;margin:0 0 6px">Выберите вариант отчёта</h3>'+
+    '<p style="font-size:13px;color:#6b7280;margin:0 0 16px">Оба открывают полный отчёт сразу после оплаты.</p>'+
+    '<button type="button" onclick="proceedPay(false,true)" style="display:block;width:100%;text-align:left;background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer">'+
+      '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:15px">Отчёт + пакет к сделке</b><b style="font-size:16px;color:#b45309">'+fmt(obj+add)+'</b></div>'+
+      '<div style="font-size:12.5px;color:#374151;margin-top:5px">Всё из проверки объекта <b>+ что запросить у продавца именно по этой квартире</b>: с учётом долей, обременений и даты регистрации права. Готовые тексты запросов и чек-лист на день сделки. <span style="color:#b45309">+'+fmt(add)+'</span></div></button>'+
+    '<button type="button" onclick="proceedPay(false,false)" style="display:block;width:100%;text-align:left;background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;padding:14px 16px;cursor:pointer">'+
+      '<div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:15px">Обычный отчёт</b><b style="font-size:16px">'+fmt(obj)+'</b></div>'+
+      '<div style="font-size:12.5px;color:#6b7280;margin-top:5px">Объект в ЕГРН: собственность и доли, обременения и аресты + вердикт юриста + PDF.</div></button>'+
+    '<div style="font-size:11.5px;color:#9ca3af;margin-top:10px;text-align:center">Оплата через ЮKassa · гарантия возврата</div></div>';
+  ovl.style.display = 'flex';
+  goal('kit_shown');
+}
+
+function wizPayObject(){
+  var err = document.getElementById('wizErrObj');
+  // #3/#7: цена варианта не подтверждена сервером (fetch /api/variant упал) → кнопка могла
+  // показывать фолбэк 299, а спишется цена варианта из куки. Дозагружаем перед оплатой.
+  if(!window.CS_LOADED){
+    if(err){ err.textContent='Подтверждаем цену…'; err.style.display='block'; }
+    fetch('/api/variant').then(function(r){return r.json();}).then(function(d){
+      window.CS_PRICE=d.price; window.CS_OBJECT_PRICE=d.object_price; window.CS_BUMP_PRICE=d.bump_price||window.CS_BUMP_PRICE; window.CS_KIT_PRICE=d.kit_price||window.CS_KIT_PRICE;
+      window.CS_OBJECT_PRICE_STR=d.object_price_str; window.CS_LOADED=true;
+      if(err) err.style.display='none';
+      wizObjectOnly();  // перерисуем экран с подтверждённой ценой — юзер видит её до оплаты
+    }).catch(function(){ if(err){ err.textContent='Не удалось подтвердить цену — обновите страницу.'; } });
+    return;
+  }
+  goal('object_only_pay', {});
+  window._sellerData = {email: window._wiz.email, consent: true, object_only: true,
+    consent_text: CONSENT_TEXT, consent_version: CONSENT_V};
+  // Раньше объектный тариф уходил на оплату напрямую: апселла у него не было
+  // вообще — расширенный ищет залоги по ФИО продавца, а его тут не называли.
+  // Теперь своя развилка: пакет к сделке строится по объекту, ФИО не нужно.
+  showKitModal();
+}
+function wizPay(){
+  window._sellerData = {seller_name: window._wiz.fio, seller_dob: window._wiz.dob,
+    email: window._wiz.email, consent: true,
+    consent_text: CONSENT_TEXT, consent_version: CONSENT_V};
+  // Bump-модалка ТОЛЬКО для базового тарифа при подтверждённой сервером цене. Иначе — сразу к оплате.
+  if(window.CS_PREMIUM || currentTariff !== 'base' || !window.CS_LOADED){ return proceedPay(false); }
+  showBumpModal();
+}
+
+async function proceedPay(bump, kit){
+  var ovl = document.getElementById('bumpOvl');
+  if(ovl) ovl.style.display = 'none';
+  var _isObj = !!(window._sellerData && window._sellerData.object_only);
+  // #16: bump-события только там, где модалка реально была. У объектного тарифа
+  // своя развилка (пакет к сделке), поэтому и события свои.
+  if(!_isObj){ goal(bump ? 'bump_yes' : 'bump_no'); }
+  else { goal(kit ? 'kit_yes' : 'kit_no'); }
+  var rid = window._lastReportId;
+  if(!rid){ return; }
+  var btn = document.getElementById('unlockBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Переходим к оплате…'; }
+  goal('pay_click', {tariff: _isObj ? 'object' : currentTariff, bump: bump ? 1 : 0});
+  try{
+    var payResp = await fetch('/api/pay', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(Object.assign(
+        {report_id: rid, tariff: currentTariff, bump: !!bump, kit: !!kit},
+        window._sellerData || {}))  // ФИО/ДР/email/consent продавца — собраны на шаге оплаты
+    });
+    var pay = await payResp.json();
+    if(!payResp.ok){
+      if(btn){ btn.disabled=false; btn.textContent='Ошибка оплаты, повторить'; }
+      return;
+    }
+    if(pay.mode === 'bypass'){
+      // Демо без ЮKassa: идём через /pay/return (confirmation_url) — там триггерится
+      // финализация/апселлы (#6: прямой fetch check/full оставлял отчёт вечно «finalizing»).
+      if(pay.confirmation_url){ window.location.href = pay.confirmation_url; return; }
+      var full = await fetch('/api/check/full/'+rid).then(function(r){return r.json();});
+      renderResult(full);
+      return;
+    }
+    if(pay.confirmation_url){
+      goal('yookassa_reached', {tariff: currentTariff, bump: bump ? 1 : 0});  // дошёл до страницы оплаты
+      // Цель pay_start заведена в Метрике давно и с 1 июня не сработала ни разу —
+      // в коде её просто не было, и в отчётах Метрики она врала нулём. Смысл у неё
+      // ровно этот момент: платёж создан, уходим на ЮKassa.
+      goal('pay_start', {tariff: currentTariff});
+      window.location.href = pay.confirmation_url;
+    }
+  }catch(err){
+    if(btn){ btn.disabled=false; btn.textContent='Сетевая ошибка, повторить'; }
+  }
+}
+
+/* Повторная проверка залога перед передачей денег.
+   Раньше эта кнопка вела на тариф «мониторинг продавца»: на ней было написано
+   99 ₽, а списалось бы 990 ₽ за услугу, которой по машине не существует. */
+async function startMonitoring(){
+  var rid = window._lastReportId;
+  if(!rid){ return; }
+  var btn = document.getElementById('monitorBtn');
+  btn.disabled = true; btn.textContent = 'Переходим к оплате…';
+  try{
+    var r = await fetch('/api/recheck-pledge', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({report_id: rid})
+    });
+    var d = await r.json();
+    if(!r.ok){
+      btn.textContent = 'Проверить залог перед сделкой — 99 ₽'; btn.disabled = false;
+      alert(d.detail || 'Не получилось начать оплату.');
+      return;
+    }
+    goal('recheck_pay_click', {});
+    if(d.confirmation_url){ location.href = d.confirmation_url; return; }
+    // bypass-режим (ЮKassa не настроена): оплаты нет, проверка уже запущена.
+    document.getElementById('monitorCta').innerHTML =
+      '<div style="padding:12px 14px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;font-size:13.5px">'+
+      'Проверяем залог заново — результат появится в отчёте через минуту.</div>';
+  }catch(e){
+    btn.textContent = 'Проверить залог перед сделкой — 99 ₽'; btn.disabled = false;
+  }
+}
+
+// БЕСПЛАТНОЕ ПРЕВЬЮ по объекту — БЕЗ сбора персональных данных продавца. ФИО/ДР/email
+// собираем на шаге оплаты (proceedPay). Раньше форма ПДн стояла перед превью и уводила 76%.
+async function runPreview(){
+  modalErr.classList.remove('show');
+  modalTodo.classList.remove('show');
+  var obj = (currentObject || coObj.value || heroInput.value.trim()).trim();
+  if(!obj){ showErr('Укажите VIN или госномер автомобиля.'); return; }
+  goal('preview_submit', {tariff: currentTariff, object: obj});
+  try{
+    var resp = await fetch('/api/check', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        object_ref: obj, seller_name: '', seller_dob: '', seller_inn: '',
+        passport_seria: '', passport_nomer: '', email: null,
+        tariff: currentTariff, consent: false
+      })
+    });
+    if(!resp.ok){ var t = await resp.text(); showErr('Ошибка проверки: '+resp.status+' '+t.slice(0,200)); return; }
+    var start = await resp.json();
+    var form = document.getElementById('checkoutForm');
+    var loader = document.getElementById('checkLoader');
+    var clStatus = document.getElementById('clStatus');
+    var clBar = document.getElementById('clBar');
+    // Превью проверяет только ОБЪЕКТ (данные квартиры). Продавца проверим после оплаты —
+    // поэтому и статусы честные про объект, а не «проверяем ФССП/банкротство».
+    // Когда квартира выбрана из списка, объект уже известен — искать его заново мы
+    // не можем «делать вид»: врать в статусах нельзя, человек только что сам ткнул
+    // в свою квартиру. Осталось дочитать её характеристики, так и пишем.
+    // Статусы описывают то, что действительно происходит: разбор VIN и опознание
+    // машины. Обещать здесь «проверяем залог» нельзя — платные базы мы дёргаем
+    // только после оплаты, и человек увидел бы выдуманный процесс.
+    var picked = !!window._candPicked;
+    var msgs = ['Разбираем VIN…',
+                'Определяем марку, модель и поколение…',
+                'Сверяем с базой производителя…',
+                'Готовим превью…'];
+    var clNote = document.getElementById('clNote');
+    if(clNote) clNote.textContent = 'Опознаём автомобиль по VIN — это займёт несколько секунд.';
+    window._candPicked = false;
+    loader.style.display = 'block';
+    // Под лоадером не оставляем прошлый экран. При перезапуске из списка квартир
+    // модалка не открывается заново, и без явной уборки под спиннером висели и
+    // старая карточка объекта, и сам список — человек видел данные не про то,
+    // что сейчас грузится.
+    if(resultBox) resultBox.style.display = 'none';
+    var _cb = document.getElementById('candBox'); if(_cb) _cb.remove();
+    clStatus.textContent = msgs[0]; clBar.style.width = '4%';
+    var minShow = 3500 + Math.floor(Math.random()*1500);
+    var data = null, t0 = Date.now(), deadline = t0 + 260000, mi = 0;
+    if(window.Analytics) Analytics.startLoading();  // трекинг ухода на загрузке
+    goal('check_run', {tariff: currentTariff}); checkRunStarted = true;
+    while(Date.now() < deadline){
+      await new Promise(function(r){ setTimeout(r, 2000); });
+      var el = Date.now()-t0;
+      clBar.style.width = Math.min(96, 4 + el/minShow*92).toFixed(0) + '%';
+      var idx = Math.min(msgs.length-1, Math.floor(el/(minShow/msgs.length)));
+      if(idx !== mi){ mi = idx; var m = msgs[mi];
+        clStatus.style.opacity='0';
+        setTimeout(function(){ clStatus.textContent = m; clStatus.style.opacity='1'; }, 220); }
+      if(data === null){
+        var stResp = await fetch('/api/check/status/'+start.job_id);
+        if(!stResp.ok){
+          if(window.Analytics) Analytics.stopLoading(); loader.style.display='none';
+          showErr('Проверка прервалась — попробуйте ещё раз.'); return;
+        }
+        var st = await stResp.json();
+        if(st.status === 'done'){ data = st; }
+        else if(st.status === 'error'){ if(window.Analytics) Analytics.stopLoading(); loader.style.display='none'; showErr('Ошибка проверки: '+(st.detail||'')); return; }
+      }
+      if(data && el >= minShow) break;
+    }
+    if(window.Analytics) Analytics.stopLoading();
+    loader.style.display = 'none';
+    if(!data){ showErr('Проверка заняла слишком долго. Попробуйте ещё раз.'); return; }
+    // Живой адрес запоминаем ДО отрисовки: renderResult синхронно зовёт
+    // offerObjectCandidates(window._lastObjectRef), и при второй проверке в той же
+    // вкладке список квартир собирался по ПРЕДЫДУЩЕМУ адресу — чужой дом под свежим
+    // превью, и клик по строке клал чужой кадастр в оплату.
+    window._lastObjectRef = (heroInput && heroInput.value || '').trim();
+    renderResult(data);   // превью объекта (детали продавца и полный отчёт — после оплаты)
+    goal('check_completed', {risk: data.risk, tariff: currentTariff});
+    goal('preview_object', {shown: (data && data.object_preview) ? 1 : 0});
+  }catch(err){
+    showErr('Сетевая ошибка: ' + (err && err.message ? err.message : err));
+  }
+}
+function showErr(msg){
+  modalErr.textContent = msg;
+  modalErr.classList.add('show');
+}
+// «Изменить объект» из подсказки при непойманном адресе — вернуть в hero-поле.
+/* Выбор квартиры из списка по адресу. Показывается только если поиск включён
+   и вернул жилые помещения; иначе экран остаётся прежним. */
+async function offerObjectCandidates(addr){
+  // Подстраховка на случай пустого аргумента: _lastObjectRef теперь проставляется
+  // ДО отрисовки, но полагаться на один источник адреса здесь не хочется.
+  addr = String(addr || (heroInput && heroInput.value) || '').trim();
+  if(addr.length < 6) return;
+  var box = document.getElementById('candBox');
+  if(box) box.remove();
+  var r = await fetch('/api/object-candidates', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({address: addr})});
+  var d = await r.json();
+  var list = (d && d.candidates) || [];
+  if(!list.length) return;                     // выключено или ничего жилого — прежний путь
+  var hint = document.querySelector('#resultChecks');
+  box = document.createElement('div');
+  box.id = 'candBox';
+  box.style.cssText = 'background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:10px 0 0';
+  window._candList = list;
+  box.innerHTML = '<div style="font-weight:800;font-size:14px;margin-bottom:4px">'+
+      'Нашли ' + list.length + ' ' + candWord(list.length) + ' по этому адресу</div>'+
+    '<div style="font-size:12.5px;color:#6b7280;margin-bottom:10px">Выберите свою по номеру</div>'+
+    // Поиск нужен потому, что список теперь полный: в доме бывает под сотню квартир,
+    // и прокручивать его глазами дольше, чем набрать номер.
+    (list.length > 8 ? '<input id="candFind" oninput="candFilter()" placeholder="Номер квартиры" '+
+      'style="width:100%;box-sizing:border-box;background:#fff;color:#0a0a0a;font-family:inherit;'+
+      'font-size:13.5px;padding:9px 11px;margin-bottom:9px;border:1.5px solid #e5e7eb;border-radius:10px">' : '')+
+    '<div id="candRows" style="max-height:232px;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>'+
+    '<button type="button" onclick="candGiveUp()" '+
+    'style="width:100%;background:none;border:none;color:#6b7280;font-size:12.5px;'+
+    'text-decoration:underline;cursor:pointer;margin-top:6px;padding:6px">Моей квартиры нет — проверить по адресу</button>';
+  if(hint) hint.appendChild(box);
+  candFilter();
+  // Список и разбор адреса — взаимоисключающие: если выбор появился, разбор
+  // убираем, иначе два больших блока занимают весь экран разом.
+  var pb = document.getElementById('objParsedBox');
+  if(pb){ pb.style.display = 'none'; if(pb.nextElementSibling) pb.nextElementSibling.style.display = 'none'; }
+  // Пока квартира не выбрана, прогресс и кнопка оплаты не нужны: человеку
+  // предстоит один вопрос, и всё остальное на экране от него отвлекает.
+  // Вернём, когда он выберет квартиру или скажет, что её в списке нет.
+  candShowWizard(false);
+  goal('cand_shown', {n: list.length});
+}
+
+function candWord(n){
+  var t = n % 10, h = n % 100;
+  if(t === 1 && h !== 11) return 'квартиру';
+  if(t >= 2 && t <= 4 && (h < 12 || h > 14)) return 'квартиры';
+  return 'квартир';
+}
+
+function candRowHtml(c){
+  // Номер квартиры — первым и крупно: именно его человек ищет глазами. Раньше в
+  // строке были только площадь и этаж, и найти свою было решительно нечем.
+  var esc = function(s){ return String(s||'').replace(/[<>&"]/g,function(x){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[x];}); };
+  var head = c.flat ? ('кв. ' + esc(c.flat)) : 'помещение';
+  var meta = [c.area ? (String(c.area).replace(/\.0$/,'').replace('.',',') + ' м²') : '',
+              c.floor ? (String(c.floor).replace(/^0+/,'') + ' этаж') : ''].filter(Boolean).join(' · ');
+  return '<button type="button" onclick="pickCandidate(\'' + c.cad + '\')" '+
+    'style="display:block;width:100%;text-align:left;background:#fff;color:#0a0a0a;font-family:inherit;'+
+    'border:1.5px solid #e5e7eb;border-radius:10px;padding:11px 13px;margin-bottom:8px;cursor:pointer">'+
+    '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">'+
+    '<b style="font-size:14px">' + head + (meta ? ' <span style="font-weight:600;color:#475569">· ' + meta + '</span>' : '') + '</b>'+
+    '<span style="font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#6b7280">' + esc(c.cad) + '</span></div>'+
+    '<div style="font-size:12px;color:#6b7280;margin-top:3px">' + esc((c.address || '').slice(0, 70)) + '</div></button>';
+}
+
+function candFilter(){
+  var box = document.getElementById('candRows'); if(!box) return;
+  var el = document.getElementById('candFind');
+  var q = String(el && el.value || '').trim().toLowerCase().replace(',', '.');
+  var list = (window._candList || []).filter(function(c){
+    if(!q) return true;
+    return String(c.flat || '').toLowerCase().indexOf(q) === 0 ||
+           String(c.area || '').indexOf(q) === 0;
+  });
+  box.innerHTML = list.length
+    ? list.map(candRowHtml).join('')
+    : '<div style="font-size:12.5px;color:#6b7280;padding:10px 2px">Ничего не нашлось — попробуйте другой номер</div>';
+}
+
+function candShowWizard(on){
+  // Прячем ВСЮ голубую карточку мастера, а не только её нутро: иначе от неё
+  // остаётся пустая подложка с рамкой.
+  var w = document.getElementById('wizBox');
+  var card = w && w.parentElement ? w.parentElement : null;
+  if(card) card.style.display = on ? 'block' : 'none';
+}
+
+function candGiveUp(){
+  goal('cand_giveup');
+  var c = document.getElementById('candBox'); if(c) c.remove();
+  var pb = document.getElementById('objParsedBox');
+  if(pb){ pb.style.display = ''; if(pb.nextElementSibling) pb.nextElementSibling.style.display = ''; }
+  candShowWizard(true);
+}
+
+function pickCandidate(cad){
+  goal('cand_picked');
+  // startCheck() здесь никогда не существовало — функция с таким именем в проекте
+  // не объявлена, и выбор квартиры молча падал с ReferenceError. Не замечали,
+  // потому что список был выключен флагом OBJECT_SEARCH_PAID до 04.08.2026.
+  if(heroInput){ heroInput.value = cad; }
+  if(coObj){ coObj.value = cad; }
+  currentObject = cad;                          // именно его читает runPreview
+  window._candPicked = true;                    // загрузчик скажет правду: не ищем, а дочитываем
+  var box = document.getElementById('candBox'); if(box) box.remove();
+  candShowWizard(true);                         // вернуть карточку мастера
+  runPreview();                                 // перезапуск проверки по кадастру
+}
+
+/* Номер квартиры, когда опознан дом целиком. Экран ставим на место карточки
+   мастера — как список выбора, только вводом: списка может не быть вовсе
+   (адресный индекс источника покрывает не все дома), а номер человек знает. */
+var _FLAT_TAIL = /[\s,;]*(?:кв|квартира|пом|помещение|офис)\s*\.?\s*№?\s*\d+[а-яa-z]?\s*$/i;
+
+function askFlatNo(){
+  goal('flat_ask');
+  var box = document.getElementById('wizBox'); if(!box) return;
+  var inpS = 'width:100%;border:1.5px solid #cbd5e1;border-radius:10px;padding:12px 13px;font-size:16px;box-sizing:border-box';
+  box.innerHTML =
+    '<div style="font-weight:800;font-size:15.5px;color:#0a0a0a;margin-bottom:3px">Номер квартиры</div>'+
+    '<div style="font-size:12.5px;color:#6b7280;margin-bottom:11px">Дом мы уже нашли — остался номер, и проверим именно вашу квартиру.</div>'+
+    '<input id="flatNoInput" inputmode="numeric" autocomplete="off" placeholder="Например, 12" style="'+inpS+'">'+
+    '<div class="merr" id="flatNoErr" style="color:#dc2626;font-size:12.5px;margin:8px 0 0;display:none"></div>'+
+    '<div class="cta-sticky"><button class="btn" style="width:100%;margin-top:12px" type="button" onclick="flatNoGo()">Найти квартиру →</button>'+
+    '<button type="button" onclick="wizRender(0)" style="width:100%;margin-top:10px;background:#fff;'+
+    'color:#6b7280;border:1.5px solid #e5e7eb;border-radius:12px;padding:13px;font-size:15px;'+
+    'font-weight:700;cursor:pointer;font-family:inherit">Назад</button></div>';
+  var inp = document.getElementById('flatNoInput');
+  if(inp){ try{ inp.focus(); }catch(e){}
+    inp.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); flatNoGo(); } }); }
+}
+
+function flatNoGo(){
+  var inp = document.getElementById('flatNoInput');
+  var err = document.getElementById('flatNoErr');
+  var v = ((inp && inp.value) || '').trim();
+  if(!v){ if(err){ err.textContent = 'Введите номер квартиры'; err.style.display=''; }
+    if(inp) try{ inp.focus(); }catch(e){} return; }
+  // К дому дописываем номер и перезапускаем обычную проверку: дальше сработает
+  // автоподбор по кадастру, а если квартиры нет в адресном индексе — человек
+  // увидит разбор адреса и всё равно сможет оплатить.
+  var base = String(window._lastObjectRef || currentObject || '').replace(_FLAT_TAIL, '').replace(/[\s,;]+$/,'');
+  var ref = base + ', кв ' + v;
+  goal('flat_given');
+  if(heroInput){ heroInput.value = ref; }
+  if(coObj){ coObj.value = ref; }
+  currentObject = ref;
+  window._flatUnknown = false;
+  runPreview();
+}
+
+function retryObject(){
+  goal('addr_retry');
+  modalBack.classList.remove('open');
+  document.body.style.overflow = '';
+  if(heroInput){ heroInput.focus(); try{ heroInput.select(); }catch(e){}
+    heroInput.scrollIntoView({behavior:'smooth', block:'center'}); }
+}
+
+/* ================= date input: маска ДД.ММ.ГГГГ + кастомный календарь ================= */
+(function initDobControl(){
+  var input = document.getElementById('coDob');
+  var wrap  = document.getElementById('coDobWrap');
+  var cal   = document.getElementById('coDobCal');
+  if(!input || !wrap || !cal) return;
+
+  var MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  var MONTHS_SHORT = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+  var WEEKDAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс']; // понедельник — первый
+  var MIN_YEAR = 1900;
+  var MAX_YEAR = new Date().getFullYear();
+
+  var isMobile = function(){ return window.matchMedia('(max-width:640px)').matches; };
+
+  /* --- на мобильных: нативный picker + конвертация формата на сабмите --- */
+  function applyMobileMode(){
+    if(input.type !== 'date'){
+      var v = input.value;
+      input.type = 'date';
+      input.removeAttribute('maxlength');
+      input.removeAttribute('inputmode');
+      input.placeholder = '';
+      // если пользователь уже ввёл ДД.ММ.ГГГГ — переведём в ISO
+      var m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(v);
+      if(m){ input.value = m[3] + '-' + m[2] + '-' + m[1]; }
+    }
+  }
+  function applyDesktopMode(){
+    if(input.type !== 'text'){
+      var v = input.value;
+      input.type = 'text';
+      input.setAttribute('inputmode','numeric');
+      input.setAttribute('maxlength','10');
+      input.placeholder = 'ДД.ММ.ГГГГ';
+      var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+      if(m){ input.value = m[3] + '.' + m[2] + '.' + m[1]; }
+    }
+  }
+  function syncMode(){ if(isMobile()) applyMobileMode(); else applyDesktopMode(); }
+  syncMode();
+  window.addEventListener('resize', syncMode);
+
+  /* --- маска ввода: только цифры, автопростановка точек, backspace-friendly --- */
+  function applyMask(raw){
+    var d = (raw || '').replace(/\D/g,'').slice(0,8);
+    var out = '';
+    if(d.length > 0) out = d.slice(0,2);
+    if(d.length >= 3) out += '.' + d.slice(2,4);
+    if(d.length >= 5) out += '.' + d.slice(4,8);
+    return out;
+  }
+  input.addEventListener('input', function(){
+    if(input.type !== 'text') return;
+    var before = input.value;
+    var masked = applyMask(before);
+    if(masked !== before){
+      var pos = input.selectionStart || masked.length;
+      input.value = masked;
+      // грубая корректировка позиции курсора
+      try{ input.setSelectionRange(masked.length, masked.length); }catch(e){}
+    }
+    // если валидная — обновим состояние календаря
+    var m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(input.value);
+    if(m){
+      var yy = +m[3], mm = +m[2]-1, dd = +m[1];
+      var t = new Date(yy, mm, dd);
+      if(t.getFullYear()===yy && t.getMonth()===mm && t.getDate()===dd){
+        state.year = yy; state.month = mm; state.selected = new Date(yy,mm,dd);
+        if(cal.classList.contains('open')) render();
+      }
+    }
+  });
+
+  /* --- состояние календаря --- */
+  var today = new Date(); today.setHours(0,0,0,0);
+  var defaultY = 1985; // разумный дефолт для даты рождения
+  var state = {
+    view: 'days',        // 'days' | 'months' | 'years'
+    year: defaultY,
+    month: today.getMonth(),
+    selected: null,
+    yearsFrom: null,
+  };
+
+  function parseCurrent(){
+    var m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(input.value || '');
+    if(!m) return null;
+    var d = new Date(+m[3], +m[2]-1, +m[1]);
+    if(d.getFullYear()!==+m[3] || d.getMonth()!==+m[2]-1 || d.getDate()!==+m[1]) return null;
+    return d;
+  }
+
+  function writeValue(d){
+    var dd = String(d.getDate()).padStart(2,'0');
+    var mm = String(d.getMonth()+1).padStart(2,'0');
+    var yy = String(d.getFullYear());
+    input.value = dd + '.' + mm + '.' + yy;
+    // отсылаем input-событие для совместимости с валидацией формы
+    try{ input.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
+  }
+
+  function el(tag, cls, txt){
+    var e = document.createElement(tag);
+    if(cls) e.className = cls;
+    if(txt != null) e.textContent = txt;
+    return e;
+  }
+
+  function render(){
+    cal.innerHTML = '';
+    if(state.view === 'days') renderDays();
+    else if(state.view === 'months') renderMonths();
+    else renderYears();
+  }
+
+  function renderDays(){
+    var head = el('div','dp-head');
+    var prevY = el('button','dp-nav','«'); prevY.type='button'; prevY.setAttribute('aria-label','Год назад');
+    var prevM = el('button','dp-nav','‹'); prevM.type='button'; prevM.setAttribute('aria-label','Месяц назад');
+    var title = el('button','dp-title', MONTHS[state.month] + ' ' + state.year); title.type='button'; title.setAttribute('aria-label','Выбрать месяц');
+    var nextM = el('button','dp-nav','›'); nextM.type='button'; nextM.setAttribute('aria-label','Месяц вперёд');
+    var nextY = el('button','dp-nav','»'); nextY.type='button'; nextY.setAttribute('aria-label','Год вперёд');
+    prevY.addEventListener('click', function(){ state.year = Math.max(MIN_YEAR, state.year-1); render(); });
+    prevM.addEventListener('click', function(){
+      state.month--; if(state.month<0){ state.month=11; state.year=Math.max(MIN_YEAR,state.year-1); }
+      render();
+    });
+    nextM.addEventListener('click', function(){
+      state.month++; if(state.month>11){ state.month=0; state.year=Math.min(MAX_YEAR,state.year+1); }
+      render();
+    });
+    nextY.addEventListener('click', function(){ state.year = Math.min(MAX_YEAR, state.year+1); render(); });
+    title.addEventListener('click', function(){ state.view='months'; render(); });
+    head.appendChild(prevY); head.appendChild(prevM); head.appendChild(title); head.appendChild(nextM); head.appendChild(nextY);
+    cal.appendChild(head);
+
+    var grid = el('div','dp-grid');
+    WEEKDAYS.forEach(function(w){ grid.appendChild(el('div','dp-wd', w)); });
+
+    // первый день месяца, Пн=0
+    var first = new Date(state.year, state.month, 1);
+    var firstDow = (first.getDay() + 6) % 7; // JS: 0=Sun -> смещение к Пн
+    var daysInMonth = new Date(state.year, state.month+1, 0).getDate();
+    var prevMonthDays = new Date(state.year, state.month, 0).getDate();
+
+    var sel = state.selected || parseCurrent();
+    var totalCells = 42;
+    for(var i=0;i<totalCells;i++){
+      var dayNum, y=state.year, mo=state.month, out=false;
+      if(i < firstDow){
+        dayNum = prevMonthDays - firstDow + 1 + i;
+        mo = state.month - 1;
+        if(mo<0){ mo=11; y=state.year-1; }
+        out = true;
+      }else if(i - firstDow + 1 > daysInMonth){
+        dayNum = i - firstDow + 1 - daysInMonth;
+        mo = state.month + 1;
+        if(mo>11){ mo=0; y=state.year+1; }
+        out = true;
+      }else{
+        dayNum = i - firstDow + 1;
+      }
+      var cellDate = new Date(y, mo, dayNum);
+      var cls = 'dp-day' + (out?' out':'');
+      if(sel && cellDate.getTime() === new Date(sel.getFullYear(),sel.getMonth(),sel.getDate()).getTime()){
+        cls += ' sel';
+      }
+      if(cellDate.getTime() === today.getTime()){ cls += ' today'; }
+      var d = el('div', cls, String(dayNum));
+      (function(dt){
+        d.addEventListener('click', function(){
+          writeValue(dt);
+          state.selected = dt; state.year = dt.getFullYear(); state.month = dt.getMonth();
+          close();
+        });
+      })(cellDate);
+      grid.appendChild(d);
+    }
+    cal.appendChild(grid);
+  }
+
+  function renderMonths(){
+    var head = el('div','dp-head');
+    var prevY = el('button','dp-nav','‹'); prevY.type='button';
+    var title = el('button','dp-title', String(state.year)); title.type='button';
+    var nextY = el('button','dp-nav','›'); nextY.type='button';
+    prevY.addEventListener('click', function(){ state.year=Math.max(MIN_YEAR,state.year-1); render(); });
+    nextY.addEventListener('click', function(){ state.year=Math.min(MAX_YEAR,state.year+1); render(); });
+    title.addEventListener('click', function(){
+      state.view='years';
+      state.yearsFrom = Math.floor(state.year/12)*12;
+      render();
+    });
+    head.appendChild(prevY); head.appendChild(title); head.appendChild(nextY);
+    cal.appendChild(head);
+
+    var grid = el('div','dp-months');
+    MONTHS_SHORT.forEach(function(m, idx){
+      var cls = 'dp-month' + (idx===state.month?' sel':'');
+      var c = el('div', cls, m);
+      c.addEventListener('click', function(){ state.month=idx; state.view='days'; render(); });
+      grid.appendChild(c);
+    });
+    cal.appendChild(grid);
+  }
+
+  function renderYears(){
+    var start = state.yearsFrom != null ? state.yearsFrom : Math.floor(state.year/12)*12;
+    if(start < MIN_YEAR) start = MIN_YEAR;
+    var end = Math.min(start + 11, MAX_YEAR);
+
+    var head = el('div','dp-head');
+    var prev = el('button','dp-nav','‹'); prev.type='button';
+    var title = el('button','dp-title', start + ' – ' + end); title.type='button';
+    var next = el('button','dp-nav','›'); next.type='button';
+    prev.addEventListener('click', function(){
+      state.yearsFrom = Math.max(MIN_YEAR, (state.yearsFrom!=null?state.yearsFrom:start) - 12);
+      render();
+    });
+    next.addEventListener('click', function(){
+      var nf = (state.yearsFrom!=null?state.yearsFrom:start) + 12;
+      if(nf <= MAX_YEAR){ state.yearsFrom = nf; render(); }
+    });
+    title.addEventListener('click', function(){ state.view='days'; render(); });
+    head.appendChild(prev); head.appendChild(title); head.appendChild(next);
+    cal.appendChild(head);
+
+    var grid = el('div','dp-years');
+    for(var y=start; y<=end; y++){
+      var cls = 'dp-year' + (y===state.year?' sel':'');
+      var c = el('div', cls, String(y));
+      (function(yy){
+        c.addEventListener('click', function(){ state.year=yy; state.view='months'; render(); });
+      })(y);
+      grid.appendChild(c);
+    }
+    cal.appendChild(grid);
+  }
+
+  function open(){
+    if(isMobile()) return;
+    var cur = parseCurrent();
+    if(cur){ state.year = cur.getFullYear(); state.month = cur.getMonth(); state.selected = cur; }
+    else { state.year = defaultY; state.month = 0; state.selected = null; }
+    state.view = 'days';
+    render();
+    cal.classList.add('open');
+  }
+  function close(){ cal.classList.remove('open'); }
+
+  input.addEventListener('focus', open);
+  input.addEventListener('click', function(){ if(!cal.classList.contains('open')) open(); });
+
+  document.addEventListener('mousedown', function(e){
+    if(!cal.classList.contains('open')) return;
+    if(wrap.contains(e.target)) return;
+    close();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && cal.classList.contains('open')){
+      close();
+      // не закрываем модалку — глушим всплытие
+      e.stopPropagation();
+    }
+  }, true);
+  // при закрытии модалки чекаута — гасим календарь
+  var modalCloseBtn = document.getElementById('modalClose');
+  if(modalCloseBtn) modalCloseBtn.addEventListener('click', close);
+})();
+/* ============= Автоподстановка адреса (DaData) ============= */
+window.__hideAllSuggests = [];
+function attachAddressSuggest(input){
+  if(!input) return;
+  var box = document.createElement('div');
+  box.className = 'addr-suggest'; box.style.display = 'none';
+  document.body.appendChild(box);
+  var timer=null, items=[], picked=false;
+  function hide(){ box.style.display='none'; clearTimeout(timer); }
+  window.__hideAllSuggests.push(hide);
+  function position(){
+    var r = input.getBoundingClientRect();
+    box.style.left = r.left+'px'; box.style.top = (r.bottom+4)+'px'; box.style.width = r.width+'px';
+  }
+  function render(list){
+    // не показывать подсказки, если модалка открыта или только что выбрали пункт
+    // (fetch асинхронный — может прийти уже после открытия модалки/выбора)
+    var mb = document.getElementById('modalBack');
+    if(picked || (mb && mb.classList.contains('open'))){ hide(); return; }
+    items = list || [];
+    if(!items.length){ hide(); return; }
+    box.innerHTML = items.map(function(s,i){
+      return '<div class="addr-item" data-i="'+i+'">'+(s.value||'').replace(/</g,'&lt;')+'</div>';
+    }).join('');
+    position(); box.style.display='block';
+  }
+  input.addEventListener('input', function(){
+    if(picked){ picked=false; return; }  // не переоткрывать подсказки сразу после выбора
+    var q = input.value.trim();
+    // Похоже на кадастровый номер (только цифры/двоеточия) — подсказки не нужны.
+    if(q.length < 3 || /^[\d:\s]+$/.test(q)){ hide(); return; }
+    clearTimeout(timer);
+    timer = setTimeout(function(){
+      fetch('/api/suggest-address?q='+encodeURIComponent(q))
+        .then(function(r){return r.json();})
+        .then(function(d){ render(d.suggestions); })
+        .catch(hide);
+    }, 250);
+  });
+  box.addEventListener('mousedown', function(e){
+    var el = e.target.closest('.addr-item'); if(!el) return;
+    e.preventDefault();
+    input.value = items[+el.getAttribute('data-i')].value;
+    picked=true; hide();
+    input.dispatchEvent(new Event('change'));  // не шлём 'input' — иначе подсказки откроются снова
+  });
+  input.addEventListener('blur', function(){ setTimeout(hide, 160); });
+  input.addEventListener('keydown', function(e){ if(e.key==='Escape') hide(); });
+  window.addEventListener('scroll', function(){ if(box.style.display==='block') position(); }, true);
+  window.addEventListener('resize', function(){ if(box.style.display==='block') position(); });
+}
+attachAddressSuggest(document.getElementById('heroInput'));
+attachAddressSuggest(document.getElementById('coObj'));
+
+</script>
+</body>
+</html>
