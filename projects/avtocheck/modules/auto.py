@@ -22,6 +22,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -210,12 +211,21 @@ def from_report(report: dict[str, Any]) -> list[AutoCheck]:
 
     taxi = bool(data.get("HasTaxi") or data.get("HasRsaTaxi"))
     car_sh = bool(data.get("UsedInCarsharing"))
-    add("taxi",
-        "found" if (taxi or car_sh) else "not_found",
-        ("Автомобиль использовался в такси или каршеринге — износ у таких машин "
-         "заметно выше обычного." if (taxi or car_sh) else
-         "Сведений об использовании в такси и каршеринге нет."),
-        d_hist)
+    # Дату сюда раньше подставляли от истории регистраций — от чужого источника.
+    # Получалось «сведений о такси нет, данные актуальны на 15.08.2023», хотя к
+    # такси эта дата отношения не имеет. Отдельный метод taxi у поставщика на
+    # 08.08.2026 отвечает «источник не подключен», то есть за реестром такси мы
+    # не ходили вовсе — значит и даты у нас нет. Пишем это прямо.
+    if taxi or car_sh:
+        add("taxi", "found",
+            "Автомобиль использовался в такси или каршеринге — износ у таких "
+            "машин заметно выше обычного.", None)
+    else:
+        add("taxi", "not_found",
+            "В агрегированном отчёте отметки о работе в такси и каршеринге нет. "
+            "Прямой доступ к реестру такси у поставщика сейчас закрыт, поэтому "
+            "отсутствие отметки — не доказательство: проверьте машину в "
+            "региональном реестре такси, это бесплатно.", None)
 
     customs = data.get("CustomsItems") or []
     util = bool(data.get("IsTotalCar"))
@@ -418,6 +428,89 @@ def _apply_tier(checks: list["AutoCheck"], basic: bool) -> list["AutoCheck"]:
                              stale=c.stale,
                              detail="Входит в полный отчёт — 449 ₽."))
     return out
+
+
+# ── паспорт машины и периоды владения ──────────────────────────────────────
+# Оба берутся ОДНИМ вызовом gibddhistory за 2,10 ₽ — проверено 08.08.2026.
+# reportjson (50 ₽) их не отдаёт: там только счётчик регистраций без записей,
+# а характеристик машины нет вовсе. Две самые заметные секции у конкурентов
+# стоят нам две копейки, и не добирать их было бы странно.
+
+_PERSON = {"Natural": "Физическое лицо", "Legal": "Юридическое лицо"}
+
+
+def _pass_num(v: Any) -> str:
+    """«1995.0» → «1995». Источник отдаёт числа строками с хвостом."""
+    s = str(v or "").strip()
+    if s.endswith(".0"):
+        s = s[:-2]
+    return s
+
+
+def enrich(vin: str) -> dict[str, Any]:
+    """Паспорт автомобиля и история владения.
+
+    Возвращает пустой словарь при любой беде: секции просто не покажутся, а
+    отчёт останется. Ронять выдачу из-за дополнения нельзя — за неё заплачено.
+    """
+    try:
+        got = apipoint.call("gibddhistory", {"vin": vin})
+    except Exception as exc:  # noqa: BLE001
+        print(f"[enrich] gibddhistory: {type(exc).__name__}: {exc}", flush=True)
+        return {}
+    inner = (got.get("result") or {}).get("gibddhistory") or {}
+    # result внутри — СТРОКА с JSON, а не объект. Разбираем отдельно, иначе
+    # получим «строка не поддерживает .get» на ровном месте.
+    raw = inner.get("result")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:  # noqa: BLE001
+            return {}
+    if not isinstance(raw, dict):
+        return {}
+    rr = raw.get("RequestResult") or {}
+    veh = rr.get("vehicle") or {}
+
+    as_of = None
+    for key in ("requestTime",):
+        t = str(raw.get(key) or inner.get(key) or "")
+        if len(t) >= 10:
+            try:
+                d, m, y = t[:10].split(".")
+                as_of = date(int(y), int(m), int(d))
+            except Exception:  # noqa: BLE001
+                pass
+
+    passport = {
+        "model": (veh.get("model") or "").strip(),
+        "year": _pass_num(veh.get("year")),
+        "color": (veh.get("color") or "").strip().capitalize(),
+        "volume": _pass_num(veh.get("engineVolume")),
+        "power_hp": _pass_num(veh.get("powerHp")),
+        "engine_no": (veh.get("engineNumber") or "").strip(),
+        "body_no": (veh.get("bodyNumber") or "").strip(),
+        "category": (veh.get("category") or "").strip(),
+        "as_of": as_of.isoformat() if as_of else "",
+    }
+
+    periods = ((rr.get("ownershipPeriods") or {}).get("ownershipPeriod")) or []
+    if isinstance(periods, dict):        # один период приходит объектом, не списком
+        periods = [periods]
+    owners = []
+    for p in periods:
+        if not isinstance(p, dict):
+            continue
+        owners.append({
+            "kind": _PERSON.get(str(p.get("simplePersonType") or ""), "Не указано"),
+            "from": str(p.get("from") or ""),
+            "to": str(p.get("to") or ""),
+        })
+    # Источник отдаёт периоды в произвольном порядке — сортируем по дате начала,
+    # иначе таблица «периоды владения» читается как случайный набор строк.
+    owners.sort(key=lambda o: o.get("from") or "")
+    return {"passport": {k: v for k, v in passport.items() if v},
+            "owners": owners}
 
 
 def recheck_pledge(raw: str) -> AutoCheck:

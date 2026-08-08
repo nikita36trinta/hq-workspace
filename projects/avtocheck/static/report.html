@@ -120,6 +120,14 @@
   .asof.fresh{color:#166534;background:#f0fdf4;border-color:#bbf7d0}
   .src{color:var(--mut)}
 
+  /* ── паспорт: плитки характеристик ───────────────────────────────────── */
+  .specs{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+  .spec{background:var(--card);border-radius:12px;padding:14px 16px}
+  .speck{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--mut);margin-bottom:5px}
+  .specv{font-size:16px;font-weight:750;letter-spacing:-.01em;word-break:break-word}
+  .specv.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px}
+
   /* ── таблица (ДТП, владение) ─────────────────────────────────────────── */
   .tblwrap{overflow-x:auto;border-radius:14px;background:var(--card)}
   table{border-collapse:collapse;width:100%;min-width:520px;font-size:14px}
@@ -190,6 +198,20 @@
       <h2 class="sech">Что установлено по реестрам</h2>
       <p class="secsub" id="secsub">У каждой проверки — своя дата актуальности.</p>
       <div class="grid" id="tiles"></div>
+    </div>
+
+    <!-- паспорт машины по ГИБДД -->
+    <div class="sec" id="passSec" style="display:none">
+      <h2 class="sech">Паспорт автомобиля</h2>
+      <p class="secsub" id="passSub">Характеристики по регистрационным данным ГИБДД.</p>
+      <div class="specs" id="specs"></div>
+    </div>
+
+    <!-- периоды владения -->
+    <div class="sec" id="ownSec" style="display:none">
+      <h2 class="sech">Периоды владения</h2>
+      <p class="secsub" id="ownSub">Кто и сколько владел машиной по данным ГИБДД.</p>
+      <div class="tblwrap"><table id="ownTable"></table></div>
     </div>
 
     <!-- детали ДТП -->
@@ -326,7 +348,11 @@ function render(d){
 
   var idp = [];
   if(d.vin) idp.push('<span>VIN <b>'+esc(d.vin)+'</b></span>');
-  if(car.year) idp.push('<span><i>'+(String(car.year).indexOf('с ')===0?'поколение':'год')+'</i> '+esc(car.year)+'</span>');
+  // Год из ГИБДД точный, из VIN-декодера — только год поколения («с 07.2019»).
+  // Когда есть паспорт, показываем его: «год 2020» полезнее, чем «поколение».
+  var pyear = (d.passport||{}).year;
+  if(pyear){ idp.push('<span><i>год</i> '+esc(pyear)+'</span>'); }
+  else if(car.year){ idp.push('<span><i>'+(String(car.year).indexOf('с ')===0?'поколение':'год')+'</i> '+esc(car.year)+'</span>'); }
   if(car.engine) idp.push('<span><i>двигатель</i> '+esc(car.engine)+'</span>');
   if(car.body) idp.push('<span><i>кузов</i> '+esc(car.body)+'</span>');
   if(d.created_at) idp.push('<span><i>отчёт от</i> '+esc(String(d.created_at).slice(0,10).split('-').reverse().join('.'))+'</span>');
@@ -386,6 +412,48 @@ function render(d){
       (means?'<div class="tilemeans">'+esc(means)+'</div>':'')+
       '<div class="tilefoot">'+badge+'<span class="src">'+esc(c.source)+'</span></div></div>';
   }).join('');
+
+  // паспорт по ГИБДД
+  var ps = d.passport || {};
+  var SPEC = [['model','Модель по ПТС',0],['year','Год выпуска',0],['color','Цвет',0],
+              ['volume','Объём двигателя',' см³'],['power_hp','Мощность',' л.с.'],
+              ['category','Категория',0],['engine_no','Номер двигателя',1],
+              ['body_no','Номер кузова',1]];
+  var specs = SPEC.filter(function(f){ return ps[f[0]]; }).map(function(f){
+    var mono = f[2]===1 ? ' mono' : '';
+    var unit = (typeof f[2]==='string') ? f[2] : '';
+    return '<div class="spec"><div class="speck">'+esc(f[1])+'</div>'+
+      '<div class="specv'+mono+'">'+esc(ps[f[0]])+esc(unit)+'</div></div>';
+  });
+  if(specs.length){
+    document.getElementById('passSec').style.display='block';
+    document.getElementById('specs').innerHTML = specs.join('');
+    if(ps.as_of){
+      document.getElementById('passSub').textContent =
+        'Характеристики по регистрационным данным ГИБДД на ' +
+        String(ps.as_of).split('-').reverse().join('.') + '.';
+    }
+  }
+
+  // периоды владения
+  var owners = d.owners || [];
+  if(owners.length){
+    document.getElementById('ownSec').style.display='block';
+    var ru = function(s){ return s ? String(s).slice(0,10).split('-').reverse().join('.') : ''; };
+    document.getElementById('ownTable').innerHTML =
+      '<tr><th>Владелец</th><th>С какой даты</th><th>По какую</th></tr>' +
+      owners.map(function(o){
+        return '<tr><td><b>'+esc(o.kind)+'</b></td><td>'+esc(ru(o.from)||'—')+'</td>'+
+          '<td>'+esc(ru(o.to) || 'по настоящее время')+'</td></tr>';
+      }).join('');
+    // Юрлицо среди владельцев — сигнал: так в историю попадают такси, каршеринг
+    // и лизинговые парки. Молча показать строку «Юридическое лицо» мало.
+    if(owners.some(function(o){ return o.kind.indexOf('Юрид')===0; })){
+      document.getElementById('ownSub').textContent =
+        'Среди владельцев есть юридическое лицо — так в истории отражаются такси, ' +
+        'каршеринг и корпоративные парки. Спросите продавца, как эксплуатировалась машина.';
+    }
+  }
 
   // ДТП таблицей
   var dtp = (checks.filter(function(c){ return c.key==='dtp'; })[0]||{}).items || [];

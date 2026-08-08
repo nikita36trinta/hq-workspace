@@ -2381,6 +2381,9 @@ def api_check_full(report_id: str) -> JSONResponse:
         "car": rec.get("object_preview") or {},
         "vin": rec.get("object_ref") or "",
         "created_at": rec.get("created_at") or "",
+        # Паспорт ГИБДД и периоды владения — отдельные секции отчёта.
+        "passport": rec.get("passport") or {},
+        "owners": rec.get("owners") or [],
         "addon_pending": bool(rec.get("addon_pending")),
         "addon_applied": bool(rec.get("addon_applied")),
         "addon_result": rec.get("addon_result"),
@@ -3574,6 +3577,20 @@ def _do_finalize(report_id: str, object_only: bool | None = None) -> bool:
             tariff=rec.get("tariff", "base"), consent=True,
         )
         checks = _run_checks(req, preview=False, object_only=object_only)  # единый прогон без ретраев
+
+        # Паспорт машины и периоды владения — одним вызовом за 2,10 ₽. Только
+        # в полном тарифе: в базовом продаются три стоп-фактора, и добирать за
+        # свои деньги то, что в него не входит, смысла нет.
+        if not object_only:
+            try:
+                from modules import auto as _auto2
+                extra = _auto2.enrich(str(rec.get("object_ref") or ""))
+                if extra.get("passport"):
+                    rec["passport"] = extra["passport"]
+                if extra.get("owners"):
+                    rec["owners"] = extra["owners"]
+            except Exception as exc:  # noqa: BLE001 — дополнение не роняет выдачу
+                print(f"[enrich] {report_id}: {type(exc).__name__}: {exc}", flush=True)
 
         # ГЕЙТ ВЫДАЧИ — АВТОМОБИЛЬНЫЙ. Ниже по функции остался гейт недвижимости:
         # он ищет блок с ключом «object» и, не найдя, выбрасывает ВЕСЬ отчёт. У
