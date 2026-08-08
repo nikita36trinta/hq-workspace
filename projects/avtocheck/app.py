@@ -3584,8 +3584,14 @@ def _record_paid_order(order: dict[str, Any], report_id: str) -> None:
         try:
             from modules import metrika
             metrika.upload_pay_conversion(ym_uid, order["amount"])
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001
+            print(f"[metrika] сбой загрузки конверсии: {type(exc).__name__}: {exc}",
+                  flush=True)
+    else:
+        # Оплата без ClientId — реклама её не увидит. Обычно это платёж по
+        # прямой ссылке мимо браузера; если такое пойдёт валом, атрибуция врёт.
+        print(f"[metrika] конверсия пропущена: ClientId={'есть' if ym_uid else 'НЕТ'}, "
+              f"сумма={order.get('amount')}", flush=True)
 
 
 import threading as _threading

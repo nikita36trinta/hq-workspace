@@ -25,7 +25,15 @@ def upload_pay_conversion(ym_uid: str, price: float,
     token = os.getenv("YANDEX_METRIKA_TOKEN", "").strip()
     counter = os.getenv("METRIKA_COUNTER_ID", "").strip()
     ym_uid = (ym_uid or "").strip()
+    # Раньше и отказ, и молчание выглядели одинаково: функция возвращала False,
+    # вызывающий его не смотрел, в лог не попадало ничего. Это единственное
+    # число, по которому реклама учится приводить покупателей, — потерять его
+    # незаметно значит месяцами оптимизировать кампании вслепую.
     if not (token and counter and ym_uid):
+        print(f"[metrika] конверсия НЕ отправлена: "
+              f"{'нет токена ' if not token else ''}"
+              f"{'нет счётчика ' if not counter else ''}"
+              f"{'нет ClientId' if not ym_uid else ''}".strip(), flush=True)
         return False
     ts = int(when_ts or time.time())
     csv = ("ClientId,Target,DateTime,Price,Currency\n"
@@ -38,8 +46,13 @@ def upload_pay_conversion(ym_uid: str, price: float,
                 headers={"Authorization": f"OAuth {token}"},
                 files={"file": ("conv.csv", csv.encode("utf-8"), "text/csv")},
             )
-        return r.status_code < 400
-    except Exception:
+        ok = r.status_code < 400
+        print(f"[metrika] конверсия {target} {price} ₽ ClientId={ym_uid[:8]}… → "
+              f"{'загружена' if ok else 'ОТКАЗ ' + str(r.status_code) + ' ' + r.text[:160]}",
+              flush=True)
+        return ok
+    except Exception as exc:  # noqa: BLE001
+        print(f"[metrika] конверсия НЕ ушла: {type(exc).__name__}: {exc}", flush=True)
         return False
 
 
