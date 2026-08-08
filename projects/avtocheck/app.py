@@ -1230,11 +1230,15 @@ def _run_checks(req: "CheckRequest", preview: bool = False, object_only: bool = 
     # гейты, и при желании вернуть проверку продавца по ФИО (ФССП, банкротство)
     # эта часть понадобится как есть. Для авто она не выполняется.
     from modules import auto as _auto
-    checks_auto = _auto.to_legacy_checks(
-        _auto.preview_checks(req.object_ref) if preview
-        else _auto.run_full(req.object_ref, basic=object_only)
-    )
-    return checks_auto
+    if preview:
+        return _auto.to_legacy_checks(_auto.preview_checks(req.object_ref))
+    # Поштучные методы вместо агрегата: дешевле (≈32 ₽ против 50) и, главное,
+    # ограничения, розыск и история приходят ЖИВЫМИ, а не снимком 2023 года.
+    checks, extra = _auto.run_alacarte(req.object_ref, basic=object_only)
+    # Паспорт и владельцы едут с теми же данными — прячем их в модуль-глобал,
+    # чтобы не менять сигнатуру _run_checks, которую зовут из шести мест.
+    globals()["_LAST_AUTO_EXTRA"] = extra
+    return _auto.to_legacy_checks(checks)
 
     from concurrent.futures import ThreadPoolExecutor
     from modules.fssp import region_from_address, region_from_kadastr
@@ -3578,19 +3582,13 @@ def _do_finalize(report_id: str, object_only: bool | None = None) -> bool:
         )
         checks = _run_checks(req, preview=False, object_only=object_only)  # единый прогон без ретраев
 
-        # Паспорт машины и периоды владения — одним вызовом за 2,10 ₽. Только
-        # в полном тарифе: в базовом продаются три стоп-фактора, и добирать за
-        # свои деньги то, что в него не входит, смысла нет.
-        if not object_only:
-            try:
-                from modules import auto as _auto2
-                extra = _auto2.enrich(str(rec.get("object_ref") or ""))
-                if extra.get("passport"):
-                    rec["passport"] = extra["passport"]
-                if extra.get("owners"):
-                    rec["owners"] = extra["owners"]
-            except Exception as exc:  # noqa: BLE001 — дополнение не роняет выдачу
-                print(f"[enrich] {report_id}: {type(exc).__name__}: {exc}", flush=True)
+        # Паспорт машины и периоды владения приезжают тем же вызовом gai, что и
+        # ограничения — отдельных денег не стоят. _run_checks кладёт их сюда.
+        extra = globals().get("_LAST_AUTO_EXTRA") or {}
+        if extra.get("passport"):
+            rec["passport"] = extra["passport"]
+        if extra.get("owners"):
+            rec["owners"] = extra["owners"]
 
         # ГЕЙТ ВЫДАЧИ — АВТОМОБИЛЬНЫЙ. Ниже по функции остался гейт недвижимости:
         # он ищет блок с ключом «object» и, не найдя, выбрасывает ВЕСЬ отчёт. У

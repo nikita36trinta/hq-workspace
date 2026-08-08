@@ -430,6 +430,211 @@ def _apply_tier(checks: list["AutoCheck"], basic: bool) -> list["AutoCheck"]:
     return out
 
 
+# ── сборка отчёта из поштучных методов ─────────────────────────────────────
+# Замер 08.08.2026. reportjson (50 ₽) отдаёт всё гибддшное КЭШЕМ 2023 года.
+# Метод gai (21 ₽) на тот же VIN вернул Date=08.08.2026 11:31 — живой запрос, и
+# в нём сразу ограничения, розыск, история владения и паспорт машины. Остальное
+# добираем дешёвыми методами. Итог ≈ 32 ₽ против 50 ₽: дешевле, свежее и шире.
+#
+# Порядок в списке = порядок блоков в отчёте, от «сделку нельзя» к «влияет на цену».
+
+def _gai_date(s: str) -> date | None:
+    """«08.08.2026 11:31:03» → date. Формат источника, не ISO."""
+    try:
+        return datetime.strptime(str(s)[:10], "%d.%m.%Y").date()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _call_quiet(method: str, params: dict[str, Any]) -> dict[str, Any] | None:
+    """Вызов, который не роняет отчёт. Молчание источника — не повод потерять
+    остальные семь блоков, за которые человек заплатил."""
+    try:
+        got = apipoint.call(method, params, attempts=1)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[alacarte] {method}: {type(exc).__name__}: {exc}", flush=True)
+        return None
+    return (got.get("result") or {}).get(method)
+
+
+def run_alacarte(raw: str, basic: bool = False) -> tuple[list[AutoCheck], dict[str, Any]]:
+    """Полный отчёт из поштучных методов. → (блоки, дополнение).
+
+    Дополнение — паспорт машины и периоды владения: они приходят тем же вызовом
+    gai, что и ограничения, и отдельных денег не стоят.
+    """
+    kind, ref = normalize_ref(raw)
+    if not kind:
+        empty = [AutoCheck(key=k, name=n, source=s, status="not_checked",
+                           detail="Не удалось распознать VIN или госномер.",
+                           as_of=None, stale=True) for k, n, s in AUTO_CHECKS]
+        return empty, {}
+    vin = ref
+    if kind == "plate":
+        got = _call_quiet("number2vin", {"gosnomer": ref})
+        vin = str((got or {}).get("vin") or "").upper()
+        if not _VIN_RE.match(vin or ""):
+            empty = [AutoCheck(key=k, name=n, source=s, status="not_checked",
+                               detail="По госномеру VIN не найден — пришлите VIN.",
+                               as_of=None, stale=True) for k, n, s in AUTO_CHECKS]
+            return empty, {}
+
+    out: list[AutoCheck] = []
+
+    def add(key: str, status: str, detail: str, as_of: date | None,
+            items: list | None = None) -> None:
+        name, source = next(((n, s) for k, n, s in AUTO_CHECKS if k == key), (key, ""))
+        out.append(AutoCheck(key=key, name=name, source=source, status=status,
+                             detail=detail + _tail(as_of), items=items or [],
+                             as_of=as_of, stale=_stale(as_of)))
+
+    # ── gai: ограничения, розыск, история владения, паспорт. Живой запрос. ──
+    gai = _call_quiet("gai", {"vin": vin}) or {}
+    g = gai.get("data") or {}
+    g_date = _gai_date(g.get("Date") or "")
+
+    if not g:
+        add("restrict", "not_checked",
+            "Источник ГИБДД не ответил — ограничения проверить не удалось.", None)
+        add("wanted", "not_checked",
+            "Источник ГИБДД не ответил — розыск проверить не удалось.", None)
+    else:
+        restr = g.get("Restrict")
+        rows = restr if isinstance(restr, list) else ([] if restr in (None, "") else [restr])
+        add("restrict", "found" if rows else "not_found",
+            (f"Действующих ограничений: {len(rows)}. Поставить машину на учёт не "
+             f"получится, пока их не снимут." if rows
+             else "Ограничений на регистрационные действия не найдено."),
+            g_date, rows if isinstance(restr, list) else [])
+        in_search = bool(g.get("InSearch"))
+        add("wanted", "found" if in_search else "not_found",
+            ("Автомобиль числится в розыске — сделка невозможна." if in_search
+             else "Автомобиль не числится в розыске."), g_date)
+
+    # ── залог: живой реестр ФНП, главный риск покупки ────────────────────────
+    nz = _call_quiet("notary", {"vin": vin})
+    if nz is None:
+        add("pledge", "not_checked",
+            "Реестр залогов не ответил — это главный риск покупки, проверьте "
+            "вручную на reestr-zalogov.ru, там бесплатно.", None)
+    else:
+        num = nz.get("num")
+        lz = _call_quiet("leasing", {"vin": vin}) or {}
+        in_lease = bool(lz.get("f") or lz.get("result") not in (None, "", "Данные не найдены", []))
+        if num is None:
+            add("pledge", "not_checked",
+                "Реестр залогов ответил неожиданным образом — проверьте вручную "
+                "на reestr-zalogov.ru.", None)
+        elif int(num) > 0 or in_lease:
+            add("pledge", "found",
+                (f"Найдены записи в реестре залогов: {int(num)}. " if int(num) else "") +
+                ("Автомобиль числится в лизинге. " if in_lease else "") +
+                "По ст. 353 ГК залог сохраняется при смене собственника — машину "
+                "заберут уже у вас.", date.today())
+        else:
+            add("pledge", "not_found",
+                "Автомобиль не числится в залоге и в лизинге.", date.today())
+
+    # ── ДТП: у поставщика помечен как кэш, дату отдаёт не всегда ─────────────
+    dtp = _call_quiet("dtp", {"vin": vin}) or {}
+    acc = ((dtp.get("dtpData") or {}).get("accident")) or []
+    d_dtp = _gai_date(dtp.get("requestDate") or dtp.get("requestTime") or "")
+    add("dtp", "found" if acc else "not_found",
+        (f"Зафиксировано ДТП: {len(acc)}. Проверьте качество ремонта и геометрию "
+         f"кузова." if acc else "ДТП по базе ГИБДД не найдено."), d_dtp, acc)
+
+    # ── пробег ───────────────────────────────────────────────────────────────
+    pb = _call_quiet("probeg", {"vin": vin}) or {}
+    m = ((pb.get("result") or {}).get("m_probeg")) or {}
+    km = int(m.get("Probeg") or 0)
+    if km > 0:
+        add("mileage", "found",
+            f"Последний зафиксированный пробег: {km:,} км ({m.get('SourceName') or 'источник не указан'}). "
+            f"Сверьте с одометром: значение ниже — признак скрутки.".replace(",", " "),
+            _gai_date(m.get("DateString") or ""), [m])
+    else:
+        eai = _call_quiet("eaisto", {"vin": vin}) or {}
+        cards = eai.get("result") if isinstance(eai.get("result"), list) else []
+        add("mileage", "found" if cards else "not_checked",
+            (f"Диагностических карт найдено: {len(cards)}." if cards else
+             "Данных о пробеге и диагностических картах в источниках нет. Это НЕ "
+             "означает, что их нет в природе: запросите у продавца диагностическую "
+             "карту."),
+            _gai_date(eai.get("requestDate") or ""), cards)
+
+    # ── история регистраций: считаем по живой истории из gai ────────────────
+    # «Записей: 3» — цифра, из которой покупатель ничего не извлечёт. Считаем
+    # то, ради чего эту секцию и смотрят: короткие периоды владения. Машину,
+    # которую перепродали дважды за пару месяцев, обычно сбрасывают не просто так.
+    hist = g.get("History") or []
+    short = 0
+    for p in hist:
+        if not isinstance(p, dict):
+            continue
+        a, b = _gai_date(p.get("From") or ""), _gai_date(p.get("To") or "")
+        if a and b and (b - a).days < 180:
+            short += 1
+    if hist:
+        detail = f"Записей о регистрационных действиях: {len(hist)}."
+        if short:
+            detail += (f" Из них {short} владел{'ец' if short == 1 else 'ьцев'} "
+                       f"держал{'' if short == 1 else 'и'} машину меньше полугода — "
+                       f"так обычно сбрасывают проблемный автомобиль. Спросите "
+                       f"продавца, почему он продаёт, и сверьте ответ с датами.")
+        add("history", "found", detail, g_date, hist)
+    else:
+        add("history", "not_checked", "История регистраций в источнике не найдена.",
+            g_date, [])
+
+    # ── такси: прямой источник у поставщика закрыт, честно об этом ──────────
+    add("taxi", "not_checked",
+        "Прямой доступ к реестру такси у поставщика закрыт, поэтому этот пункт "
+        "мы не проверяли. Если машина могла работать в такси, сверьтесь в "
+        "региональном реестре — это бесплатно.", None)
+
+    # ── таможня и утилизация ─────────────────────────────────────────────────
+    cu = _call_quiet("customs", {"vin": vin}) or {}
+    cu_items = cu.get("result") if isinstance(cu.get("result"), list) else []
+    ut = _call_quiet("utilization", {"vin": vin}) or {}
+    ut_found = str((ut or {}).get("result") or "") not in ("", "Данные не найдены")
+    add("customs", "found" if (cu_items or ut_found) else "not_found",
+        ((f"Таможенных деклараций: {len(cu_items)}. Автомобиль ввозился из-за границы. "
+          if cu_items else "Сведений о таможенном оформлении нет. ") +
+         ("Автомобиль числится утилизированным — поставить на учёт нельзя."
+          if ut_found else "")).strip(),
+        _gai_date(cu.get("requestDate") or ""), cu_items)
+
+    passport = {}
+    owners = []
+    if g:
+        passport = {k: v for k, v in {
+            "model": (g.get("MarkaModel") or "").strip(),
+            "year": str(g.get("Year") or "").strip(),
+            "color": (g.get("Color") or "").strip().capitalize(),
+            "volume": _pass_num(g.get("EngineVolume")),
+            "power_hp": _pass_num(g.get("PowerHp")),
+            "category": (g.get("Category") or "").strip(),
+            "eco": (g.get("EcoClass") or "").strip(),
+            "mass": _pass_num(g.get("Mass")),
+            "as_of": g_date.isoformat() if g_date else "",
+        }.items() if v}
+        # gai отдаёт даты как «31.07.2020», отчёт ждёт ISO. Приводим здесь, а не
+        # на фронте: иначе один и тот же формат разбирался бы в двух местах.
+        def _iso(s: str) -> str:
+            d = _gai_date(s)
+            return d.isoformat() if d else ""
+        for p in hist:
+            if not isinstance(p, dict):
+                continue
+            owners.append({"kind": (p.get("PersonType") or "Не указано").strip(),
+                           "from": _iso(p.get("From") or ""),
+                           "to": _iso(p.get("To") or ""),
+                           "op": (p.get("LastOperation") or "").strip()})
+
+    out = _apply_tier(out, basic=basic)
+    return out, {"passport": passport, "owners": owners}
+
+
 # ── паспорт машины и периоды владения ──────────────────────────────────────
 # Оба берутся ОДНИМ вызовом gibddhistory за 2,10 ₽ — проверено 08.08.2026.
 # reportjson (50 ₽) их не отдаёт: там только счётчик регистраций без записей,

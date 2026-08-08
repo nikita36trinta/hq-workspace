@@ -417,8 +417,9 @@ function render(d){
   var ps = d.passport || {};
   var SPEC = [['model','Модель по ПТС',0],['year','Год выпуска',0],['color','Цвет',0],
               ['volume','Объём двигателя',' см³'],['power_hp','Мощность',' л.с.'],
-              ['category','Категория',0],['engine_no','Номер двигателя',1],
-              ['body_no','Номер кузова',1]];
+              ['category','Категория',0],['eco','Экологический класс',0],
+              ['mass','Снаряжённая масса',' кг'],
+              ['engine_no','Номер двигателя',1],['body_no','Номер кузова',1]];
   var specs = SPEC.filter(function(f){ return ps[f[0]]; }).map(function(f){
     var mono = f[2]===1 ? ' mono' : '';
     var unit = (typeof f[2]==='string') ? f[2] : '';
