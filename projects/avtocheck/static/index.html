@@ -1054,18 +1054,18 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
 <!-- Версия в ссылке обязательна: файл переехал с недвижимости на авто, и у
      всех, кто заходил раньше, в кэше лежит экран цены про квартиры. Меняете
      содержимое — двигайте номер, иначе правку увидят только новые посетители. -->
-<script src="/static/price_variants.js?v=auto2"></script>
+<script src="/static/price_variants.js?v=auto3"></script>
 <script>
 /* ================= tracking ================= */
 var METRIKA_ID = 111408587;
 // Значение до ответа /api/prices держим равным боевому. Здесь оставались
 // тарифы недвижимости (1 490 / 2 990 / 9 900 ₽): при медленном или упавшем
 // /api/variant человек видел на пейволле цену вчетверо выше настоящей.
-var TARIFFS = { base: {title:'Полная проверка', price:'449 ₽'} };
+var TARIFFS = { base: {title:'Полная проверка', price:'499 ₽'} };
 // A/B/n тест цены (раунд 2: 299/490/690/5299-премиум) — вариант с сервера (кука cs_variant).
 // Значения до ответа /api/prices. Держим их равными боевым: пока грузится
 // конфиг, экран уже нарисован, и старые 499/299 мигали ценой, которой нет.
-window.CS_VARIANT = 'B'; window.CS_GUARANTEE = true; window.CS_PREMIUM = false; window.CS_PRICE = 449; window.CS_OBJECT_PRICE = 199; window.CS_OBJECT_PRICE_STR = '199 ₽'; window.CS_BUMP_PRICE = 299; window.CS_KIT_PRICE = 199; window.CS_LOADED = false;
+window.CS_VARIANT = 'A'; window.CS_GUARANTEE = true; window.CS_PREMIUM = false; window.CS_PRICE = 499; window.CS_OBJECT_PRICE = 199; window.CS_OBJECT_PRICE_STR = '199 ₽'; window.CS_BUMP_PRICE = 299; window.CS_KIT_PRICE = 199; window.CS_LOADED = false;
 (function(){
   fetch('/api/variant').then(function(r){return r.json();}).then(function(d){
     window.CS_VARIANT = d.variant; window.CS_GUARANTEE = !!d.guarantee; window.CS_PREMIUM = !!d.premium;
@@ -1470,7 +1470,7 @@ function renderResult(res){
     resultPdfLink.style.display = 'none';
     if(mon) mon.style.display = 'none';
     if(unlock){
-      var price = (TARIFFS[currentTariff] && TARIFFS[currentTariff].price) || '449 ₽';
+      var price = (TARIFFS[currentTariff] && TARIFFS[currentTariff].price) || '499 ₽';
       var nf = res.n_flags || 0;
       var plural = function(n,a,b,c){ n=Math.abs(n)%100; var n1=n%10;
         if(n>10&&n<20)return c; if(n1>1&&n1<5)return b; if(n1==1)return a; return c; };

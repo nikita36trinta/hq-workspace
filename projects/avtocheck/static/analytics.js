@@ -82,7 +82,25 @@
   // почему-то не платит»: страница молча переставала работать, а мы гадали по конверсии.
   // Шлём не больше трёх ошибок на загрузку — иначе цикл в чужом коде затопит журнал.
   var errLeft = 3;
+  /* Домены счётчиков и рекламных пикселей. Их падение — НЕ ошибка сайта: у
+     четырёх посетителей из пяти блокировщик режет mc.yandex.ru, и метрика
+     «ошибка JS» была забита этим на 100%. Настоящая ошибка в нашем коде в
+     таком шуме просто не видна. Считаем отдельно: заодно получаем честную
+     долю блокировки, на которую надо поправлять данные Метрики. */
+  var TRACKERS = /(^|\.)(mc\.yandex\.ru|yandex\.ru\/metrika|google-analytics\.com|googletagmanager\.com|top-fwz1\.mail\.ru|vk\.com\/rtrg|ads\.|analytics\.)/i;
+  function isTracker(src) {
+    try { return TRACKERS.test(String(src || '')); } catch (e) { return false; }
+  }
+  var trackerReported = false;
   function reportError(where, msg, src, line) {
+    if (where === 'load' && isTracker(src)) {
+      if (trackerReported) return;      // один раз на загрузку, а не по каждому пикселю
+      trackerReported = true;
+      var host = '';
+      try { host = new URL(String(src), location.href).hostname; } catch (e) {}
+      goal('tracker_blocked', { host: host.slice(0, 60) });
+      return;
+    }
     if (errLeft-- <= 0) return;
     var s = (src || '').split('/').pop().split('?')[0];
     goal('js_error', { err: (where + ': ' + msg + ' @' + s + ':' + (line || 0)).slice(0, 200) });

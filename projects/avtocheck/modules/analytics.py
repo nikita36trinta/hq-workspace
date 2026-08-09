@@ -76,6 +76,12 @@ class AnalyticsConfig:
     # Прочие сигналы: событие → человекочитаемая метка. Показываются отдельной
     # карточкой (счётчик уников) — чтобы ничто собираемое не оставалось невидимым.
     signal_labels: dict[str, str] = field(default_factory=dict)
+    # Классификатор введённого объекта и подписи к его разбивке. По умолчанию —
+    # недвижимость (кадастр/адрес). Проект с другим предметом проверки передаёт
+    # свои: у автомобильного это VIN и госномер, и «адрес · кадастр» под первым
+    # шагом воронки там был просто неверной подписью к верным числам.
+    object_classifier: Callable[[str], str] | None = None
+    object_labels: dict[str, str] = field(default_factory=dict)
     cookie: str = "an_sid"                               # имя сессионной куки
     # Кука атрибуции кампании (напр. "cs_camp"): при приёме события штампуем его этой
     # меткой → весь дашборд можно фильтровать/сравнивать по кампании (матрица). Пусто = выкл.
@@ -464,6 +470,7 @@ def build_dashboard(cfg: AnalyticsConfig, ctx: dict | None = None) -> dict[str, 
         "project_id": cfg.project_id, "since": since, "until": until,
         "period": period, "since": since, "until": until, "visits": visits,
         "steps": steps, "obj": {k: len(v) for k, v in obj_split.items()},
+        "obj_labels": dict(cfg.object_labels or {}),
         "abandon": abandon, "abandon_tracked": bool(cfg.roles.get("abandon")),
         "money": money, "lift": lift,
         "friction": sorted(friction.items(), key=lambda kv: -kv[1])[:8],
@@ -732,7 +739,7 @@ def make_router(cfg: AnalyticsConfig) -> APIRouter:
                 rec["camp"] = str(camp)[:60]
         b = body or {}
         if name == obj_split_ev:
-            rec["obj"] = classify_object(str(b.get("object", "")))
+            rec["obj"] = (cfg.object_classifier or classify_object)(str(b.get("object", "")))
         # Срезы «кто и откуда». Пишем на КАЖДОЕ событие, а не только на визит: сессия
         # может начаться до деплоя или потеряться (приватный режим, чищеный localStorage),
         # и тогда разложить по срезу удалось бы только часть воронки — то есть неверно.

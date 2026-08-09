@@ -393,8 +393,14 @@ def _funnel_block(d: dict) -> str:
         obj = ""
         if s.get("obj_here") and d.get("obj") and sum(d["obj"].values()):
             o = d["obj"]
-            obj = (f'<div class="fobj">адрес <b>{_n(o.get("address",0))}</b> · '
-                   f'кадастр <b>{_n(o.get("cadastre",0))}</b></div>')
+            # Подписи задаёт проект (cfg.object_labels): у недвижимости это
+            # адрес и кадастр, у автомобильной проверки — VIN и госномер.
+            # Рисуем только непустые виды, а не фиксированную пару.
+            lbl = d.get("obj_labels") or {"address": "адрес", "cadastre": "кадастр"}
+            parts = [f'{lbl.get(k, k)} <b>{_n(v)}</b>'
+                     for k, v in sorted(o.items(), key=lambda x: -x[1]) if v]
+            if parts:
+                obj = f'<div class="fobj">{" · ".join(parts)}</div>'
         rows += (
             f'<div class="frow"><div class="fhead">'
             f'<span class="flabel">{s["label"]}</span>'

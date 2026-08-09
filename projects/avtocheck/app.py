@@ -451,361 +451,49 @@ def _an_panels(ctx: dict) -> list[dict]:
                 out.append(r)
             return out
 
-        look = _read_jsonl("objlookup.jsonl")
+        look = _read_jsonl("autolookup.jsonl")
         if look:
-            addr = [r for r in look if r.get("mode") == "addr"]
-            cadm = [r for r in look if r.get("mode") == "cad"]
-            a_tot, c_tot = len(addr), len(cadm)
-            a_cad = sum(1 for r in addr if r.get("cad_found"))
-            a_obj = sum(1 for r in addr if r.get("obj_found"))
-            c_obj = sum(1 for r in cadm if r.get("obj_found"))
-            obj_all, tot = a_obj + c_obj, a_tot + c_tot
+            tot = len(look)
+            found = sum(1 for r in look if r.get("found"))
             pct = lambda n, d: f"{n/d*100:.0f}%" if d else "—"
             kv = []
-            if a_tot:
-                kv.append(["По адресу — ввели", f"{a_tot}"])
-                kv.append(["→ нашли кадастр (DaData)", f"{a_cad} · {pct(a_cad, a_tot)}"])
-                kv.append(["→ получили данные объекта", f"{a_obj} · {pct(a_obj, a_tot)}"])
-            if c_tot:
-                kv.append(["По кадастру — ввели", f"{c_tot}"])
-                kv.append(["→ получили данные объекта", f"{c_obj} · {pct(c_obj, c_tot)}"])
-            by_nspd = sum(1 for r in look if r.get("source") == "nspd")
-            by_aa = sum(1 for r in look if r.get("source") == "apiassist")
-            if by_nspd or by_aa:
-                kv.append(["Чей ответ: НСПД (бесплатно)", f"{by_nspd}"])
-                kv.append(["Чей ответ: api-assist (платно)", f"{by_aa}"])
+            for kind, label, price in (("vin", "По VIN", 1.10),
+                                       ("plate", "По госномеру", 2.30),
+                                       ("other", "Не распознали формат", 0.0)):
+                grp = [r for r in look if (r.get("kind") or "") == kind]
+                if not grp:
+                    continue
+                ok = sum(1 for r in grp if r.get("found"))
+                kv.append([f"{label} — ввели", f"{len(grp)}"])
+                kv.append([f"→ опознали", f"{ok} · {pct(ok, len(grp))}"])
+                if price:
+                    kv.append([f"→ потрачено на опознание", f"{len(grp) * price:.2f} ₽"])
+            marks = {}
+            for r in look:
+                if r.get("marka"):
+                    marks[r["marka"]] = marks.get(r["marka"], 0) + 1
+            if marks:
+                top = ", ".join(f"{k} ({v})" for k, v in
+                                sorted(marks.items(), key=lambda x: -x[1])[:5])
+                kv.append(["Чаще всего проверяют", top])
             panels.append({
-                "title": "Поиск объекта (адрес→кадастр→данные)", "icon": "target",
+                "title": "Опознание машины (VIN / госномер)", "icon": "target",
                 "tiles": [{"v": tot, "k": "Всего запросов"},
-                          {"v": pct(obj_all, tot), "k": "Получили данные"}],
+                          {"v": pct(found, tot), "k": "Опознали"}],
                 "kv": kv,
-                "hint": ("Считается для запустивших проверку. По адресу: DaData Clean даёт кадастр "
-                         "квартиры → НСПД отдаёт данные. Низкий «нашли кадастр» = адреса вне покрытия "
-                         "DaData или опечатки. Низкий «данные» при найденном кадастре = НСПД не отдал. "
-                         "api-assist в превью " + ("ВКЛЮЧЁН как запасной." if os.getenv(
-                             "NSPD_FALLBACK_APIASSIST", "").strip() in ("1", "true", "yes")
-                             else "ВЫКЛЮЧЕН (NSPD_FALLBACK_APIASSIST): он тратит суточную квоту, "
-                                  "поэтому здесь его доля всегда 0. Он работает после оплаты и в "
-                                  "поиске квартир — см. соседнюю панель.")),
+                "hint": ("Считается для запустивших проверку. Неопознанная машина — это "
+                         "деньги, потраченные впустую: опознание платное, а человек "
+                         "уходит, не увидев превью. Низкая доля по госномеру при высокой "
+                         "по VIN означает, что дело в конвертации номера, а не во вводе. "
+                         "Записи до 09.08.2026 без вида ввода — они попадают в «всего», "
+                         "но не в разбивку."),
             })
         else:
             panels.append({
-                "title": "Поиск объекта (адрес→кадастр→данные)", "icon": "target",
-                "banner": {"tone": "info", "text": "За выбранный период проверок ещё не запускали. "
-                           "Журнал ведётся с 05.08.2026 — более ранние запросы считались "
-                           "счётчиками без дат и в окно не попадают."},
+                "title": "Опознание машины (VIN / госномер)", "icon": "target",
+                "banner": {"tone": "info", "text": "За выбранный период проверок ещё не "
+                           "запускали."},
             })
-    except Exception:  # noqa: BLE001
-        pass
-
-    # --- api-assist: запасной источник ЕГРН и поиск квартир по дому ---
-    try:
-        aa = _read_jsonl("apiassist.jsonl")
-        from modules import apiassist as _aa
-        used, limit = _aa.used_today(), _aa.day_limit()
-        rescues = sum(1 for r in aa if r.get("event") == "rescue_paid")
-        searches = [r for r in aa if r.get("event") == "house_search"]
-        empty = sum(1 for r in searches if not r.get("found"))
-        tone = "bad" if used >= limit * 0.9 else ""
-        panels.append({
-            "title": "api-assist (запасной источник)", "icon": "target",
-            "tag": f"квота {used}/{limit} за сутки",
-            "tiles": [
-                {"v": rescues, "k": "Спасли оплаченных"},
-                {"v": len(searches), "k": "Поисков квартир"},
-                {"v": f"{used}/{limit}", "k": "Квота сегодня"},
-            ],
-            "kv": [
-                ["Списков квартир — пусто", f"{empty} из {len(searches)}"],
-                ["Резерв под платный путь", f"{_CAND_RESERVE}"],
-            ],
-            "hint": "«Спасли оплаченных» — объект, которого NewDB не дал, а api-assist нашёл: "
-                    "без него это был бы отчёт «объекта нет в ЕГРН» по оплаченному заказу. "
-                    "«Поиск квартир» — платный запрос списка помещений дома для выбора квартиры; "
-                    "он же тратит суточную квоту, поэтому под платный путь держим резерв.",
-        })
-    except Exception:  # noqa: BLE001
-        pass
-
-
-    # --- Метрика 1: распределение риска в отчётах + связь с возвратами ---
-    try:
-        order_recs = orders.read_payments()  # записи заказов (report_id, refunded, chargeback)
-        by_report = {}
-        for o in order_recs:
-            rid = o.get("report_id")
-            if rid:
-                by_report[rid] = o
-        risk_tally = {"высокий": 0, "средний": 0, "низкий": 0}
-        risk_refund = {"высокий": 0, "средний": 0, "низкий": 0}
-        paid_reports = 0
-        for jf in REPORTS_DIR.glob("*.json"):
-            try:
-                r = json.loads(jf.read_text(encoding="utf-8"))
-            except Exception:  # noqa: BLE001
-                continue
-            if r.get("preview"):          # только финальные (оплаченные) отчёты
-                continue
-            if since and (r.get("created_at") or "") < since:
-                continue                  # уважаем окно сброса статистики (с start счётчика)
-            risk = r.get("risk")
-            if risk not in risk_tally:
-                continue
-            paid_reports += 1
-            risk_tally[risk] += 1
-            o = by_report.get(r.get("id"))
-            if o and (o.get("refunded") or o.get("chargeback")):
-                risk_refund[risk] += 1
-        if paid_reports:
-            pct = lambda n, d: f"{n/d*100:.0f}%" if d else "—"
-            labels = {"высокий": "Высокий риск", "средний": "Средний", "низкий": "Чисто (низкий)"}
-            kv = []
-            for k in ("высокий", "средний", "низкий"):
-                n = risk_tally[k]
-                ref = risk_refund[k]
-                refstr = f" · возвраты {ref} ({pct(ref, n)})" if n else ""
-                kv.append([labels[k], f"{n} · {pct(n, paid_reports)}{refstr}"])
-            panels.append({
-                "title": "Что находим в отчётах (риск)", "icon": "bars", "tag": "в выбранном окне",
-                "tiles": [{"v": paid_reports, "k": "Полных проверок"},
-                          {"v": pct(risk_tally["низкий"], paid_reports), "k": "«Чисто»"},
-                          {"v": pct(risk_tally["высокий"] + risk_tally["средний"], paid_reports), "k": "С риском"}],
-                "kv": kv,
-                "hint": "Распределение риска по ВСЕМ полным проверкам (вкл. исторические до freemium — "
-                        "поэтому число большое, это не покупки). ⚠️ «средний» завышен: при пустом балансе "
-                        "NewDB база не отвечает → риск ставится «средний». Возвраты считаются только по реально оплаченным.",
-            })
-    except Exception:  # noqa: BLE001
-        pass
-
-    # (панель «Выручка по кампаниям» убрана — «Матрица кампаний» вендор-модуля показывает
-    #  выручку по campaign в том же окне since + с exclude_campaigns; две таблицы с разными
-    #  числами на одной странице путали.)
-
-    # --- Метрика 4: сегмент объекта (тип / регион / кад.стоимость) ---
-    try:
-        of = ledger / "object_stats.jsonl"
-        if of.exists():
-            _RU_REG = {"77": "Москва", "50": "Московская обл.", "78": "Санкт-Петербург",
-                       "23": "Краснодарский край", "66": "Свердловская обл.", "16": "Татарстан",
-                       "54": "Новосибирская обл.", "52": "Нижегородская обл."}
-            types, regions, costs = {}, {}, []
-            for line in of.read_text(encoding="utf-8").splitlines():
-                try:
-                    r = json.loads(line)
-                except Exception:  # noqa: BLE001
-                    continue
-                t = (r.get("type") or "—").strip() or "—"
-                types[t] = types.get(t, 0) + 1
-                reg = r.get("region") or ""
-                if reg:
-                    name = _RU_REG.get(reg, f"регион {reg}")
-                    regions[name] = regions.get(name, 0) + 1
-                try:
-                    cv = float(r.get("cost") or 0)
-                    if cv > 0:
-                        costs.append(cv)
-                except Exception:  # noqa: BLE001
-                    pass
-            total_obj = sum(types.values())
-            if total_obj:
-                type_bars = sorted(types.items(), key=lambda kv: -kv[1])[:6]
-                reg_bars = sorted(regions.items(), key=lambda kv: -kv[1])[:6]
-                kv = []
-                if costs:
-                    costs.sort()
-                    med = costs[len(costs) // 2]
-                    kv.append(["Кад. стоимость (медиана)", f"{med/1e6:.1f} млн ₽"])
-                    kv.append(["Диапазон", f"{min(costs)/1e6:.1f}–{max(costs)/1e6:.1f} млн ₽"])
-                panel = {"title": "Сегмент объекта (рынок)", "icon": "target", "tag": "по данным НСПД",
-                         "tiles": [{"v": total_obj, "k": "Объектов с данными"}],
-                         "bars": type_bars, "kv": kv,
-                         "hint": "Что и где проверяют + ценовой сегмент. Под это затачивать продукт и цену."}
-                if reg_bars:
-                    panel["hint"] = ("Тип объекта (бары). Топ-регионы: "
-                                     + " · ".join(f"{k} {v}" for k, v in reg_bars) + ". " + panel["hint"])
-                panels.append(panel)
-    except Exception:  # noqa: BLE001
-        pass
-
-    # --- Метрика 6: время до оплаты + повторные вводы объекта (из событий) ---
-    try:
-        ev = ledger / "analytics_events.jsonl"
-        if ev.exists():
-            first_visit, first_pay, cs_count = {}, {}, {}
-            for line in ev.read_text(encoding="utf-8").splitlines():
-                try:
-                    r = json.loads(line)
-                except Exception:  # noqa: BLE001
-                    continue
-                did, nm, ts = r.get("sid"), r.get("name"), r.get("ts") or ""
-                if not did:
-                    continue
-                if nm == "visit" and did not in first_visit:
-                    first_visit[did] = ts
-                elif nm == "pay_click" and did not in first_pay:
-                    first_pay[did] = ts
-                elif nm == "check_started":
-                    cs_count[did] = cs_count.get(did, 0) + 1
-            deltas = []
-            for did, pt in first_pay.items():
-                vt = first_visit.get(did)
-                d = _sec_between(vt, pt)
-                if d is not None and 0 <= d < 7 * 24 * 3600:
-                    deltas.append(d)
-            repeat_did = sum(1 for c in cs_count.values() if c > 1)
-            started_did = len(cs_count)
-            if deltas or started_did:
-                kv = []
-                if deltas:
-                    deltas.sort()
-                    med = deltas[len(deltas) // 2]
-                    kv.append(["Время до оплаты (медиана)", _human_dur(med)])
-                    kv.append(["Быстрее всех / дольше всех", f"{_human_dur(min(deltas))} / {_human_dur(max(deltas))}"])
-                if started_did:
-                    pct = lambda n, d: f"{n/d*100:.0f}%" if d else "—"
-                    kv.append(["Вводили объект повторно", f"{repeat_did} из {started_did} · {pct(repeat_did, started_did)}"])
-                panels.append({
-                    "title": "Решение и колебания", "icon": "clock", "tag": "поведение",
-                    "kv": kv,
-                    "hint": "Долго думают → добавить срочность/гарантию. Много повторных вводов объекта = "
-                            "путаются с форматом кадастра/адреса (упростить подсказку).",
-                })
-    except Exception:  # noqa: BLE001
-        pass
-
-    # --- Расходы NewDB (платные проверки) — куда уходят деньги с баланса ---
-    try:
-        calls_f = ledger / "newdb_calls.jsonl"
-        if calls_f.exists():
-            by_method: dict[str, dict] = {}
-            total = fails = 0
-            method_ru = {"fssp_person": "ФССП (произв-ва)", "bankrot_person": "Банкротство",
-                         "arbitr_person": "Арбитраж", "passport_fns": "Паспорт+ИНН",
-                         "pledge_person": "Залоги"}
-            # Панель показывала «всего за всё время» и отдельной плиткой «в окне»,
-            # а разбивка по методам считалась по всей истории — то есть по деньгам,
-            # потраченным ещё при других ценах и другом коде. Считаем только окно.
-            for line in calls_f.read_text(encoding="utf-8").splitlines():
-                try:
-                    r = json.loads(line)
-                except Exception:  # noqa: BLE001
-                    continue
-                ts = str(r.get("ts") or "")
-                if since and ts < since:
-                    continue
-                m = r.get("method", "?")
-                a = by_method.setdefault(m, {"ok": 0, "fail": 0})
-                if r.get("ok"):
-                    a["ok"] += 1
-                    total += 1
-                else:
-                    a["fail"] += 1
-                    fails += 1
-            if total or fails:
-                kv = [[method_ru.get(m, m), f'{v["ok"]} платных'
-                       + (f' · {v["fail"]} отклонено' if v["fail"] else "")]
-                      for m, v in sorted(by_method.items(), key=lambda kv: -kv[1]["ok"])]
-                panels.append({
-                    "title": "Расходы NewDB (платные проверки)", "icon": "money",
-                    # Баланс не дублируем: он уже в верхней сводке отдельной плиткой.
-                    "tiles": [{"v": total, "k": "Платных запросов"},
-                              {"v": fails, "k": "Отклонено (без списания)"}],
-                    "kv": kv,
-                    "hint": "Каждый платный запрос = списание с баланса NewDB. Полная проверка одного "
-                            "продавца = несколько методов (ФССП+банкротство+арбитраж+…). Резкое падение "
-                            "баланса без роста запросов здесь = внешние/чужие траты (см. ЛК NewDB).",
-                })
-    except Exception:  # noqa: BLE001
-        pass
-
-    # --- Развилка воронки: после email путь расходится (с ФИО → продавец / без ФИО → объект) ---
-    try:
-        since = _an_since()
-        ev = ledger / "analytics_events.jsonl"
-        if ev.exists():
-            want = {"wizard_email", "wizard_fio", "wizard_dob", "pay_click",
-                    "object_only_chosen", "object_only_pay"}
-            seen: dict[str, set] = {n: set() for n in want}
-            sid_ev: dict[str, set] = {}
-            for line in ev.read_text(encoding="utf-8").splitlines():
-                try:
-                    r = json.loads(line)
-                except Exception:  # noqa: BLE001
-                    continue
-                if since and (r.get("ts") or "") < since:
-                    continue
-                if (r.get("camp") or "") in (ANALYTICS_CFG.exclude_campaigns or set()):
-                    continue  # #14: исключённые кампании (sdelka_rsya) — вон из Развилки
-                nm, sid = r.get("name"), r.get("sid") or ""
-                if not sid or nm not in want:
-                    continue
-                seen[nm].add(sid)
-                sid_ev.setdefault(sid, set()).add(nm)
-            c = {n: len(seen[n]) for n in want}
-            # НАЖАЛИ оплату (интент, по событиям): продавец = pay_click без object_only_pay.
-            seller_click = len({s for s, e in sid_ev.items()
-                                if "pay_click" in e and "object_only_pay" not in e})
-            object_click = c["object_only_pay"]
-            # ОПЛАТИЛИ (факт, из реестра платежей в окне): object-тариф vs base (путь продавца).
-            _since_dt = abstats._parse_dt(since or "")
-            obj_paid = seller_paid = 0
-            # #5/#6: Развилка — обзор ВЕТВЛЕНИЯ путей по ВСЕМУ трафику (обе метрики глобальны:
-            # интент из событий не имеет надёжной src-метки, поэтому и факт не сегментируем —
-            # иначе дисбаланс интент↔факт). Исключаем только exclude_campaigns (#14, sdelka_rsya).
-            _excl = ANALYTICS_CFG.exclude_campaigns or set()
-            for p in payments:
-                if p.get("status") != "succeeded":
-                    continue
-                pdt = abstats._parse_dt(p.get("paid_at") or "")
-                if _since_dt is not None and not (pdt is not None and pdt >= _since_dt):
-                    continue
-                if (p.get("campaign") or "") in _excl:  # #14: исключённые кампании вон
-                    continue
-                tk = (p.get("tariff") or "base")
-                if tk == "object":
-                    obj_paid += 1
-                elif tk == "base":
-                    seller_paid += 1
-            if c["wizard_email"] or c["object_only_chosen"] or c["wizard_fio"]:
-                def _mini(steps, top):
-                    top = top or 1
-                    out = ""
-                    for lbl, n in steps:
-                        w = max(2, round(n / top * 100))
-                        pct = f'{round(n/top*100)}%' if top else ''
-                        out += (f'<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;'
-                                f'font-size:12px;margin-bottom:3px"><span>{lbl}</span><b style="font-variant-numeric:tabular-nums">{n}</b></div>'
-                                f'<div style="height:7px;background:#eef1f6;border-radius:4px;overflow:hidden">'
-                                f'<i style="display:block;height:100%;width:{w}%;background:{"#2563eb"}"></i></div></div>')
-                    return out
-                base = c["wizard_email"] or 1
-                left = _mini([("Ввели email", c["wizard_email"]),
-                              ("Ввели ФИО", c["wizard_fio"]),
-                              ("Ввели дату рожд.", c["wizard_dob"]),
-                              ("Нажали оплату", seller_click),
-                              ("✓ Оплатили (факт)", seller_paid)], base)
-                right = _mini([("Ввели email", c["wizard_email"]),
-                               ("«Не знаю ФИО»", c["object_only_chosen"]),
-                               ("Нажали оплату", object_click),
-                               ("✓ Оплатили (факт)", obj_paid)], base)
-                col = ('<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;'
-                       'margin-bottom:10px;color:{color}">{title}</div>{body}')
-                two = ('<div style="display:grid;grid-template-columns:1fr 1fr;gap:22px">'
-                       + '<div style="border-right:1px solid #eef1f6;padding-right:20px">'
-                       + col.format(color="#1d4ed8", title="С ФИО → продавец", body=left) + '</div>'
-                       + '<div>' + col.format(color="#b45309", title="Без ФИО → объект", body=right) + '</div></div>')
-                panels.append({
-                    "title": "Развилка воронки", "icon": "funnel", "tag": "весь трафик · после email",
-                    "table": {"head": [], "rows": [[{"html": two}]]},
-                    "hint": (f"После шага «email» путь расходится: у кого есть ФИО продавца — идут в полную "
-                             f"проверку ({PRICE_FULL} ₽), у кого нет — берут проверку только объекта "
-                             f"({PRICE_OBJECT} ₽) и могут дозаказать продавца потом ({SELLER_ADDON_PRICE} ₽). «Нажали оплату» = клик по кнопке (интент, по "
-                             "событиям); «✓ Оплатили (факт)» = ПЕРВИЧНЫЕ прошедшие платежи по этой ветке "
-                             "(полный/объектный, из реестра). Разница интент↔факт = отвал на странице ЮKassa. "
-                             "Плитка ОПЛАТЫ считает ВСЕ платежи, включая апселлы (продавец/ИНН) — поэтому её "
-                             "число может быть больше суммы двух колонок здесь."),
-                })
     except Exception:  # noqa: BLE001
         pass
 
@@ -906,21 +594,47 @@ def _breakdown_panels(since: str | None) -> list[dict]:
     return out
 
 
-def _an_derive(name: str, body: dict[str, Any]) -> dict[str, str]:
-    """Регион ОБЪЕКТА (не посетителя) на события ввода объекта.
+_PLATE_RE = re.compile(r"^[АВЕКМНОРСТУХABEKMHOPCTYX]\d{3}[АВЕКМНОРСТУХABEKMHOPCTYX]{2}(\d{2,3})$",
+                       re.I)
 
-    Для сервиса про недвижимость география спроса — это где стоит квартира, а не
-    откуда зашли: человек из Москвы проверяет дом в Сочи, и ставку в Директе надо
-    двигать по второму, а не по первому. Геолокация по IP нам этого не скажет,
-    а кадастровый номер скажет точно.
+
+def _an_classify_object(ref: str) -> str:
+    """Чем именно человек опознаёт машину: VIN или госномер.
+
+    Здесь работал классификатор недвижимости и раскладывал ввод на «кадастр» и
+    «адрес»: у автомобильной проверки всё уходило в «адрес», и под первым шагом
+    воронки стояла подпись, не имеющая отношения к продукту.
+    """
+    s = (ref or "").strip().upper().replace(" ", "")
+    if len(s) == 17 and s.isalnum():
+        return "vin"
+    if _PLATE_RE.match(s):
+        return "plate"
+    return "other"
+
+
+def _an_derive(name: str, body: dict[str, Any]) -> dict[str, str]:
+    """Регион по ГОСНОМЕРУ — единственная география, которую даёт ввод.
+
+    У недвижимости регион брался из кадастрового номера: важно, где стоит
+    квартира, а не откуда зашли. У машины такого признака нет — VIN не привязан
+    к субъекту вовсе. Зато код региона есть в госномере, и это честный сигнал
+    для распределения ставок.
     """
     ref = str((body or {}).get("object") or "").strip()
     if not ref:
         return {}
-    from modules import fssp, rosreestr
-    code = (fssp.region_from_kadastr(ref) if rosreestr.is_kadastr(ref)
-            else fssp.region_from_address(ref))
-    return {"reg": fssp.region_name(code)} if code else {}
+    m = _PLATE_RE.match(ref.upper().replace(" ", ""))
+    if not m:
+        return {}
+    code = m.group(1)
+    # 177/197/777 и подобные — те же субъекты, что 77/97: берём две последние
+    # цифры трёхзначного кода, кроме кода 102+ у республик, где ведущая 1 значима.
+    if len(code) == 3:
+        code = code[1:] if code[0] in "1279" else code[:2]
+    from modules import fssp
+    name_ = fssp.region_name(code.lstrip("0") or code)
+    return {"reg": name_} if name_ else {}
 
 
 def _record_consent(rec: dict[str, Any], request: Request, text: str = "",
@@ -1025,18 +739,17 @@ ANALYTICS_CFG = AnalyticsConfig(
     # развилки и три апселла. Смешивать их со старыми — считать средним по двум
     # разным продуктам. История никуда не делась: она в PRICING.md и в логах.
     data_floor=PRODUCT_SINCE,
-    # Воронка ПОШАГОВОГО МАСТЕРА (превью объекта → мастер вовлечения email→ФИО→ДР → оплата).
-    # Гранулярно видно, на каком именно поле отваливаются (раньше был один обвал 158→5).
+    # Воронка АВТОМОБИЛЬНАЯ. Шаги «ввели ФИО» и «ввели дату рождения» достались
+    # от недвижимости: там мастер собирал продавца, здесь проверяется сама
+    # машина и этих полей нет вовсе. Они висели вечными нулями с падением
+    # −100%, из-за чего график обрывался на середине и настоящий обвал —
+    # на цене — читался как продолжение того же провала.
     funnel=[("visit", "Зашли на сайт"),
-            ("check_started", "Ввели объект"),
-            ("check_completed", "Увидели превью объекта"),
-            ("wizard_start", "Нажали «Проверить продавца»"),
-            ("wizard_email", "Шаг 1 · ввели email"),
-            ("wizard_fio", "Шаг 2 · ввели ФИО"),
-            ("wizard_dob", "Шаг 3 · ввели дату рожд."),
-            # Шага «увидели цену» в воронке НЕ БЫЛО, а именно на нём уходит 80%
-            # дошедших: 269 из 327 в полном тарифе и 530 из 663 в объектном.
-            # Событие единое для обеих веток (см. price_shown в index.html).
+            ("check_started", "Ввели VIN или госномер"),
+            ("check_completed", "Машина опознана"),
+            ("wizard_start", "Открыли оформление"),
+            ("wizard_email", "Оставили email"),
+            # На цене уходит основная часть дошедших — шаг обязателен.
             ("price_shown", "Увидели ЦЕНУ"),
             ("pay_click", "Нажали «Оплатить»")],
     money=[("pay_click", "Нажали «Оплатить»"), ("yookassa_reached", "Дошли до ЮKassa")],
@@ -1050,10 +763,16 @@ ANALYTICS_CFG = AnalyticsConfig(
     stamp_device=True,
     stamp_cookies={"cs_src": "src", "cs_v2": "ab"},
     derive_fields=_an_derive,
+    object_classifier=_an_classify_object,
+    object_labels={"vin": "по VIN", "plate": "по госномеру", "other": "не распознали",
+                   # события до 09.08.2026 размечены классификатором
+                   # недвижимости — оставляем читаемую подпись, а не сырой ключ
+                   "address": "до правки разметки", "cadastre": "до правки разметки"},
     exclude_campaigns={"sdelka_rsya"},   # РСЯ на паузе, но липкая кука капает — вон из статы
     exclude_cookie="cs_notrack",         # свои заходы (/?notrack=1) не пишем вовсе
-    # Цена одна для всех плеч с 05.08.2026 — ценовой тест закрыт (см. панель «Цены»).
-    price_variants={"A": PRICE_FULL, "B": PRICE_FULL, "C": PRICE_FULL},
+    # Цены плеч — те же, что берёт оплата (CS_VARIANTS). Разъедутся — панель
+    # «Цены» будет считать выручку по несуществующему прайсу.
+    price_variants={"A": 499, "B": 399, "C": 299},
     payments_provider=_an_payments,
     since_provider=_an_since,
     extra_kpis_provider=_an_extra_kpis,
@@ -1076,7 +795,7 @@ ANALYTICS_CFG = AnalyticsConfig(
                   "seller_addon_pay",
                   # Дочитывание страницы, JS-ошибки и воскрешённая цель Метрики.
                   "see_sources", "see_compare", "see_pricing", "see_faq", "faq_open",
-                  "js_error", "pay_start"},
+                  "js_error", "tracker_blocked", "pay_start"},
     # прочие собираемые сигналы → отдельная карточка (раньше молча отбрасывались)
     signal_labels={"report_demo_view": "Посмотрели демо-отчёт", "cta_click": "Клик по CTA",
                    "bump_shown": "Развилка расширенного · показали", "monitor_started": "Запустили мониторинг",
@@ -1084,12 +803,12 @@ ANALYTICS_CFG = AnalyticsConfig(
                    "kit_yes": "Пакет к сделке · взяли", "kit_no": "Пакет к сделке · отказ",
                    "price_shown": "Увидели цену",
                    "checkout_open": "Открыли модалку проверки", "seller_form_shown": "Дошли до экрана оплаты",
-                   "object_only_chosen": "Выбрали «нет ФИО» → объект", "object_only_pay": "Оплата только объекта",
+                   "object_only_chosen": "Выбрали только стоп-факторы", "object_only_pay": "Оплата только объекта",
                    "addr_retry": "Адрес не найден → изменить объект",
                    # апселл в модалке перед оплатой: показ уже был, теперь виден и выбор
                    "bump_yes": "Расширенный · взяли", "bump_no": "Расширенный · отказ",
                    "email_left": "Оставили email", "cta_empty_object": "Клик по кнопке с пустым полем",
-                   "cand_shown": "Показали список квартир", "cand_picked": "Выбрали квартиру из списка",
+                   "cand_shown": "Показали список вариантов", "cand_picked": "Выбрали вариант из списка",
                    # воронка страницы отчёта: открыл → увидел апселл → кликнул → ушёл платить
                    "report_open": "Открыли готовый отчёт",
                    "addon_view": "Отчёт · показали банкротство (249₽)",
@@ -1106,6 +825,10 @@ ANALYTICS_CFG = AnalyticsConfig(
                    "see_faq": "Долистали до вопросов",
                    "faq_open": "Развернули вопрос",
                    "js_error": "Ошибка JS на странице",
+                   # Не ошибка сайта, а срез блокировки: по нему считаем
+                   # поправку к данным Метрики (она видит только тех, у кого
+                   # счётчик загрузился).
+                   "tracker_blocked": "Счётчик заблокирован у посетителя",
                    "pay_start": "Создали платёж → ЮKassa"},
 )
 app.include_router(_an_router(ANALYTICS_CFG))
@@ -1412,7 +1135,17 @@ def _serialize_check(c: Check) -> dict[str, Any]:
 # Судим по конверсии ОТ УВИДЕВШИХ ЦЕНУ (price_shown), а не от назначенных:
 # до экрана цены доходит меньше половины, и деление на всех занижает результат
 # в разы (на этом уже обожглись в раунде 3).
-CS_VARIANTS: dict[str, int] = {"A": PRICE_FULL, "B": PRICE_FULL, "C": PRICE_FULL}
+# РАУНД 5, 09.08.2026 — тест ЦЕНЫ, а не экрана. Прежние плечи различались
+# только версткой экрана оплаты при одинаковой цене; ту гипотезу закрываем
+# (renderers отключены в price_variants.js) и проверяем то, что двигает выручку
+# напрямую. Себестоимость отчёта 32 ₽, так что даже нижнее плечо остаётся
+# прибыльным, а верхнее проверяет, не занижена ли цена.
+CS_VARIANTS: dict[str, int] = {"A": 499, "B": 399, "C": 299}
+
+
+def _full_price(variant: str) -> int:
+    """Цена полного отчёта для плеча. Дефолт — контрольное A."""
+    return CS_VARIANTS.get(variant, CS_VARIANTS["A"])
 
 
 def _get_variant(request: Request) -> str:
@@ -2219,6 +1952,10 @@ def _run_job(job_id: str, req: "CheckRequest", ym_uid: str = "") -> None:
             with open(_ledger / "autolookup.jsonl", "a", encoding="utf-8") as _f:
                 _f.write(json.dumps({
                     "ts": datetime.utcnow().isoformat() + "Z",
+                    # Вид ввода: по госномеру опознание вдвое дороже (2,30 ₽
+                    # против 1,10 ₽), и доля неопознанных у него своя — без
+                    # этого поля обе цифры сливались в одну среднюю.
+                    "kind": _an_classify_object(req.object_ref),
                     "found": bool(obj_preview),
                     "marka": (obj_preview or {}).get("marka") or "",
                     "year": (obj_preview or {}).get("year") or "",
@@ -2928,7 +2665,12 @@ def api_upgrade(req: UpgradeRequest, request: Request) -> JSONResponse:
     if orders.paid_order_exists(req.report_id, "upgrade"):
         return JSONResponse({"already": True,
                              "message": "Доплата уже прошла — отчёт дополняется."})
-    amount = PRICE_FULL - PRICE_OBJECT
+    # Доплата считается от цены ПЛЕЧА, а не от общей PRICE_FULL. С разными
+    # ценами по плечам (499/399/299) фиксированные 250 ₽ означали бы, что в
+    # нижнем плече путь «объект + доплата» = 199 + 250 = 449 ₽ дороже, чем
+    # полный отчёт за 299 ₽, купленный сразу. Плечо берём из ОПЛАЧЕННОГО
+    # заказа, а не из живой куки: она могла смениться между покупками.
+    amount = max(1, _full_price(orders.paid_base_variant(req.report_id) or "") - PRICE_OBJECT)
     order = orders.new_order(tariff="upgrade", amount=amount, report_id=req.report_id)
     orders.update_order(order["id"], src=_get_src(request),
                         campaign=request.cookies.get("cs_camp", "") or "прямой/органика",
