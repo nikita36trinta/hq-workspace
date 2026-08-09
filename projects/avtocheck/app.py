@@ -274,6 +274,20 @@ def _an_panels(ctx: dict) -> list[dict]:
         vstats = _price_screen_stats(max(since or "", VISUAL_TEST_SINCE),
                                      src, camp_sel if camp_active else "")
         seen_total = sum(v["seen"] for v in vstats.values())
+        if not seen_total:
+            # Панель ПРЯТАЛАСЬ при нуле показов, и запущенный тест выглядел как
+            # несуществующий: в админке про него не было ни строки. Тест — это
+            # состояние продукта, а не наличие данных; показываем его всегда.
+            panels.append({
+                "title": "Цена отчёта — A/B", "icon": "target",
+                "tag": f"с {VISUAL_TEST_SINCE[:10]}",
+                "banner": {"tone": "info", "text":
+                           "Тест запущен: " + " · ".join(
+                               f"плечо {k} — {v} ₽" for k, v in CS_VARIANTS.items())
+                           + ". Показов цены под этими плечами пока нет — таблица "
+                             "появится с первым. Плечо закрепляется за посетителем "
+                             "кукой на 90 дней."},
+            })
         if seen_total:
             names = {k: f"{k} · {v} ₽" for k, v in CS_VARIANTS.items()}
             rows = []
