@@ -18,15 +18,65 @@
     if (!DID) { DID = (Date.now().toString(36) + Math.random().toString(36).slice(2, 10)); localStorage.setItem('an_did', DID); }
   } catch (e) { DID = ''; }
 
-  function send(payload) {
-    payload.did = DID;
+  /* ── Заслон от ботов ─────────────────────────────────────────────────────
+     Роботы, дёргающие ссылку объявления, исполняют скрипты и потому попадали
+     в статистику как живые визиты: 48 сессий за ночь, все с одинаковым
+     набором из трёх событий, парами через минуту, без единого касания. Они
+     ломали ровно то, ради чего аналитика заведена, — знаменатель конверсии.
+
+     По UA их не отсечь: заголовки честные, браузеры настоящие. Отличает их
+     поведение — они уходят мгновенно и ничего не трогают. Поэтому события
+     КОПИМ и отправляем только после признака человека: любое касание, клик,
+     прокрутка, нажатие клавиши — либо просто четыре секунды на видимой вкладке.
+
+     Живого посетителя это не теряет: даже беглый взгляд на страницу длиннее
+     четырёх секунд, а очередь после подтверждения уходит целиком и в том же
+     порядке. Робот, закрывший вкладку через секунду, не пришлёт ничего. */
+  var HUMAN = false;
+  var QUEUE = [];
+  var HUMAN_MS = CFG.humanDelayMs || 4000;
+
+  function flushQueue() {
+    if (!HUMAN) return;
+    var q = QUEUE; QUEUE = [];
+    for (var i = 0; i < q.length; i++) rawSend(q[i]);
+  }
+  function confirmHuman() {
+    if (HUMAN) return;
+    HUMAN = true;
+    flushQueue();
+  }
+  try {
+    ['pointerdown', 'mousemove', 'touchstart', 'keydown', 'scroll', 'wheel'].forEach(
+      function (ev) {
+        window.addEventListener(ev, confirmHuman, { once: true, passive: true, capture: true });
+      });
+    // Тихий посетитель — тоже человек: читает и не трогает. Ждём, но только
+    // пока вкладка видима, иначе фоновая вкладка робота «досидит» до порога.
+    var waited = 0;
+    var tick = setInterval(function () {
+      if (document.visibilityState === 'visible') waited += 500;
+      if (waited >= HUMAN_MS) { clearInterval(tick); confirmHuman(); }
+    }, 500);
+  } catch (e) { HUMAN = true; }   // нет DOM-событий — не теряем данные вовсе
+
+  function rawSend(body) {
     try {
-      var body = JSON.stringify(payload);
       if (navigator.sendBeacon) {
         navigator.sendBeacon(EP, new Blob([body], { type: 'application/json' }));
       } else {
         fetch(EP, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true, credentials: 'same-origin' }).catch(function () {});
       }
+    } catch (e) {}
+  }
+
+  function send(payload) {
+    payload.did = DID;
+    try {
+      var body = JSON.stringify(payload);
+      if (HUMAN) { rawSend(body); return; }
+      // Очередь не бесконечная: сломанный цикл на странице не должен съесть память.
+      if (QUEUE.length < 60) QUEUE.push(body);
     } catch (e) {}
   }
 

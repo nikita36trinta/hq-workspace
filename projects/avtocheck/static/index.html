@@ -1048,7 +1048,9 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
   <linearGradient id="cs-shg" gradientUnits="userSpaceOnUse" x1="12" y1="2" x2="12" y2="22"><stop offset="0" stop-color="#1a34e0"/><stop offset="1" stop-color="#e11f1f"/></linearGradient>
 </defs></svg>
 <script>window.ANALYTICS_CONFIG = {endpoint:'/api/goal', metrika:111408587};</script>
-<script src="/static/analytics.js"></script>
+<!-- Версия обязательна: в файл добавлен заслон от ботов, а у прежних
+     посетителей он лежит в кэше без него. -->
+<script src="/static/analytics.js?v=h1"></script>
 <!-- Варианты экрана цены (визуальный A/B/C). Грузится до основного скрипта:
      wizFinal/wizObjectOnly спрашивают renderPriceVariant при отрисовке. -->
 <!-- Версия в ссылке обязательна: файл переехал с недвижимости на авто, и у
