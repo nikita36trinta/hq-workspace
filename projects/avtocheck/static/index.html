@@ -22,7 +22,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Проверка авто по VIN и госномеру — залог, аресты, ДТП | ЧистаяСделка Авто</title>
+<title>Проверка авто по VIN — залог, аресты, ДТП | ЧистаяСделка Авто</title>
 <meta name="description" content="Проверка автомобиля перед покупкой: залог в реестре ФНП и лизинг — в реальном времени, аресты, розыск, ДТП, история регистраций. У каждого блока указана дата актуальности данных. PDF-отчёт от 199 ₽.">
 <style>
 /* ================= base ================= */
@@ -592,13 +592,17 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
       <p class="lead"><b>Залог, ограничения, розыск и история владения — в момент запроса</b>, а не выгрузкой трёхлетней давности. Заложенную машину забирает банк, с ограничениями её не поставят на учёт — от этого не спасает осмотр. Плюс <b>ДТП, пробег, таможня и паспорт по ГИБДД</b>. PDF с вердиктом на почту.</p>
       <form class="check-form" id="heroForm" autocomplete="off">
         <input id="heroInput" type="text" inputmode="text"
-               placeholder="VIN или госномер"
+               placeholder="VIN — 17 знаков"
                aria-label="VIN или государственный номер автомобиля">
         <button class="btn" type="submit">Проверить</button>
       </form>
       <!-- VIN просим первым не для красоты: опознание по нему стоит нам вдвое
-           дешевле, чем по госномеру (конвертация — отдельный платный запрос). -->
-      <p class="note hint">Например WBA11AD0305R89199 — или номер вида Т114НК977</p>
+           дешевле, чем по госномеру (конвертация — отдельный платный запрос).
+           11.08.2026: госномер убран из обещаний — у поставщика нет базы
+           соответствия номер→VIN, 0 опознаний из 198 попыток. Ввод по нему
+           по-прежнему принимается, но человек сразу видит честный отказ и не
+           платит (см. plate_unsupported). -->
+      <p class="note hint">Например WBA11AD0305R89199 — VIN есть в ПТС, СТС и на кузове под лобовым стеклом</p>
 
 
       <div class="hero-badges">
@@ -1050,7 +1054,7 @@ footer .links a:hover{color:var(--ink);text-decoration:none}
 <script>window.ANALYTICS_CONFIG = {endpoint:'/api/goal', metrika:111408587};</script>
 <!-- Версия обязательна: в файл добавлен заслон от ботов, а у прежних
      посетителей он лежит в кэше без него. -->
-<script src="/static/analytics.js?v=h1"></script>
+<script src="/static/analytics.js?v=h2"></script>
 <!-- Варианты экрана цены (визуальный A/B/C). Грузится до основного скрипта:
      wizFinal/wizObjectOnly спрашивают renderPriceVariant при отрисовке. -->
 <!-- Версия в ссылке обязательна: файл переехал с недвижимости на авто, и у
@@ -1281,7 +1285,7 @@ function openCheckout(tariff){
       setTimeout(function(){ heroInput.style.boxShadow = ''; }, 1600);
       if(heroInput.placeholder && heroInput.placeholder.indexOf('Укажите') < 0){
         heroInput.setAttribute('data-ph0', heroInput.placeholder);
-        heroInput.placeholder = 'VIN или госномер';
+        heroInput.placeholder = 'VIN — 17 знаков';
         setTimeout(function(){ var p=heroInput.getAttribute('data-ph0'); if(p) heroInput.placeholder=p; }, 4000);
       }
     }
@@ -1432,7 +1436,8 @@ function renderResult(res){
   // Источник данных недоступен — платный отчёт тоже не соберётся. Оплату в этом
   // состоянии не предлагаем вовсе: взять деньги и не выдать отчёт хуже, чем
   // потерять заявку. Человеку говорим прямо и зовём вернуться.
-  if(isPreview){ window._srcDown = (res.source_down === true); }
+  if(isPreview){ window._srcDown = (res.source_down === true);
+                 window._plateNo = (res.plate_unsupported === true); }
   // Выбор квартиры — только когда номер НЕ вводили и дом многоквартирный. Если
   // номер назвали, а квартира не нашлась, список показывать бессмысленно: её там
   // нет, мы только что искали. В этом случае человек видит разбор адреса, и два
@@ -1702,6 +1707,22 @@ function wizRender(step){
   candShowWizard(true);
   // Гейт стоит на входе в мастер — до всех шагов и до любого экрана цены,
   // иначе кнопку оплаты пришлось бы гасить в четырёх местах и одно бы забылось.
+  // Госномер: у поставщика нет базы соответствия номер→VIN (0 опознаний из
+  // 198 попыток). Говорим прямо и НЕ предлагаем оплату — четверо уже заплатили
+  // за проверку, которую мы физически не могли выполнить.
+  if(window._plateNo){
+    box.innerHTML =
+      '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:15px 16px">'+
+      '<div style="font-weight:800;font-size:15px;color:#92400e;margin-bottom:5px">По госномеру сейчас проверить не можем</div>'+
+      '<div style="font-size:13px;color:#78350f;line-height:1.55">База, которая переводит госномер в VIN, '+
+      'у поставщика не отвечает — поэтому и оплату не предлагаем. '+
+      '<b>Введите VIN</b> — он в ПТС, СТС и на кузове под лобовым стеклом, 17 знаков. '+
+      'По VIN проверка работает в полном объёме.</div></div>'+
+      '<div class="cta-sticky"><button class="btn" style="width:100%;margin-top:12px" type="button" '+
+      'onclick="location.reload()">Ввести VIN</button></div>';
+    goal('plate_unsupported', {});
+    return;
+  }
   if(window._srcDown){
     box.innerHTML =
       '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:15px 16px">'+
@@ -2181,7 +2202,7 @@ async function runPreview(){
   modalErr.classList.remove('show');
   modalTodo.classList.remove('show');
   var obj = (currentObject || coObj.value || heroInput.value.trim()).trim();
-  if(!obj){ showErr('Укажите VIN или госномер автомобиля.'); return; }
+  if(!obj){ showErr('Укажите VIN автомобиля — 17 знаков.'); return; }
   goal('preview_submit', {tariff: currentTariff, object: obj});
   try{
     var resp = await fetch('/api/check', {

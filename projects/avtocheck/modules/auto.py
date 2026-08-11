@@ -292,6 +292,17 @@ def preview(raw: str) -> dict[str, Any]:
     kind, ref = normalize_ref(raw)
     if not kind:
         return {"found": False, "why": "not_recognized", "ref": ref}
+    # ГОСНОМЕР НЕ РАБОТАЕТ — 11.08.2026. Замер по журналу опознаний: по VIN
+    # опознано 113 из 125 (90%), по госномеру 0 из 198 (ноль). Поставщик на
+    # метод number2vin отвечает «в кэше нет данных», а платный convertb2b
+    # (7 ₽) — «нет данных» вообще. То есть базы соответствия номер→VIN у него
+    # просто нет.
+    #
+    # Четверо успели оплатить проверку по госномеру и не получили ничего.
+    # Пока источник не заработает, не берём деньги за то, чего не умеем:
+    # отвечаем сразу, до единого платного вызова.
+    if kind == "plate":
+        return {"found": False, "why": "plate_unsupported", "ref": ref}
     try:
         got = apipoint.identify(vin=ref if kind == "vin" else "",
                                 plate=ref if kind == "plate" else "")

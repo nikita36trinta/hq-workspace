@@ -808,7 +808,7 @@ ANALYTICS_CFG = AnalyticsConfig(
                   "seller_addon_pay",
                   # Дочитывание страницы, JS-ошибки и воскрешённая цель Метрики.
                   "see_sources", "see_compare", "see_pricing", "see_faq", "faq_open",
-                  "js_error", "tracker_blocked", "pay_start"},
+                  "js_error", "tracker_blocked", "plate_unsupported", "pay_start"},
     # прочие собираемые сигналы → отдельная карточка (раньше молча отбрасывались)
     signal_labels={"report_demo_view": "Посмотрели демо-отчёт", "cta_click": "Клик по CTA",
                    "bump_shown": "Развилка расширенного · показали", "monitor_started": "Запустили мониторинг",
@@ -842,6 +842,7 @@ ANALYTICS_CFG = AnalyticsConfig(
                    # поправку к данным Метрики (она видит только тех, у кого
                    # счётчик загрузился).
                    "tracker_blocked": "Счётчик заблокирован у посетителя",
+                   "plate_unsupported": "Ввёл госномер — опознать нечем",
                    "pay_start": "Создали платёж → ЮKassa"},
 )
 app.include_router(_an_router(ANALYTICS_CFG))
@@ -1931,9 +1932,14 @@ def _run_job(job_id: str, req: "CheckRequest", ym_uid: str = "") -> None:
         # нашли ИМЕННО его машину, иначе он не заплатит. По госномеру вдвое
         # дороже (нужна конвертация в VIN), поэтому в форме просим VIN.
         source_down = False
+        plate_unsupported = False
         try:
             from modules import auto as _auto
             _pv = _auto.preview(req.object_ref)
+            # Госномер: источник не умеет находить по нему VIN (0 опознаний из
+            # 198). Гасим оплату так же, как при молчащем источнике — деньги за
+            # то, чего мы не сделаем, брать нельзя.
+            plate_unsupported = str(_pv.get("why") or "") == "plate_unsupported"
             # Источник молчит или у нас кончился баланс — платный отчёт тоже не
             # пройдёт. Значит и деньги брать нельзя: это ровно тот случай, когда
             # человек платит и не получает ничего. Кнопку оплаты гасит фронт.
@@ -2012,7 +2018,7 @@ def _run_job(job_id: str, req: "CheckRequest", ym_uid: str = "") -> None:
             "report_id": report_id, "risk": "preview", "headline": head,
             "body": "", "recommendations": [], "llm_used": False,
             "object_preview": obj_preview, "addr_unresolved": addr_unresolved,
-            "source_down": source_down,
+            "source_down": source_down, "plate_unsupported": plate_unsupported,
             "parsed_address": parsed_addr, "want_flat": want_flat, "house_only": house_only,
             "show_candidates": show_candidates, "flat_unknown": flat_unknown,
             "no_egrn_district": no_egrn,
@@ -2116,6 +2122,7 @@ def _preview_result(result: dict[str, Any]) -> dict[str, Any]:
         "n_flags": n_flags,
         "object_preview": result.get("object_preview"),
         "addr_unresolved": result.get("addr_unresolved"),  # адрес не найден → фронт покажет подсказку
+        "plate_unsupported": result.get("plate_unsupported"),  # по госномеру опознать нечем
         # Разобранный адрес показываем вместо пустого места: «регион, район, посёлок,
         # улица, индекс» подтверждает человеку, что мы его поняли, и стоит ноль запросов.
         "parsed_address": result.get("parsed_address") or [],
